@@ -571,18 +571,56 @@
 
         function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
             const key = `${dayIdx}-${shiftType}`;
+            
+            // עובדים שהגישו זמינות למשמרת זו
             let available = employees.filter(e => {
                 let empShifts = employeeAvailMap[e.name] || {};
-                return empShifts[key] && !alreadyAssignedToday.some(a => a.name === e.name);
+                return empShifts[key];
             });
 
-            available.sort((a, b) => {
-                if (b.rank !== a.rank) return b.rank - a.rank;
-                if (shiftCounts[a.name] !== shiftCounts[b.name]) return shiftCounts[a.name] - shiftCounts[b.name];
-                return Math.random() - 0.5;
-            });
+            // פיצול לעובדים שלא עבדו היום (רעננים) ועובדים שכבר עבדו היום (עייפים)
+            let fresh = available.filter(e => !alreadyAssignedToday.some(a => a.name === e.name));
+            let tired = available.filter(e => alreadyAssignedToday.some(a => a.name === e.name));
 
-            return available.slice(0, requiredCount);
+            // פונקציית מיון לפי דירוג (גבוה לנמוך) ואז לפי משמרות שבועיות (נמוך לגבוה)
+            const sortEmps = (arr) => {
+                arr.sort((a, b) => {
+                    if (b.rank !== a.rank) return b.rank - a.rank;
+                    if (shiftCounts[a.name] !== shiftCounts[b.name]) return shiftCounts[a.name] - shiftCounts[b.name];
+                    return Math.random() - 0.5;
+                });
+            };
+
+            sortEmps(fresh);
+            sortEmps(tired);
+
+            // 1. קודם כל לוקחים מהעובדים ה"רעננים"
+            let chosen = fresh.slice(0, requiredCount);
+
+            // 2. אם חסר עובד למשמרת – משלימים מעובדים שכבר עבדו היום
+            if (chosen.length < requiredCount && tired.length > 0) {
+                let needed = requiredCount - chosen.length;
+                let fromTired = tired.slice(0, needed);
+                chosen.push(...fromTired);
+                // עדכון רשימת ה"עייפים" הנותרים
+                tired = tired.filter(t => !fromTired.some(ft => ft.name === t.name));
+            }
+
+            // 3. אם נוצר מצב של 2 עובדים חלשים (דירוג 1) בשיבוץ, ויש עובד חזק (דירוג 3) שעבד בבוקר – מעדיפים להחליף
+            let weakInChosen = chosen.filter(e => e.rank === 1);
+            let strongInTired = tired.filter(e => e.rank === 3);
+
+            if (weakInChosen.length >= 2 && strongInTired.length > 0) {
+                let weakToReplace = weakInChosen[weakInChosen.length - 1];
+                let strongToInsert = strongInTired[0];
+
+                let replaceIdx = chosen.findIndex(e => e.name === weakToReplace.name);
+                if (replaceIdx !== -1) {
+                    chosen[replaceIdx] = strongToInsert;
+                }
+            }
+
+            return chosen;
         }
 
         function renderShiftCell(dayIdx, shiftType, defaultTime) {
