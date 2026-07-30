@@ -636,16 +636,20 @@
                 tired = tired.filter(t => !fromTired.some(ft => ft.name === t.name));
             }
 
-            let weakInChosen = chosen.filter(e => e.rank === 1);
-            let strongInTired = tired.filter(e => e.rank === 3);
-
-            if (weakInChosen.length >= 2 && strongInTired.length > 0) {
-                let weakToReplace = weakInChosen[weakInChosen.length - 1];
-                let strongToInsert = strongInTired[0];
-
-                let replaceIdx = chosen.findIndex(e => e.name === weakToReplace.name);
-                if (replaceIdx !== -1) {
-                    chosen[replaceIdx] = strongToInsert;
+            // כלל ברזל: הבטחת עובד חזק (דירוג 3) אחד לפחות במשמרת במידה וקיים
+            const hasStrong = chosen.some(e => e.rank === 3);
+            
+            if (!hasStrong && chosen.length > 0) {
+                const availableStrong = available.find(e => e.rank === 3 && !chosen.some(c => c.name === e.name));
+                
+                if (availableStrong) {
+                    let lowestRankIdx = 0;
+                    for (let i = 1; i < chosen.length; i++) {
+                        if (chosen[i].rank < chosen[lowestRankIdx].rank) {
+                            lowestRankIdx = i;
+                        }
+                    }
+                    chosen[lowestRankIdx] = availableStrong;
                 }
             }
 
