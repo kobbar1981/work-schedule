@@ -245,18 +245,20 @@
         </div>
 
         <div class="card">
-            <h2>סיכום שבועי והערות עובדים</h2>
+            <h2>סיכום שבועי ומעקב זמינויות</h2>
+            <div id="submissionSummaryCount"></div>
             <div class="table-wrapper">
                 <table class="summary-table">
                     <thead>
                         <tr>
                             <th>שם העובד/ת</th>
+                            <th>סטטוס הגשה</th>
                             <th>משמרות זמינות</th>
                             <th>משמרות בפועל</th>
                         </tr>
                     </thead>
                     <tbody id="summaryTableBody">
-                        <tr><td colspan="3" style="color: #888;">טרם בוצע שיבוץ</td></tr>
+                        <tr><td colspan="4" style="color: #888;">טוען נתונים...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -360,6 +362,7 @@
 
                 renderEmployeesList();
                 renderSummaryTable();
+                renderManagerNotes();
             } catch(e) {
                 console.error("שגיאה בטעינת הנתונים:", e);
                 document.getElementById('empList').innerHTML = '<p style="color:#d63031;">אירעה שגיאה בטעינת העובדים. אנא רענן את העמוד.</p>';
@@ -396,7 +399,6 @@
                 const emp = employees.find(e => e.name === name);
                 if (emp) emp.rank = parsedRank;
                 
-                // רענון האזהרות בלוח אם קים כבר שיבוץ
                 if (Object.keys(currentSchedule).length > 0) {
                     daysKeys.forEach(dIdx => {
                         let mTime = document.getElementById('mStart')?.value + '-' + document.getElementById('mEnd')?.value;
@@ -670,25 +672,48 @@
 
         function renderSummaryTable() {
             const tbody = document.getElementById('summaryTableBody');
+            const countSummary = document.getElementById('submissionSummaryCount');
+            
             if (employees.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3">אין עובדים</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4">אין עובדים במערכת</td></tr>';
+                if(countSummary) countSummary.innerHTML = '';
                 return;
             }
+
+            let submittedCount = 0;
+
             tbody.innerHTML = employees.map((emp) => {
+                let hasSubmitted = !!employeeAvailMap[emp.name];
+                if(hasSubmitted) submittedCount++;
+                
                 let availCount = Object.values(employeeAvailMap[emp.name] || {}).filter(Boolean).length;
                 let assignedCount = 0;
                 Object.values(currentSchedule).forEach(list => {
                     if(list.includes(emp.name)) assignedCount++;
                 });
                 const empColor = emp.color || '#888';
+                
+                const statusBadge = hasSubmitted 
+                    ? `<span style="color: #27ae60; font-weight: bold; background: #e8f8f5; padding: 3px 8px; border-radius: 12px; font-size: 0.85em;">✔ מילא</span>`
+                    : `<span style="color: #e74c3c; font-weight: bold; background: #fadbd8; padding: 3px 8px; border-radius: 12px; font-size: 0.85em;">✖ טרם מילא</span>`;
+
                 return `
                     <tr>
                         <td><span class="emp-tag" style="background-color:${empColor}; display:inline-block; margin:0;">${emp.name}</span></td>
+                        <td>${statusBadge}</td>
                         <td><span class="stat-num">${availCount}</span></td>
                         <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
                     </tr>
                 `;
             }).join('');
+
+            if(countSummary) {
+                countSummary.innerHTML = `
+                    <div style="background: #eef5ff; padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; color: #1877f2; border: 1px solid #cce0ff;">
+                        מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים
+                    </div>
+                `;
+            }
         }
 
         function renderManagerNotes() {
