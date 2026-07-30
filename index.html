@@ -74,7 +74,22 @@
         .emp-tag { display: block; padding: 6px 10px; border-radius: 6px; font-weight: bold; color: black; margin-bottom: 4px; font-size: 0.95em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.72em; padding: 2px 4px; border-radius: 4px; margin-top: 3px; display: inline-block; font-weight: bold; }
-        .custom-time-input { font-size: 0.8em; text-align: center; padding: 2px; border: 1px solid #bbb; border-radius: 4px; width: 100%; background: white; color: #333; margin-top: 4px; }
+        
+        /* תיקון תצוגת שעות - מניעת חיתוך ושינוי כיווניות ל-LTR */
+        .custom-time-input { 
+            font-size: 0.75em; 
+            text-align: center; 
+            padding: 2px 1px; 
+            border: 1px solid #bbb; 
+            border-radius: 4px; 
+            width: 100%; 
+            background: white; 
+            color: #333; 
+            margin-top: 4px; 
+            direction: ltr !important; 
+            box-sizing: border-box; 
+        }
+
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
         .summary-table th { background-color: #34495e; color: white; }
@@ -462,12 +477,11 @@
             }
         };
 
-        // עדכון קוד אישי לעובד קיים
         window.updateEmployeePin = async function(name, newPin) {
             newPin = newPin.trim();
             if (!newPin || newPin.length !== 4) {
                 alert("קוד עובד חייב להכיל בדיוק 4 ספרות!");
-                loadManagerData(); // רענון כדי להחזיר את הערך הקודם
+                loadManagerData();
                 return;
             }
             try {
