@@ -195,7 +195,7 @@
             <button onclick="addEmployee()">הוסף עובד</button>
             <button class="reset-btn" onclick="resetScheduleOnly()">איפוס שיבוץ וזמינויות בלבד</button>
 
-            <h3>צוות העובדים במערכת:</h3>
+            <h3>צוות העובדים במערכת (ניתן לערוך קוד/רמה):</h3>
             <div id="empList"></div>
         </div>
 
@@ -304,7 +304,7 @@
             <div id="managerNotesContainer" style="margin-top: 15px;"></div>
         </div>
 
-        <!-- כרטיס חדש: הגדרות מנהל -->
+        <!-- הגדרות מנהל -->
         <div class="card">
             <h2>הגדרות מנהל</h2>
             <div class="form-group">
@@ -369,7 +369,6 @@
             }
         };
 
-        // בדיקת סיסמת מנהל מעודכנת מ-Firebase (ברירת מחדל 1212)
         window.checkManagerPassword = async function() {
             let currentPass = "1212";
             try {
@@ -389,7 +388,6 @@
             }
         };
 
-        // עדכון סיסמת מנהל
         window.updateManagerPassword = async function() {
             const newPass = document.getElementById('newManagerPass').value.trim();
             if (!newPass) {
@@ -464,6 +462,24 @@
             }
         };
 
+        // עדכון קוד אישי לעובד קיים
+        window.updateEmployeePin = async function(name, newPin) {
+            newPin = newPin.trim();
+            if (!newPin || newPin.length !== 4) {
+                alert("קוד עובד חייב להכיל בדיוק 4 ספרות!");
+                loadManagerData(); // רענון כדי להחזיר את הערך הקודם
+                return;
+            }
+            try {
+                await setDoc(doc(db, "employees", name), { pin: newPin }, { merge: true });
+                const emp = employees.find(e => e.name === name);
+                if (emp) emp.pin = newPin;
+            } catch(e) {
+                console.error("שגיאה בעדכון קוד עובד:", e);
+                alert("אירעה שגיאה בעדכון הקוד.");
+            }
+        };
+
         window.updateEmployeeRank = async function(name, newRank) {
             try {
                 const parsedRank = parseInt(newRank);
@@ -499,7 +515,15 @@
                     <div class="emp-item">
                         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                             <span class="emp-tag" style="background-color: ${empColor}; display:inline-block; margin:0;">${e.name}</span>
-                            <span style="font-size: 0.85em; color: #555; background: #eee; padding: 2px 6px; border-radius: 4px;">קוד: ${e.pin || '1234'}</span>
+                            
+                            <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 6px; border-radius: 4px;">
+                                <span style="font-size:0.8em; color:#555; font-weight:bold;">קוד:</span>
+                                <input type="text" value="${e.pin || '1234'}" maxlength="4" 
+                                       style="width: 55px; padding: 2px 4px; font-size: 0.85em; text-align: center; margin: 0; background: white;" 
+                                       onchange="updateEmployeePin('${e.name}', this.value)" 
+                                       pattern="[0-9]*" inputmode="numeric" title="לחץ לשנה קוד">
+                            </div>
+
                             <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0;">
                                 <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
                                 <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
