@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>מערכת סידור עבודה חכם</title>
     
-    <!-- הגדרות הופכות אפליקציה (PWA) לפתיחה עצמאית מהירה -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="סידור עבודה">
@@ -19,7 +18,6 @@
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.9em; }
         
-        /* עיצוב כללי לשדות קלט - ללא תיבות סימון */
         input:not([type="checkbox"]), select, textarea, button { 
             padding: 10px; 
             font-size: 14px; 
@@ -30,7 +28,6 @@
             font-family: inherit; 
         }
 
-        /* תיקון ייחודי לריבועי סימון באייפון ובסלולר */
         input[type="checkbox"] {
             width: 20px !important;
             height: 20px !important;
@@ -59,7 +56,7 @@
         .reset-btn { background-color: #e67e22; margin-top: 10px; }
         .reset-btn:hover { background-color: #d35400; }
         .time-range { display: flex; gap: 5px; }
-        .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
         
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85em; min-width: 600px; }
@@ -71,11 +68,6 @@
         td.warning-shift { background-color: #fff0f0 !important; border: 2px solid #ff4d4d !important; }
         .warning-banner { background-color: #ff4d4d; color: white; font-size: 0.75em; font-weight: bold; padding: 3px 5px; border-radius: 4px; margin-bottom: 6px; display: block; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 
-        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold; color: white; }
-        .badge-1 { background-color: #e74c3c; }
-        .badge-2 { background-color: #f39c12; }
-        .badge-3 { background-color: #2ecc71; }
-        
         .emp-container { margin-bottom: 8px; background: white; border: 1px solid #ddd; padding: 6px; border-radius: 8px; display: block; box-sizing: border-box; }
         .empty-slot { margin-bottom: 8px; border: 2px dashed #3498db; background: #f0f8ff; padding: 8px; border-radius: 8px; color: #2980b9; font-weight: bold; font-size: 0.85em; cursor: pointer; }
         
@@ -87,13 +79,11 @@
 
         .summary-table th { background-color: #34495e; color: white; }
         .stat-num { font-weight: bold; font-size: 1.1em; }
-        .toast-msg { display: none; background-color: #27ae60; color: white; padding: 8px 12px; border-radius: 6px; margin-top: 8px; font-weight: bold; text-align: center; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .modal-card { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
         .modal-btn-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; margin-top: 12px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; }
         
-        /* סידור רשת המשמרות בטופס עובד */
         .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; text-align: right; }
         .shift-checkboxes label { 
             background: #f8f9fa; 
@@ -116,7 +106,7 @@
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .warning-banner, .unavail-badge, .no-print, h1, .print-pencil { display: none !important; }
+            .export-group, .empty-slot, .warning-banner, .unavail-badge, .no-print, h1 { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
         }
@@ -132,16 +122,25 @@
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל (ניהול ושיבוץ)</button>
     </div>
 
+    <!-- מסך כניסת עובד -->
     <div class="card hidden" id="employeeView">
         <h2>הגשת זמינות שבועית לעובד/ת</h2>
+        
         <div class="form-group">
-            <label>בחר את שמך מהרשימה:</label>
-            <select id="employeeNameDropdown" onchange="onEmployeeSelected()">
+            <label>1. בחר את שמך מהרשימה:</label>
+            <select id="employeeNameDropdown" onchange="resetPinStep()">
                 <option value="">טוען עובדים...</option>
             </select>
         </div>
 
+        <div class="form-group" id="pinStepArea">
+            <label>2. הכנס קוד אישי (4 ספרות):</label>
+            <input type="password" id="employeePinInput" maxlength="4" placeholder="****" pattern="[0-9]*" inputmode="numeric">
+            <button onclick="verifyEmployeePin()" style="margin-top: 8px; background-color: #3498db;">אימות קוד</button>
+        </div>
+
         <div id="employeeFormArea" class="hidden">
+            <hr style="margin: 15px 0;">
             <label>סמן את המשמרות שאתה יכול לעבוד בהן:</label>
             <div class="shift-checkboxes" id="shiftsCheckboxContainer">
                 <label><input type="checkbox" value="0-m"> <span>ראשון בוקר</span></label>
@@ -166,16 +165,20 @@
         </div>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
-        <div id="empToast" class="toast-msg"></div>
     </div>
 
+    <!-- מסך מנהל -->
     <div class="hidden" id="managerView">
         
         <div class="card">
             <h2>1. הוספת עובד/ת ודירוג</h2>
             <div class="form-group">
-                <label>שם העובד/ת:</label>
-                <input type="text" id="empName" placeholder="הכנס שם...">
+                <label>שם העובד/ת (מומלץ כולל שם משפחה):</label>
+                <input type="text" id="empName" placeholder="הכנס שם מלא...">
+            </div>
+            <div class="form-group">
+                <label>קוד אישי לעובד (4 ספרות):</label>
+                <input type="text" id="empPin" maxlength="4" placeholder="למשל: 1234" pattern="[0-9]*" inputmode="numeric">
             </div>
             <div class="form-group">
                 <label>דירוג רמה (עדיפות בשיבוץ):</label>
@@ -301,6 +304,16 @@
             <div id="managerNotesContainer" style="margin-top: 15px;"></div>
         </div>
 
+        <!-- כרטיס חדש: הגדרות מנהל -->
+        <div class="card">
+            <h2>הגדרות מנהל</h2>
+            <div class="form-group">
+                <label>שינוי סיסמת מנהל:</label>
+                <input type="password" id="newManagerPass" placeholder="הכנס סיסמה חדשה...">
+            </div>
+            <button onclick="updateManagerPassword()" style="background-color: #8e44ad;">עדכן סיסמת מנהל</button>
+        </div>
+
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
 
@@ -314,7 +327,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyASfsSMXS62ehM1kVSjOpudOEUGUh37BYI",
@@ -338,6 +351,7 @@
         let currentSchedule = {};
         let activeSwapKey = null;
         let activeSwapIndex = null;
+        let verifiedEmployeeName = null;
 
         window.switchView = function(viewName) {
             document.getElementById('selectionView').classList.add('hidden');
@@ -355,12 +369,40 @@
             }
         };
 
-        window.checkManagerPassword = function() {
+        // בדיקת סיסמת מנהל מעודכנת מ-Firebase (ברירת מחדל 1212)
+        window.checkManagerPassword = async function() {
+            let currentPass = "1212";
+            try {
+                const docSnap = await getDoc(doc(db, "settings", "manager_config"));
+                if (docSnap.exists() && docSnap.data().password) {
+                    currentPass = docSnap.data().password;
+                }
+            } catch(e) {
+                console.error("שגיאה בשליפת סיסמת מנהל:", e);
+            }
+
             const pass = prompt("הכנס סיסמת מנהל:");
-            if(pass === "1212") {
+            if(pass === currentPass) {
                 switchView('manager');
             } else if(pass !== null) {
                 alert("סיסמה שגויה!");
+            }
+        };
+
+        // עדכון סיסמת מנהל
+        window.updateManagerPassword = async function() {
+            const newPass = document.getElementById('newManagerPass').value.trim();
+            if (!newPass) {
+                alert("אנא הכנס סיסמה חדשה!");
+                return;
+            }
+            try {
+                await setDoc(doc(db, "settings", "manager_config"), { password: newPass }, { merge: true });
+                alert("סיסמת המנהל עודכנה בהצלחה!");
+                document.getElementById('newManagerPass').value = '';
+            } catch(e) {
+                console.error("שגיאה בעדכון סיסמת מנהל:", e);
+                alert("אירעה שגיאה בעדכון הסיסמה.");
             }
         };
 
@@ -372,16 +414,11 @@
                 empSnap.forEach((d, idx) => {
                     let data = d.data();
                     let docId = d.id; 
-                    
                     if(!data.name) data.name = docId; 
-                    
+                    if(!data.pin) data.pin = "1234";
                     if(!data.color) {
                         data.color = colors[idx % colors.length];
-                        try {
-                            setDoc(doc(db, "employees", docId), { color: data.color }, { merge: true });
-                        } catch(err) {
-                            console.warn("דילוג על שמירת צבע לעובד לא תקין", docId);
-                        }
+                        try { setDoc(doc(db, "employees", docId), { color: data.color }, { merge: true }); } catch(err){}
                     }
                     employees.push(data);
                 });
@@ -401,25 +438,24 @@
                 renderManagerNotes();
             } catch(e) {
                 console.error("שגיאה בטעינת הנתונים:", e);
-                document.getElementById('empList').innerHTML = '<p style="color:#d63031;">אירעה שגיאה בטעינת העובדים. אנא רענן את העמוד.</p>';
             }
         };
 
         window.addEmployee = async function() {
             const name = document.getElementById('empName').value.trim();
+            const pin = document.getElementById('empPin').value.trim();
             const rank = parseInt(document.getElementById('empRank').value);
             const color = document.getElementById('empColorInput').value;
 
-            if (!name) {
-                alert("אנא הכנס שם עובד");
-                return;
-            }
+            if (!name) { alert("אנא הכנס שם עובד"); return; }
+            if (!pin || pin.length !== 4) { alert("אנא הכנס קוד אישי בן 4 ספרות"); return; }
             
-            const newEmp = { id: Date.now(), name, rank, color };
+            const newEmp = { id: Date.now(), name, pin, rank, color };
 
             try {
                 await setDoc(doc(db, "employees", name), newEmp);
                 document.getElementById('empName').value = '';
+                document.getElementById('empPin').value = '';
                 alert("העובד נוסף בהצלחה!");
                 loadManagerData();
             } catch(e) {
@@ -434,20 +470,8 @@
                 await setDoc(doc(db, "employees", name), { rank: parsedRank }, { merge: true });
                 const emp = employees.find(e => e.name === name);
                 if (emp) emp.rank = parsedRank;
-                
-                if (Object.keys(currentSchedule).length > 0) {
-                    daysKeys.forEach(dIdx => {
-                        let mTime = document.getElementById('mStart')?.value + '-' + document.getElementById('mEnd')?.value;
-                        let eTime = document.getElementById('eStart')?.value + '-' + document.getElementById('eEnd')?.value;
-                        if (dIdx === '5') mTime = document.getElementById('friMStart')?.value + '-' + document.getElementById('friMEnd')?.value;
-                        
-                        renderShiftCell(dIdx, 'm', mTime);
-                        if (dIdx !== '5') renderShiftCell(dIdx, 'e', eTime);
-                    });
-                }
             } catch(e) {
-                console.error("שגיאה בעדכון דירוג העובד:", e);
-                alert("אירעה שגיאה בעדכון הדירוג.");
+                console.error(e);
             }
         };
 
@@ -473,9 +497,10 @@
                 const empColor = e.color || "#888"; 
                 return `
                     <div class="emp-item">
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                             <span class="emp-tag" style="background-color: ${empColor}; display:inline-block; margin:0;">${e.name}</span>
-                            <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0; cursor: pointer;">
+                            <span style="font-size: 0.85em; color: #555; background: #eee; padding: 2px 6px; border-radius: 4px;">קוד: ${e.pin || '1234'}</span>
+                            <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0;">
                                 <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
                                 <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
                                 <option value="1" ${e.rank == 1 ? 'selected' : ''}>חלש (1)</option>
@@ -490,18 +515,14 @@
         async function loadEmployeesForEmployeeView() {
             const dropdown = document.getElementById('employeeNameDropdown');
             dropdown.innerHTML = '<option value="">בחר את שמך...</option>';
-            
-            document.getElementById('employeeFormArea').classList.add('hidden');
-            document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => cb.checked = false);
-            document.getElementById('employeeNoteInput').value = '';
+            resetPinStep();
 
             try {
                 const empSnap = await getDocs(collection(db, "employees"));
                 employees = [];
-                empSnap.forEach((d, idx) => {
+                empSnap.forEach((d) => {
                     let data = d.data();
                     if (!data.name) data.name = d.id; 
-                    if(!data.color) data.color = colors[idx % colors.length];
                     employees.push(data);
                 });
 
@@ -513,27 +534,59 @@
             }
         }
 
-        window.onEmployeeSelected = function() {
-            const name = document.getElementById('employeeNameDropdown').value;
-            const checkboxes = document.querySelectorAll('#shiftsCheckboxContainer input');
-            const noteInput = document.getElementById('employeeNoteInput');
-            const formArea = document.getElementById('employeeFormArea');
+        window.resetPinStep = function() {
+            verifiedEmployeeName = null;
+            document.getElementById('employeePinInput').value = '';
+            document.getElementById('employeeFormArea').classList.add('hidden');
+        };
 
-            checkboxes.forEach(cb => cb.checked = false);
-            noteInput.value = '';
-            
-            if (!name) {
-                formArea.classList.add('hidden');
+        window.verifyEmployeePin = async function() {
+            const selectedName = document.getElementById('employeeNameDropdown').value;
+            const inputPin = document.getElementById('employeePinInput').value.trim();
+
+            if (!selectedName) {
+                alert("אנא בחר שם עובד מהרשימה!");
                 return;
             }
-            
-            formArea.classList.remove('hidden');
+            if (!inputPin) {
+                alert("אנא הכנס קוד אישי!");
+                return;
+            }
+
+            const emp = employees.find(e => e.name === selectedName);
+            const correctPin = emp ? (emp.pin || "1234") : null;
+
+            if (inputPin === correctPin) {
+                verifiedEmployeeName = selectedName;
+                document.getElementById('employeeFormArea').classList.remove('hidden');
+                
+                try {
+                    const availSnap = await getDocs(collection(db, "availability"));
+                    let existingAvail = {};
+                    let existingNote = '';
+                    availSnap.forEach(d => {
+                        if (d.id === selectedName || d.data().name === selectedName) {
+                            existingAvail = d.data().shifts || {};
+                            existingNote = d.data().note || '';
+                        }
+                    });
+
+                    document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => {
+                        cb.checked = !!existingAvail[cb.value];
+                    });
+                    document.getElementById('employeeNoteInput').value = existingNote;
+                } catch(err) {
+                    console.error(err);
+                }
+            } else {
+                alert("קוד אישי שגוי! גישה נדחתה.");
+                document.getElementById('employeeFormArea').classList.add('hidden');
+            }
         };
 
         window.submitEmployeeAvailability = async function() {
-            const name = document.getElementById('employeeNameDropdown').value;
-            if(!name) {
-                alert("אנא בחר את שמך מהרשימה!");
+            if(!verifiedEmployeeName) {
+                alert("יש לאמת קוד אישי תחילה!");
                 return;
             }
 
@@ -545,8 +598,8 @@
             const note = document.getElementById('employeeNoteInput').value.trim();
 
             try {
-                await setDoc(doc(db, "availability", name), {
-                    name: name,
+                await setDoc(doc(db, "availability", verifiedEmployeeName), {
+                    name: verifiedEmployeeName,
                     shifts: selectedShifts,
                     note: note
                 });
@@ -560,10 +613,7 @@
         };
 
         window.generateSchedule = function() {
-            if (employees.length === 0) {
-                alert("אין עובדים במערכת!");
-                return;
-            }
+            if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
 
             const mStart = document.getElementById('mStart').value;
             const mEnd = document.getElementById('mEnd').value;
@@ -636,12 +686,10 @@
                 tired = tired.filter(t => !fromTired.some(ft => ft.name === t.name));
             }
 
-            // כלל ברזל: הבטחת עובד חזק (דירוג 3) אחד לפחות במשמרת במידה וקיים
             const hasStrong = chosen.some(e => e.rank === 3);
             
             if (!hasStrong && chosen.length > 0) {
                 const availableStrong = available.find(e => e.rank === 3 && !chosen.some(c => c.name === e.name));
-                
                 if (availableStrong) {
                     let lowestRankIdx = 0;
                     for (let i = 1; i < chosen.length; i++) {
