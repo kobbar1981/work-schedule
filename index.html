@@ -60,7 +60,7 @@
         
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85em; min-width: 600px; }
-        th, td { border: 1px solid #ddd; padding: 6px 2px; text-align: center; vertical-align: middle; transition: background-color 0.3s; }
+        th, td { border: 1px solid #ddd; padding: 4px 1px; text-align: center; vertical-align: middle; transition: background-color 0.3s; }
         th { background-color: #f5f6f7; }
         .schedule-table th { width: 15%; }
         .schedule-table th:first-child { width: 10%; }
@@ -68,25 +68,27 @@
         td.warning-shift { background-color: #fff0f0 !important; border: 2px solid #ff4d4d !important; }
         .warning-banner { background-color: #ff4d4d; color: white; font-size: 0.75em; font-weight: bold; padding: 3px 5px; border-radius: 4px; margin-bottom: 6px; display: block; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 
-        .emp-container { margin-bottom: 8px; background: white; border: 1px solid #ddd; padding: 4px; border-radius: 8px; display: block; box-sizing: border-box; }
+        .emp-container { margin-bottom: 6px; background: white; border: 1px solid #ddd; padding: 3px 1px; border-radius: 6px; display: block; box-sizing: border-box; }
         .empty-slot { margin-bottom: 8px; border: 2px dashed #3498db; background: #f0f8ff; padding: 8px; border-radius: 8px; color: #2980b9; font-weight: bold; font-size: 0.85em; cursor: pointer; }
         
-        .emp-tag { display: block; padding: 6px 4px; border-radius: 6px; font-weight: bold; color: black; margin-bottom: 4px; font-size: 0.9em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+        .emp-tag { display: block; padding: 5px 2px; border-radius: 5px; font-weight: bold; color: black; margin-bottom: 3px; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
-        .unavail-badge { background-color: #d63031; color: white; font-size: 0.72em; padding: 2px 4px; border-radius: 4px; margin-top: 3px; display: inline-block; font-weight: bold; }
+        .unavail-badge { background-color: #d63031; color: white; font-size: 0.7em; padding: 1px 3px; border-radius: 4px; margin-top: 2px; display: inline-block; font-weight: bold; }
         
-        /* תיקון תצוגת שעות - דחיסת גופן ומניעת רווחים מיותרים */
+        /* עיצוב משופר לשדה השעות למניעת חיתוך בכל מסך */
         .custom-time-input { 
-            font-size: 0.68em; 
-            letter-spacing: -0.5px;
+            font-size: 10px !important; 
+            font-weight: bold;
+            letter-spacing: -0.8px; 
             text-align: center; 
-            padding: 2px 0; 
+            padding: 2px 0 !important; 
             border: 1px solid #bbb; 
             border-radius: 4px; 
-            width: 100%; 
-            background: white; 
-            color: #333; 
-            margin-top: 4px; 
+            width: 100% !important; 
+            min-width: 0 !important;
+            background: #fafafa; 
+            color: #222; 
+            margin-top: 2px; 
             direction: ltr !important; 
             box-sizing: border-box; 
         }
