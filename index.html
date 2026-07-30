@@ -389,6 +389,30 @@
             }
         };
 
+        window.updateEmployeeRank = async function(name, newRank) {
+            try {
+                const parsedRank = parseInt(newRank);
+                await setDoc(doc(db, "employees", name), { rank: parsedRank }, { merge: true });
+                const emp = employees.find(e => e.name === name);
+                if (emp) emp.rank = parsedRank;
+                
+                // רענון האזהרות בלוח אם קים כבר שיבוץ
+                if (Object.keys(currentSchedule).length > 0) {
+                    daysKeys.forEach(dIdx => {
+                        let mTime = document.getElementById('mStart')?.value + '-' + document.getElementById('mEnd')?.value;
+                        let eTime = document.getElementById('eStart')?.value + '-' + document.getElementById('eEnd')?.value;
+                        if (dIdx === '5') mTime = document.getElementById('friMStart')?.value + '-' + document.getElementById('friMEnd')?.value;
+                        
+                        renderShiftCell(dIdx, 'm', mTime);
+                        if (dIdx !== '5') renderShiftCell(dIdx, 'e', eTime);
+                    });
+                }
+            } catch(e) {
+                console.error("שגיאה בעדכון דירוג העובד:", e);
+                alert("אירעה שגיאה בעדכון הדירוג.");
+            }
+        };
+
         window.deleteEmployee = async function(name) {
             if(confirm(`למחוק את ${name}?`)) {
                 try {
@@ -407,15 +431,18 @@
                 list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>';
                 return;
             }
-            const rankNames = { 1: "חלש", 2: "בינוני", 3: "חזק" };
             list.innerHTML = employees.map((e) => {
                 const empColor = e.color || "#888"; 
                 return `
                     <div class="emp-item">
-                        <span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="emp-tag" style="background-color: ${empColor}; display:inline-block; margin:0;">${e.name}</span>
-                            <span class="badge badge-${e.rank}">${rankNames[e.rank] || ''}</span>
-                        </span>
+                            <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0; cursor: pointer;">
+                                <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
+                                <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
+                                <option value="1" ${e.rank == 1 ? 'selected' : ''}>חלש (1)</option>
+                            </select>
+                        </div>
                         <button class="delete-btn" onclick="deleteEmployee('${e.name}')">הסר</button>
                     </div>
                 `;
@@ -623,6 +650,15 @@
         window.applySwap = function(empName) {
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
+
+            if (empName) {
+                const existingIndex = currentSchedule[activeSwapKey].indexOf(empName);
+                if (existingIndex !== -1 && existingIndex !== activeSwapIndex) {
+                    alert("העובד הזה כבר רשום במשמרת הזו!");
+                    return;
+                }
+            }
+
             currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             closeModal();
 
