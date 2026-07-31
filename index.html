@@ -38,7 +38,7 @@
 
         button { background-color: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; }
         button:hover { opacity: 0.9; }
-        .auto-btn { font-size: 0.95em; padding: 12px; }
+        .auto-btn { font-size: 0.9em; padding: 10px; }
         .manager-login-btn { background-color: #5f6368; margin-top: 10px; }
         
         .export-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -56,7 +56,6 @@
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* עיצוב קומפקטי ללא גלילה */
         .compact-table {
             width: 100% !important;
             min-width: 0 !important;
@@ -334,12 +333,13 @@
             </div>
         </div>
 
-        <!-- 2 כפתורים נפרדים לצור ופרסם -->
+        <!-- 3 כפתורים: צור, פרסם ובטל פרסום -->
         <div class="card">
-            <h2>3. שיבוץ אוטומטי ופרסום</h2>
+            <h2>3. שיבוץ אוטומטי, פרסום וביטול</h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 130px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
-                <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 130px; background-color: #27ae60;">2. פרסם סידור לעובדים</button>
+                <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 110px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
+                <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 110px; background-color: #27ae60;">2. פרסם לעובדים</button>
+                <button class="auto-btn" onclick="unpublishSchedule()" style="flex: 1; min-width: 110px; background-color: #c0392b;">3. בטל פרסום (הורד)</button>
             </div>
         </div>
 
@@ -816,14 +816,11 @@
                 }
             });
 
-            isPublished = false;
-            updatePublishBadge(false);
-
             renderFullScheduleForManager();
             renderSummaryTable();
             renderManagerNotes();
 
-            alert("הסידור נוצר כטיוטה! לחץ על 'פרסם סידור לעובדים' כדי לחשוף אותו.");
+            alert("הסידור נוצר כטיוטה על המסך! לחץ על 'פרסם לעובדים' כדי לחשוף אותו באפליקציה.");
         };
 
         /* 2. פרסום סידור לעובדים */
@@ -840,6 +837,28 @@
                 alert("הסידור פורסם בהצלחה לעובדים!");
             } catch(e) {
                 alert("שגיאה בפרסום הסידור.");
+                console.error(e);
+            }
+        };
+
+        /* 3. ביטול פרסום (הורדה מהאוויר) */
+        window.unpublishSchedule = async function() {
+            if (!isPublished) {
+                alert("הסידור כרגע אינו מפורסם לעובדים.");
+                return;
+            }
+
+            if (!confirm("האם אתה בטוח שברצונך לבטל את פרסום הסידור? העובדים לא יוכלו לראות אותו יותר.")) {
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "settings", "published_schedule"));
+                isPublished = false;
+                updatePublishBadge(false);
+                alert("הפרסום בוטל בהצלחה! הסידור הוסר מצפיית העובדים.");
+            } catch(e) {
+                alert("שגיאה בביטול הפרסום.");
                 console.error(e);
             }
         };
@@ -943,10 +962,6 @@
 
             currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             closeModal();
-
-            /* שינוי ידני מעביר את הסידור למצב טיוטה בלתי פורסם עד ללחיצה מחדש על פרסום */
-            isPublished = false;
-            updatePublishBadge(false);
 
             renderFullScheduleForManager();
             renderSummaryTable();
