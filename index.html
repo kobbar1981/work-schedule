@@ -527,9 +527,15 @@
         let employees = [];
         let employeeAvailMap = {};
         let employeeNotesMap = {};
+
+        // נתוני טיוטת מנהל
         let currentSchedule = {};
         let customShiftTimes = {};
+
+        // נתוני סידור מפורסם לעובדים
+        let publishedSchedule = {};
         let publishedTimes = {};
+        let publishedCustomShiftTimes = {};
         let isPublished = false;
         
         let activeSwapKey = null;
@@ -538,12 +544,59 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
-        // בדיקה האם הגענו ליום שישי בשעה 07:00 בבוקר או מאוחר יותר בשבוע
-        function isPastFriday7AM() {
+        // חישוב הזמן המדויק של יום שישי האחרון ב-07:00 בבוקר
+        function getLastFriday7AM() {
             const now = new Date();
-            const day = now.getDay(); // 0=ראשון, 5=שישי, 6=שבת
-            const hour = now.getHours();
-            return (day === 5 && hour >= 7) || day === 6;
+            const d = new Date(now);
+            let daysToSubtract = (d.getDay() - 5 + 7) % 7;
+            
+            if (d.getDay() === 5 && d.getHours() < 7) {
+                daysToSubtract = 7;
+            }
+
+            d.setDate(d.getDate() - daysToSubtract);
+            d.setHours(7, 0, 0, 0);
+            return d.getTime();
+        }
+
+        // בדיקה האם הסידור פורסם לפני יום שישי 07:00 האחרון (פג תוקפו לעובדים)
+        function isScheduleExpired(publishedAt) {
+            if (!publishedAt) return false;
+            const lastFriday7AM = getLastFriday7AM();
+            return publishedAt < lastFriday7AM;
+        }
+
+        // שמירת הטיוטה של המנהל בענן
+        async function saveDraftToFirestore() {
+            try {
+                await setDoc(doc(db, "settings", "draft_schedule"), {
+                    schedule: currentSchedule,
+                    slotTimes: customShiftTimes,
+                    updatedAt: Date.now()
+                });
+            } catch(e) { console.error("שגיאה בשמירת טיוטה:", e); }
+        }
+
+        // עדכון הסידור המפורסם אם הוא כרגע מפורסם
+        async function syncPublishedIfActive() {
+            if (isPublished) {
+                try {
+                    const currentTimes = {
+                        mStart: document.getElementById('mStart').value,
+                        mEnd: document.getElementById('mEnd').value,
+                        friMStart: document.getElementById('friMStart').value,
+                        friMEnd: document.getElementById('friMEnd').value,
+                        eStart: document.getElementById('eStart').value,
+                        eEnd: document.getElementById('eEnd').value,
+                    };
+                    await setDoc(doc(db, "settings", "published_schedule"), { 
+                        schedule: currentSchedule,
+                        times: currentTimes,
+                        slotTimes: customShiftTimes,
+                        publishedAt: Date.now()
+                    });
+                } catch(e) { console.error("שגיאה בסנכרון סידור מפורסם:", e); }
+            }
         }
 
         function initRealtimeListeners() {
@@ -578,30 +631,45 @@
                 renderManagerNotes();
             });
 
+            // האזנה לטיוטת המנהל (נשארת תמיד אצל המנהל!)
+            onSnapshot(doc(db, "settings", "draft_schedule"), (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    currentSchedule = data.schedule || {};
+                    customShiftTimes = data.slotTimes || {};
+                } else {
+                    currentSchedule = {};
+                    customShiftTimes = {};
+                }
+                renderFullScheduleForManager();
+                renderSummaryTable();
+            });
+
+            // האזנה לסידור המפורסם לעובדים
             onSnapshot(doc(db, "settings", "published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
-                    // מנגנון הסרה אוטומטית ביום שישי ב-07:00 בבוקר
-                    if (isPastFriday7AM()) {
-                        currentSchedule = {};
+                    const data = scheduleSnap.data();
+
+                    if (isScheduleExpired(data.publishedAt)) {
+                        publishedSchedule = {};
                         publishedTimes = {};
-                        customShiftTimes = {};
+                        publishedCustomShiftTimes = {};
                         isPublished = false;
                         updatePublishBadge(false);
                         try {
                             await deleteDoc(doc(db, "settings", "published_schedule"));
                         } catch(e) { console.error(e); }
                     } else {
-                        const data = scheduleSnap.data();
-                        currentSchedule = data.schedule || {};
+                        publishedSchedule = data.schedule || {};
                         publishedTimes = data.times || {};
-                        customShiftTimes = data.slotTimes || {};
+                        publishedCustomShiftTimes = data.slotTimes || {};
                         isPublished = true;
                         updatePublishBadge(true);
                     }
                 } else {
-                    currentSchedule = {};
+                    publishedSchedule = {};
                     publishedTimes = {};
-                    customShiftTimes = {};
+                    publishedCustomShiftTimes = {};
                     isPublished = false;
                     updatePublishBadge(false);
                 }
@@ -675,25 +743,9 @@
 
             closeTimeModal();
 
-            if (isPublished) {
-                try {
-                    const currentTimes = {
-                        mStart: document.getElementById('mStart').value,
-                        mEnd: document.getElementById('mEnd').value,
-                        friMStart: document.getElementById('friMStart').value,
-                        friMEnd: document.getElementById('friMEnd').value,
-                        eStart: document.getElementById('eStart').value,
-                        eEnd: document.getElementById('eEnd').value,
-                    };
-                    await setDoc(doc(db, "settings", "published_schedule"), { 
-                        schedule: currentSchedule,
-                        times: currentTimes,
-                        slotTimes: customShiftTimes
-                    });
-                } catch(e) { console.error(e); }
-            } else {
-                renderFullScheduleForManager();
-            }
+            await saveDraftToFirestore();
+            await syncPublishedIfActive();
+            renderFullScheduleForManager();
         };
 
         window.switchView = function(viewName) {
@@ -858,7 +910,6 @@
                 verifiedEmployeeName = selectedName;
                 document.getElementById('employeeFormArea').classList.remove('hidden');
 
-                // תיעוד זמן צפייה ב-Firebase עבור המנהל
                 try {
                     const now = new Date();
                     const formattedTime = now.toLocaleString('he-IL', { 
@@ -912,7 +963,7 @@
                     const cell = document.getElementById(`emp-cell-${key}`);
                     if(!cell) return;
 
-                    const assigned = currentSchedule[key] || [];
+                    const assigned = publishedSchedule[key] || [];
                     let html = '';
 
                     assigned.forEach((name, index) => {
@@ -921,8 +972,8 @@
                         const empColor = empObj ? empObj.color : '#888';
                         const isMe = (name === empName);
                         
-                        const shiftHours = (customShiftTimes[`${key}-${index}`]) 
-                            ? customShiftTimes[`${key}-${index}`] 
+                        const shiftHours = (publishedCustomShiftTimes[`${key}-${index}`]) 
+                            ? publishedCustomShiftTimes[`${key}-${index}`] 
                             : getShiftHours(dIdx, shiftType);
 
                         if (isMe) {
@@ -977,7 +1028,7 @@
             } catch(e) { alert("שגיאה בשמירת הזמינות."); }
         };
 
-        window.generateSchedule = function() {
+        window.generateSchedule = async function() {
             if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
 
             let shiftCounts = {};
@@ -1003,11 +1054,12 @@
                 }
             });
 
+            await saveDraftToFirestore();
             renderFullScheduleForManager();
             renderSummaryTable();
             renderManagerNotes();
 
-            alert("הסידור נוצר כטיוטה על המסך! לחץ על 'פרסם לעובדים' כדי לחשוף אותו באפליקציה.");
+            alert("הסידור נוצר ונשמר כטיוטה בענן! לחץ על 'פרסם לעובדים' כדי לחשוף אותו באפליקציה.");
         };
 
         window.publishSchedule = async function() {
@@ -1026,10 +1078,12 @@
             };
 
             try {
+                await saveDraftToFirestore();
                 await setDoc(doc(db, "settings", "published_schedule"), { 
                     schedule: currentSchedule,
                     times: currentTimes,
-                    slotTimes: customShiftTimes
+                    slotTimes: customShiftTimes,
+                    publishedAt: Date.now()
                 });
                 alert("הסידור ושעות המשמרת פורסמו בהצלחה לעובדים!");
             } catch(e) {
@@ -1044,13 +1098,13 @@
                 return;
             }
 
-            if (!confirm("האם אתה בטוח שברצונך לבטל את פרסום הסידור? העובדים לא יוכלו לראות אותו יותר.")) {
+            if (!confirm("האם אתה בטוח שברצונך לבטל את פרסום הסידור? העובדים לא יוכלו לראות אותו (הטיוטה שלך תישמר במערכת).")) {
                 return;
             }
 
             try {
                 await deleteDoc(doc(db, "settings", "published_schedule"));
-                alert("הפרסום בוטל בהצלחה! הסידור הוסר מצפיית העובדים.");
+                alert("הפרסום בוטל בהצלחה! הסידור הוסר מצפיית העובדים, אך הטיוטה נשמרה במסך המנהל.");
             } catch(e) {
                 alert("שגיאה בביטול הפרסום.");
                 console.error(e);
@@ -1176,26 +1230,11 @@
             }
             closeModal();
 
-            if (isPublished) {
-                try {
-                    const currentTimes = {
-                        mStart: document.getElementById('mStart').value,
-                        mEnd: document.getElementById('mEnd').value,
-                        friMStart: document.getElementById('friMStart').value,
-                        friMEnd: document.getElementById('friMEnd').value,
-                        eStart: document.getElementById('eStart').value,
-                        eEnd: document.getElementById('eEnd').value,
-                    };
-                    await setDoc(doc(db, "settings", "published_schedule"), { 
-                        schedule: currentSchedule,
-                        times: currentTimes,
-                        slotTimes: customShiftTimes
-                    });
-                } catch(e) { console.error(e); }
-            } else {
-                renderFullScheduleForManager();
-                renderSummaryTable();
-            }
+            await saveDraftToFirestore();
+            await syncPublishedIfActive();
+
+            renderFullScheduleForManager();
+            renderSummaryTable();
         };
 
         function renderDailyAvailabilityTable() {
@@ -1295,13 +1334,19 @@
         }
 
         window.resetScheduleOnly = async function() {
-            if(!confirm("האם לאפס את כל השיבוצים והזמינויות?")) return;
+            if(!confirm("האם לאפס את כל השיבוצים, הטיוטות והזמינויות?")) return;
             try {
                 const availSnap = await getDocs(collection(db, "availability"));
                 await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, "availability", d.id))));
+                await deleteDoc(doc(db, "settings", "draft_schedule"));
                 await deleteDoc(doc(db, "settings", "published_schedule"));
+                currentSchedule = {};
+                customShiftTimes = {};
                 alert("הנתונים אופסו בהצלחה!");
-            } catch(e){}
+            } catch(e){
+                console.error(e);
+                alert("שגיאה באיפוס הנתונים.");
+            }
         };
 
         window.sendScheduleToWhatsapp = function() {
@@ -1315,9 +1360,9 @@
                 ['m', 'e'].forEach(shift => {
                     if(dIdx === '5' && shift === 'e') return;
                     let key = `${dIdx}-${shift}`;
-                    let empsArr = currentSchedule[key] || [];
+                    let empsArr = publishedSchedule[key] || [];
                     let empsWithHours = empsArr.filter(Boolean).map((empName, idx) => {
-                        let hours = customShiftTimes[`${key}-${idx}`] || getShiftHours(dIdx, shift);
+                        let hours = publishedCustomShiftTimes[`${key}-${idx}`] || getShiftHours(dIdx, shift);
                         return `${empName} (${hours})`;
                     });
                     
