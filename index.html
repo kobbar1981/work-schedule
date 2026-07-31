@@ -74,10 +74,6 @@
             white-space: normal !important;
             line-height: 1.1;
         }
-        .compact-table .custom-time-input { 
-            font-size: 8px !important; 
-            padding: 0 !important; 
-        }
         .compact-table .empty-slot { 
             font-size: 0.7em !important; 
             padding: 2px 1px !important; 
@@ -96,19 +92,24 @@
 
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
         
-        .custom-time-input { 
-            font-size: 9px !important; 
+        /* כפתור תג שעות לחיץ וחכם */
+        .time-badge-btn {
+            display: inline-block;
+            font-size: 0.68em;
+            color: #2c3e50;
+            background: #eef2f7;
+            border: 1px dashed #b0bec5;
+            border-radius: 3px;
+            padding: 1px 4px;
+            margin-top: 2px;
+            cursor: pointer;
+            direction: ltr;
             font-weight: bold;
-            text-align: center; 
-            padding: 1px 0 !important; 
-            border: 1px solid #bbb; 
-            border-radius: 3px; 
-            width: 100% !important; 
-            background: #fafafa; 
-            color: #222; 
-            margin-top: 1px; 
-            direction: ltr !important; 
-            box-sizing: border-box; 
+            transition: background 0.2s;
+        }
+        .time-badge-btn:hover {
+            background: #dce4ec;
+            border-color: #1877f2;
         }
 
         .shift-time-text {
@@ -130,6 +131,19 @@
         .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; }
         
+        .quick-time-btn {
+            background: #f1f3f5;
+            color: #333;
+            border: 1px solid #ced4da;
+            padding: 5px 8px;
+            font-size: 0.78em;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-weight: bold;
+        }
+        .quick-time-btn:hover { background: #e2e6ea; }
+
         .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; }
         .shift-checkboxes label { 
             background: #f8f9fa; 
@@ -168,12 +182,14 @@
         .hidden { display: none !important; }
         .print-only { display: none; }
 
+        /* הגדרות מדויקות לייצוא PDF והדפסה */
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .unavail-badge, h1, .status-badge { display: none !important; }
+            .export-group, .empty-slot, .unavail-badge, h1, .status-badge, button, .manager-login-btn { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
+            .time-badge-btn { border: none !important; background: transparent !important; padding: 0 !important; }
         }
     </style>
 </head>
@@ -451,11 +467,41 @@
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
 
+    <!-- מודאל החלפת עובד -->
     <div id="swapModal" class="modal-overlay">
         <div class="modal-card">
             <h3>שינוי / אילוץ עובד במשמרת</h3>
             <div id="modalEmpList" class="modal-btn-list"></div>
             <button style="margin-top: 12px; background-color: #7f8c8d;" onclick="closeModal()">ביטול</button>
+        </div>
+    </div>
+
+    <!-- מודאל חכם ונוח לעדכון שעות משמרת -->
+    <div id="timeModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 id="timeModalTitle">עדכון שעות משמרת לעובד</h3>
+            
+            <div style="display: flex; gap: 10px; justify-content: center; margin: 15px 0;">
+                <div style="flex: 1;">
+                    <label style="font-size:0.8em; margin-bottom: 2px;">שעת הגעה:</label>
+                    <input type="time" id="modalStartTime">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size:0.8em; margin-bottom: 2px;">שעת יציאה:</label>
+                    <input type="time" id="modalEndTime">
+                </div>
+            </div>
+
+            <label style="font-size:0.8em; text-align: right; display: block; margin-top: 8px;">בחירה מהירה:</label>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-bottom: 15px;">
+                <button type="button" class="quick-time-btn" onclick="setQuickTime('16:30','21:00')">16:30 - 21:00</button>
+                <button type="button" class="quick-time-btn" onclick="setQuickTime('16:00','21:00')">16:00 - 21:00</button>
+                <button type="button" class="quick-time-btn" onclick="setQuickTime('11:00','16:00')">11:00 - 16:00</button>
+                <button type="button" class="quick-time-btn" onclick="setQuickTime('09:30','14:00')">09:30 - 14:00</button>
+            </div>
+
+            <button onclick="saveTimeFromModal()" style="background-color: #27ae60;">שמור שעות</button>
+            <button onclick="closeTimeModal()" style="margin-top: 6px; background-color: #7f8c8d;">ביטול</button>
         </div>
     </div>
 
@@ -483,11 +529,14 @@
         let employeeAvailMap = {};
         let employeeNotesMap = {};
         let currentSchedule = {};
-        let customShiftTimes = {}; // שומר שעות יזומות פר משבצת עובד
+        let customShiftTimes = {};
         let publishedTimes = {};
         let isPublished = false;
+        
         let activeSwapKey = null;
         let activeSwapIndex = null;
+        let activeTimeKey = null;
+        let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
         // הפעלת האזנה בזמן אמת
@@ -565,8 +614,67 @@
             }
         }
 
-        window.updateCustomTime = function(shiftKey, index, newTime) {
-            customShiftTimes[`${shiftKey}-${index}`] = newTime;
+        // ניהול מודאל השעות החדש
+        window.openTimeModal = function(shiftKey, index, currentHoursStr, empName) {
+            activeTimeKey = shiftKey;
+            activeTimeIndex = index;
+
+            document.getElementById('timeModalTitle').innerText = `עדכון שעות עבור ${empName}`;
+
+            let parts = currentHoursStr.split('-').map(s => s.trim());
+            if(parts.length === 2) {
+                document.getElementById('modalStartTime').value = parts[0];
+                document.getElementById('modalEndTime').value = parts[1];
+            } else {
+                document.getElementById('modalStartTime').value = "11:00";
+                document.getElementById('modalEndTime').value = "16:00";
+            }
+
+            document.getElementById('timeModal').style.display = 'flex';
+        };
+
+        window.closeTimeModal = function() {
+            document.getElementById('timeModal').style.display = 'none';
+        };
+
+        window.setQuickTime = function(start, end) {
+            document.getElementById('modalStartTime').value = start;
+            document.getElementById('modalEndTime').value = end;
+        };
+
+        window.saveTimeFromModal = async function() {
+            const start = document.getElementById('modalStartTime').value;
+            const end = document.getElementById('modalEndTime').value;
+
+            if(!start || !end) {
+                alert("אנא בחר שעת התחלה ושעת סיום!");
+                return;
+            }
+
+            const formattedTime = `${start} - ${end}`;
+            customShiftTimes[`${activeTimeKey}-${activeTimeIndex}`] = formattedTime;
+
+            closeTimeModal();
+
+            if (isPublished) {
+                try {
+                    const currentTimes = {
+                        mStart: document.getElementById('mStart').value,
+                        mEnd: document.getElementById('mEnd').value,
+                        friMStart: document.getElementById('friMStart').value,
+                        friMEnd: document.getElementById('friMEnd').value,
+                        eStart: document.getElementById('eStart').value,
+                        eEnd: document.getElementById('eEnd').value,
+                    };
+                    await setDoc(doc(db, "settings", "published_schedule"), { 
+                        schedule: currentSchedule,
+                        times: currentTimes,
+                        slotTimes: customShiftTimes
+                    });
+                } catch(e) { console.error(e); }
+            } else {
+                renderFullScheduleForManager();
+            }
         };
 
         window.switchView = function(viewName) {
@@ -841,7 +949,7 @@
             let shiftCounts = {};
             employees.forEach(e => shiftCounts[e.name] = 0);
             currentSchedule = {};
-            customShiftTimes = {}; // איפוס שעות מותאמות בעת יצירת טיוטה חדשה
+            customShiftTimes = {};
 
             daysKeys.forEach(dIdx => {
                 let assignedToday = [];
@@ -982,7 +1090,11 @@
                             ${empName}
                         </span>
                         ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
-                        <input type="text" class="custom-time-input" value="${slotTime}" onchange="updateCustomTime('${key}', ${index}, this.value)">
+                        <div>
+                            <button type="button" class="time-badge-btn" onclick="openTimeModal('${key}', ${index}, '${slotTime}', '${empName}')">
+                                ✏️ ${slotTime}
+                            </button>
+                        </div>
                     </div>`;
             });
 
