@@ -109,7 +109,7 @@
 
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
-        /* טבלת סיכום מנהל רגילה */
+        /* טבלת סיכום מנהל */
         .summary-table th { background-color: #34495e; color: white; font-size: 0.85em; padding: 8px 4px; }
         .summary-table td { font-size: 0.85em; padding: 6px 4px; }
         .stat-num { font-weight: bold; font-size: 1em; }
@@ -255,7 +255,7 @@
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
 
-    <!-- מסך מנהל (עיצוב מפורט ושלם) -->
+    <!-- מסך מנהל -->
     <div class="hidden" id="managerView">
         
         <div class="card">
@@ -893,6 +893,7 @@
             renderSummaryTable();
         };
 
+        /* פונקציית סיכום מנהל המעודכנת למעקב זמינויות וסטטוס מוגדר */
         function renderSummaryTable() {
             const tbody = document.getElementById('summaryTableBody');
             const countSummary = document.getElementById('submissionSummaryCount');
@@ -904,16 +905,24 @@
 
             let submittedCount = 0;
             tbody.innerHTML = employees.map((emp) => {
-                let hasSubmitted = !!employeeAvailMap[emp.name];
-                if(hasSubmitted) submittedCount++;
-                let availCount = Object.values(employeeAvailMap[emp.name] || {}).filter(Boolean).length;
+                let userAvail = employeeAvailMap[emp.name] || {};
+                let hasSubmitted = Object.values(userAvail).some(val => val === true);
+                
+                if (hasSubmitted) submittedCount++;
+
+                // עיצוב עמודת הסטטוס עם סימוני V/X צבעוניים ובולטים
+                let statusHtml = hasSubmitted 
+                    ? '<span style="color: #27ae60; font-weight: bold; font-size: 1.25em;">✔</span>' 
+                    : '<span style="color: #e74c3c; font-weight: bold; font-size: 1.25em;">✖</span>';
+
+                let availCount = Object.values(userAvail).filter(Boolean).length;
                 let assignedCount = 0;
                 Object.values(currentSchedule).forEach(list => { if(list.includes(emp.name)) assignedCount++; });
                 
                 return `
                     <tr>
                         <td><span class="emp-tag" style="background-color:${emp.color || '#888'}; display:inline-block; margin:0;">${emp.name}</span></td>
-                        <td>${hasSubmitted ? '✔' : '✖'}</td>
+                        <td>${statusHtml}</td>
                         <td><span class="stat-num">${availCount}</span></td>
                         <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
                     </tr>`;
