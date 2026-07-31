@@ -9,17 +9,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="סידור עבודה">
     <meta name="theme-color" content="#1877f2">
-    <link rel="manifest" href="manifest.json">
     
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 12px; background-color: #f0f2f5; color: #1c1e21; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 8px; background-color: #f0f2f5; color: #1c1e21; }
         h1, h2, h3 { color: #050505; margin-top: 0; text-align: center; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        .form-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.9em; }
+        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85em; }
         
         input:not([type="checkbox"]), select, textarea, button { 
-            padding: 10px; 
+            padding: 9px; 
             font-size: 14px; 
             border: 1px solid #ccd0d5; 
             border-radius: 6px; 
@@ -29,8 +28,8 @@
         }
 
         input[type="checkbox"] {
-            width: 20px !important;
-            height: 20px !important;
+            width: 18px !important;
+            height: 18px !important;
             margin: 0 !important;
             padding: 0 !important;
             flex-shrink: 0;
@@ -39,98 +38,115 @@
 
         button { background-color: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; }
         button:hover { background-color: #166fe5; }
-        .auto-btn { background-color: #42b72a; font-size: 1.1em; padding: 12px; }
+        .auto-btn { background-color: #42b72a; font-size: 1.05em; padding: 12px; }
         .auto-btn:hover { background-color: #36a420; }
         .manager-login-btn { background-color: #5f6368; margin-top: 10px; }
         .manager-login-btn:hover { background-color: #4a4d51; }
         
-        .export-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-        .export-btn { flex: 1; min-width: 150px; font-size: 1em; font-weight: bold; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 0; }
+        .export-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .export-btn { flex: 1; min-width: 120px; font-size: 0.9em; font-weight: bold; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 0; }
         .whatsapp-btn { background-color: #25D366; color: white; }
-        .whatsapp-btn:hover { background-color: #1ebd56; }
         .pdf-btn { background-color: #e74c3c; color: white; }
-        .pdf-btn:hover { background-color: #c0392b; }
         .word-btn { background-color: #2b579a; color: white; }
-        .word-btn:hover { background-color: #1e3d6b; }
 
         .reset-btn { background-color: #e67e22; margin-top: 10px; }
-        .reset-btn:hover { background-color: #d35400; }
         .time-range { display: flex; gap: 5px; }
-        .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
+        .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
         
-        .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85em; min-width: 600px; }
-        th, td { border: 1px solid #ddd; padding: 4px 1px; text-align: center; vertical-align: middle; transition: background-color 0.3s; }
+        .table-wrapper { overflow-x: hidden; width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { border: 1px solid #ddd; padding: 3px 1px; text-align: center; vertical-align: middle; }
         th { background-color: #f5f6f7; }
-        .schedule-table th { width: 15%; }
-        .schedule-table th:first-child { width: 10%; }
-        
-        td.warning-shift { background-color: #fff0f0 !important; border: 2px solid #ff4d4d !important; }
-        .warning-banner { background-color: #ff4d4d; color: white; font-size: 0.75em; font-weight: bold; padding: 3px 5px; border-radius: 4px; margin-bottom: 6px; display: block; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 
-        .emp-container { margin-bottom: 6px; background: white; border: 1px solid #ddd; padding: 3px 1px; border-radius: 6px; display: block; box-sizing: border-box; }
-        .empty-slot { margin-bottom: 8px; border: 2px dashed #3498db; background: #f0f8ff; padding: 8px; border-radius: 8px; color: #2980b9; font-weight: bold; font-size: 0.85em; cursor: pointer; }
+        /* התאמת טבלה רוחבית לרוחב מסך נייד ללא גלילה */
+        .compact-table {
+            width: 100% !important;
+            min-width: 0 !important;
+            table-layout: fixed;
+        }
+
+        .compact-table th, 
+        .compact-table td {
+            padding: 3px 1px !important;
+            font-size: 0.72em !important;
+            word-break: break-word;
+        }
+
+        .compact-table .emp-tag {
+            font-size: 0.75em !important;
+            padding: 2px 1px !important;
+            margin-bottom: 2px !important;
+            white-space: normal !important;
+            line-height: 1.1;
+        }
+
+        .compact-table .emp-container {
+            padding: 1px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; }
+        .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
         
-        .emp-tag { display: block; padding: 5px 2px; border-radius: 5px; font-weight: bold; color: black; margin-bottom: 3px; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+        .emp-tag { display: block; padding: 3px 1px; border-radius: 4px; font-weight: bold; color: black; margin-bottom: 2px; font-size: 0.8em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
         /* הדגשה זהובה למשמרת של העובד המחובר */
         .my-shift-highlight {
             border: 2px solid #f1c40f !important;
-            box-shadow: 0 0 8px rgba(241, 196, 15, 0.8) !important;
-            transform: scale(1.03);
+            box-shadow: 0 0 6px rgba(241, 196, 15, 0.8) !important;
             background-color: #fffde7 !important;
         }
 
-        .unavail-badge { background-color: #d63031; color: white; font-size: 0.7em; padding: 1px 3px; border-radius: 4px; margin-top: 2px; display: inline-block; font-weight: bold; }
+        .unavail-badge { background-color: #d63031; color: white; font-size: 0.65em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
         
         .custom-time-input { 
-            font-size: 10px !important; 
+            font-size: 9px !important; 
             font-weight: bold;
-            letter-spacing: -0.8px; 
             text-align: center; 
-            padding: 2px 0 !important; 
+            padding: 1px 0 !important; 
             border: 1px solid #bbb; 
-            border-radius: 4px; 
+            border-radius: 3px; 
             width: 100% !important; 
-            min-width: 0 !important;
             background: #fafafa; 
             color: #222; 
-            margin-top: 2px; 
+            margin-top: 1px; 
             direction: ltr !important; 
             box-sizing: border-box; 
         }
 
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
-        .summary-table th { background-color: #34495e; color: white; }
-        .stat-num { font-weight: bold; font-size: 1.1em; }
+        .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; }
+        .summary-table td { font-size: 0.8em; }
+        .stat-num { font-weight: bold; font-size: 1em; }
+        
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-card { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
-        .modal-btn-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; margin-top: 12px; }
+        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 90%; max-width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
+        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; }
         
-        .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; text-align: right; }
+        .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; }
         .shift-checkboxes label { 
             background: #f8f9fa; 
-            padding: 10px 8px; 
+            padding: 8px 6px; 
             border: 1px solid #ddd; 
             border-radius: 6px; 
             display: flex; 
             align-items: center; 
-            gap: 8px; 
+            gap: 6px; 
             font-weight: normal; 
             cursor: pointer; 
             box-sizing: border-box;
             white-space: nowrap;
-            font-size: 0.9em;
+            font-size: 0.85em;
         }
 
         .my-shifts-box {
             background: #e3f2fd;
             border: 2px solid #2196f3;
             border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 15px;
+            padding: 10px;
+            margin-bottom: 12px;
         }
 
         .hidden { display: none !important; }
@@ -139,7 +155,7 @@
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .warning-banner, .unavail-badge, .no-print, h1 { display: none !important; }
+            .export-group, .empty-slot, .unavail-badge, h1 { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
         }
@@ -180,16 +196,16 @@
                 
                 <h3 style="text-align: right; margin-top: 15px;">לוח משמרות שבועי מלא:</h3>
                 <div class="table-wrapper">
-                    <table class="schedule-table">
+                    <table class="schedule-table compact-table">
                         <thead>
                             <tr>
-                                <th>משמרת</th>
-                                <th>ראשון</th>
-                                <th>שני</th>
-                                <th>שלישי</th>
-                                <th>רביעי</th>
-                                <th>חמישי</th>
-                                <th>שישי</th>
+                                <th style="width: 14%;">משמרת</th>
+                                <th style="width: 14.3%;">א'</th>
+                                <th style="width: 14.3%;">ב'</th>
+                                <th style="width: 14.3%;">ג'</th>
+                                <th style="width: 14.3%;">ד'</th>
+                                <th style="width: 14.3%;">ה'</th>
+                                <th style="width: 14.3%;">ו'</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -209,7 +225,7 @@
                                 <td id="emp-cell-2-e"></td>
                                 <td id="emp-cell-3-e"></td>
                                 <td id="emp-cell-4-e"></td>
-                                <td style="background-color: #f2f2f2; color: #888;">סגור</td>
+                                <td style="background-color: #f2f2f2; color: #888; font-size: 0.7em;">סגור</td>
                             </tr>
                         </tbody>
                     </table>
@@ -268,7 +284,7 @@
             </div>
             <div class="form-group">
                 <label>בחר צבע עבור העובד:</label>
-                <input type="color" id="empColorInput" value="#3498db" style="padding: 0; height: 40px; cursor: pointer;">
+                <input type="color" id="empColorInput" value="#3498db" style="padding: 0; height: 35px; cursor: pointer;">
             </div>
             <button onclick="addEmployee()">הוסף עובד</button>
             <button class="reset-btn" onclick="resetScheduleOnly()">איפוס שיבוץ וזמינויות בלבד</button>
@@ -319,16 +335,16 @@
             <h2>לוח משמרות שבועי (מנהל)</h2>
             <div class="print-only">סידור עבודה שבועי</div>
             <div class="table-wrapper">
-                <table class="schedule-table">
+                <table class="schedule-table compact-table">
                     <thead>
                         <tr>
-                            <th>משמרת</th>
-                            <th>ראשון</th>
-                            <th>שני</th>
-                            <th>שלישי</th>
-                            <th>רביעי</th>
-                            <th>חמישי</th>
-                            <th>שישי</th>
+                            <th style="width: 14%;">משמרת</th>
+                            <th style="width: 14.3%;">א'</th>
+                            <th style="width: 14.3%;">ב'</th>
+                            <th style="width: 14.3%;">ג'</th>
+                            <th style="width: 14.3%;">ד'</th>
+                            <th style="width: 14.3%;">ה'</th>
+                            <th style="width: 14.3%;">ו'</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -348,7 +364,7 @@
                             <td id="cell-2-e"></td>
                             <td id="cell-3-e"></td>
                             <td id="cell-4-e"></td>
-                            <td style="background-color: #f2f2f2; color: #888;">סגור</td>
+                            <td style="background-color: #f2f2f2; color: #888; font-size: 0.7em;">סגור</td>
                         </tr>
                     </tbody>
                 </table>
@@ -357,7 +373,6 @@
             <div class="export-group">
                 <button class="export-btn whatsapp-btn" onclick="sendScheduleToWhatsapp()">שלח לוואטסאפ</button>
                 <button class="export-btn pdf-btn" onclick="exportToPDF()">ייצא ל-PDF / הדפסה</button>
-                <button class="export-btn word-btn" onclick="exportToWord()">ייצא ל-Word</button>
             </div>
         </div>
 
@@ -369,9 +384,9 @@
                     <thead>
                         <tr>
                             <th>שם העובד/ת</th>
-                            <th>סטטוס הגשה</th>
-                            <th>משמרות זמינות</th>
-                            <th>משמרות בפועל</th>
+                            <th>סטטוס</th>
+                            <th>זמינות</th>
+                            <th>בפועל</th>
                         </tr>
                     </thead>
                     <tbody id="summaryTableBody">
@@ -398,7 +413,7 @@
         <div class="modal-card">
             <h3>שינוי / אילוץ עובד במשמרת</h3>
             <div id="modalEmpList" class="modal-btn-list"></div>
-            <button style="margin-top: 15px; background-color: #7f8c8d;" onclick="closeModal()">ביטול</button>
+            <button style="margin-top: 12px; background-color: #7f8c8d;" onclick="closeModal()">ביטול</button>
         </div>
     </div>
 
@@ -497,7 +512,6 @@
                     if(data.note) employeeNotesMap[empName] = data.note;
                 });
 
-                // טעינת סידור קיים
                 const scheduleSnap = await getDoc(doc(db, "settings", "published_schedule"));
                 if (scheduleSnap.exists()) {
                     currentSchedule = scheduleSnap.data().schedule || {};
@@ -568,16 +582,16 @@
             }
             list.innerHTML = employees.map((e) => `
                 <div class="emp-item">
-                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                         <span class="emp-tag" style="background-color: ${e.color || '#888'}; display:inline-block; margin:0;">${e.name}</span>
-                        <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 6px; border-radius: 4px;">
-                            <span style="font-size:0.8em; color:#555; font-weight:bold;">קוד:</span>
+                        <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 4px; border-radius: 4px;">
+                            <span style="font-size:0.75em; color:#555; font-weight:bold;">קוד:</span>
                             <input type="text" value="${e.pin || '1234'}" maxlength="4" 
-                                   style="width: 55px; padding: 2px 4px; font-size: 0.85em; text-align: center; margin: 0; background: white;" 
+                                   style="width: 50px; padding: 2px 4px; font-size: 0.8em; text-align: center; margin: 0; background: white;" 
                                    onchange="updateEmployeePin('${e.name}', this.value)" 
                                    pattern="[0-9]*" inputmode="numeric">
                         </div>
-                        <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0;">
+                        <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 3px 6px; font-size: 0.8em; margin: 0;">
                             <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
                             <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
                             <option value="1" ${e.rank == 1 ? 'selected' : ''}>חלש (1)</option>
@@ -631,7 +645,6 @@
                 document.getElementById('employeeFormArea').classList.remove('hidden');
                 
                 try {
-                    // טעינת זמינות העובד
                     const availSnap = await getDocs(collection(db, "availability"));
                     let existingAvail = {};
                     let existingNote = '';
@@ -647,7 +660,6 @@
                     });
                     document.getElementById('employeeNoteInput').value = existingNote;
 
-                    // טעינת הסידור המפורסם והצגתו
                     renderScheduleForEmployee(selectedName);
 
                 } catch(err) { console.error(err); }
@@ -664,7 +676,7 @@
 
                 if (!scheduleSnap.exists() || !scheduleSnap.data().schedule) {
                     summaryBox.innerHTML = `
-                        <div style="background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba; text-align: center;">
+                        <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; border: 1px solid #ffeeba; text-align: center; font-size:0.9em;">
                             <b>סידור העבודה לשבוע הבא טרם פורסם.</b><br>ניתן לעדכן זמינות בטופס שלמטה.
                         </div>`;
                     daysKeys.forEach(d => ['m','e'].forEach(s => {
@@ -698,7 +710,7 @@
                             html += `
                                 <div class="emp-container ${isMe ? 'my-shift-highlight' : ''}">
                                     <span class="emp-tag" style="background-color: ${empColor}">
-                                        ${name} ${isMe ? '⭐ (אתה)' : ''}
+                                        ${name} ${isMe ? '⭐' : ''}
                                     </span>
                                 </div>`;
                         });
@@ -707,19 +719,18 @@
                     });
                 });
 
-                // סיכום אישי בחלק העליון
                 if (myShiftsList.length > 0) {
                     summaryBox.innerHTML = `
                         <div class="my-shifts-box">
-                            <h3 style="margin: 0 0 8px 0; color: #0d47a1;">שלום ${empName}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3>
-                            <ul style="margin: 0; padding-right: 20px; color: #1565c0; font-weight: bold;">
+                            <h3 style="margin: 0 0 6px 0; color: #0d47a1; font-size:1em;">שלום ${empName}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3>
+                            <ul style="margin: 0; padding-right: 18px; color: #1565c0; font-weight: bold; font-size:0.85em;">
                                 ${myShiftsList.map(s => `<li>${s}</li>`).join('')}
                             </ul>
                         </div>`;
                 } else {
                     summaryBox.innerHTML = `
                         <div class="my-shifts-box" style="background:#f5f5f5; border-color:#ccc;">
-                            <h3 style="margin:0; color:#666;">שלום ${empName}, לא שובצת למשמרות השבוע.</h3>
+                            <h3 style="margin:0; color:#666; font-size:0.95em;">שלום ${empName}, לא שובצת למשמרות השבוע.</h3>
                         </div>`;
                 }
 
@@ -770,7 +781,6 @@
                 }
             });
 
-            // שמירת הסידור ב-Firebase לגישת העובדים
             try {
                 await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
                 alert("הסידור נוצר ופורסם בהצלחה לעובדים!");
@@ -848,7 +858,7 @@
                             <input type="text" class="custom-time-input" value="${defaultTime}">
                         </div>`;
                 } else {
-                    html += `<div class="empty-slot" onclick="openSwapModal('${key}', ${i})">+ לאלץ עובד</div>`;
+                    html += `<div class="empty-slot" onclick="openSwapModal('${key}', ${i})">+ לאלץ</div>`;
                 }
             }
             cell.innerHTML = html;
@@ -866,7 +876,7 @@
                 list.innerHTML += `
                     <button class="modal-emp-btn" onclick="applySwap('${emp.name}')">
                         <span><strong style="color:${emp.color || '#888'}">●</strong> ${emp.name}</span>
-                        <span style="font-size:0.8em; color:${isAvail?'green':'red'}">${isAvail?'זמין':'לא הגיש'}</span>
+                        <span style="font-size:0.75em; color:${isAvail?'green':'red'}">${isAvail?'זמין':'לא הגיש'}</span>
                     </button>`;
             });
             modal.style.display = 'flex';
@@ -881,7 +891,6 @@
             currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             closeModal();
 
-            // עדכון Firebase
             try {
                 await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
             } catch(e){}
@@ -910,14 +919,14 @@
                 return `
                     <tr>
                         <td><span class="emp-tag" style="background-color:${emp.color || '#888'}; display:inline-block; margin:0;">${emp.name}</span></td>
-                        <td>${hasSubmitted ? '✔ מילא' : '✖ טרם מילא'}</td>
+                        <td>${hasSubmitted ? '✔' : '✖'}</td>
                         <td><span class="stat-num">${availCount}</span></td>
                         <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
                     </tr>`;
             }).join('');
 
             if(countSummary) {
-                countSummary.innerHTML = `<div style="background: #eef5ff; padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; color: #1877f2;">מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים</div>`;
+                countSummary.innerHTML = `<div style="background: #eef5ff; padding: 8px; border-radius: 6px; margin-bottom: 10px; text-align: center; font-weight: bold; color: #1877f2; font-size: 0.85em;">מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים</div>`;
             }
         }
 
