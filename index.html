@@ -111,6 +111,14 @@
             box-sizing: border-box; 
         }
 
+        .shift-time-text {
+            font-size: 0.68em;
+            color: #444;
+            font-weight: bold;
+            margin-top: 2px;
+            direction: ltr;
+        }
+
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
         .summary-table th { background-color: #34495e; color: white; font-size: 0.85em; padding: 8px 4px; }
@@ -453,7 +461,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyASfsSMXS62ehM1kVSjOpudOEUGUh37BYI",
@@ -475,6 +483,7 @@
         let employeeAvailMap = {};
         let employeeNotesMap = {};
         let currentSchedule = {};
+        let publishedTimes = {};
         let isPublished = false;
         let activeSwapKey = null;
         let activeSwapIndex = null;
@@ -518,11 +527,14 @@
             // 3. האזנה לשינויים בסידור המפורסם
             onSnapshot(doc(db, "settings", "published_schedule"), (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
-                    currentSchedule = scheduleSnap.data().schedule || {};
+                    const data = scheduleSnap.data();
+                    currentSchedule = data.schedule || {};
+                    publishedTimes = data.times || {};
                     isPublished = true;
                     updatePublishBadge(true);
                 } else {
                     currentSchedule = {};
+                    publishedTimes = {};
                     isPublished = false;
                     updatePublishBadge(false);
                 }
@@ -534,6 +546,24 @@
         }
 
         initRealtimeListeners();
+
+        function getShiftHours(dayIdx, shiftType) {
+            if (shiftType === 'm') {
+                if (dayIdx === '5') {
+                    const s = publishedTimes.friMStart || document.getElementById('friMStart')?.value || "09:30";
+                    const e = publishedTimes.friMEnd || document.getElementById('friMEnd')?.value || "14:00";
+                    return `${s} - ${e}`;
+                } else {
+                    const s = publishedTimes.mStart || document.getElementById('mStart')?.value || "11:00";
+                    const e = publishedTimes.mEnd || document.getElementById('mEnd')?.value || "16:00";
+                    return `${s} - ${e}`;
+                }
+            } else {
+                const s = publishedTimes.eStart || document.getElementById('eStart')?.value || "16:00";
+                const e = publishedTimes.eEnd || document.getElementById('eEnd')?.value || "21:00";
+                return `${s} - ${e}`;
+            }
+        }
 
         window.switchView = function(viewName) {
             document.getElementById('selectionView').classList.add('hidden');
@@ -737,6 +767,7 @@
                     if(!cell) return;
 
                     const assigned = currentSchedule[key] || [];
+                    const shiftHours = getShiftHours(dIdx, shiftType);
                     let html = '';
 
                     assigned.forEach(name => {
@@ -746,7 +777,7 @@
                         const isMe = (name === empName);
                         
                         if (isMe) {
-                            myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'})`);
+                            myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'} ${shiftHours})`);
                         }
 
                         html += `
@@ -754,6 +785,7 @@
                                 <span class="emp-tag" style="background-color: ${empColor}">
                                     ${name} ${isMe ? '⭐' : ''}
                                 </span>
+                                <div class="shift-time-text">${shiftHours}</div>
                             </div>`;
                     });
 
@@ -834,9 +866,21 @@
                 return;
             }
 
+            const currentTimes = {
+                mStart: document.getElementById('mStart').value,
+                mEnd: document.getElementById('mEnd').value,
+                friMStart: document.getElementById('friMStart').value,
+                friMEnd: document.getElementById('friMEnd').value,
+                eStart: document.getElementById('eStart').value,
+                eEnd: document.getElementById('eEnd').value,
+            };
+
             try {
-                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
-                alert("הסידור פורסם בהצלחה לעובדים!");
+                await setDoc(doc(db, "settings", "published_schedule"), { 
+                    schedule: currentSchedule,
+                    times: currentTimes
+                });
+                alert("הסידור ושעות המשמרת פורסמו בהצלחה לעובדים!");
             } catch(e) {
                 alert("שגיאה בפרסום הסידור.");
                 console.error(e);
@@ -976,7 +1020,18 @@
 
             if (isPublished) {
                 try {
-                    await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
+                    const currentTimes = {
+                        mStart: document.getElementById('mStart').value,
+                        mEnd: document.getElementById('mEnd').value,
+                        friMStart: document.getElementById('friMStart').value,
+                        friMEnd: document.getElementById('friMEnd').value,
+                        eStart: document.getElementById('eStart').value,
+                        eEnd: document.getElementById('eEnd').value,
+                    };
+                    await setDoc(doc(db, "settings", "published_schedule"), { 
+                        schedule: currentSchedule,
+                        times: currentTimes
+                    });
                 } catch(e) { console.error(e); }
             } else {
                 renderFullScheduleForManager();
@@ -1092,7 +1147,8 @@
                 ['m', 'e'].forEach(shift => {
                     if(dIdx === '5' && shift === 'e') return;
                     let emps = (currentSchedule[`${dIdx}-${shift}`] || []).filter(Boolean).join(', ');
-                    text += `${shift==='m'?'בוקר':'ערב'}: ${emps || 'אין'}\n`;
+                    let hours = getShiftHours(dIdx, shift);
+                    text += `${shift==='m'?'בוקר':'ערב'} (${hours}): ${emps || 'אין'}\n`;
                 });
                 text += "───────────────────\n";
             });
