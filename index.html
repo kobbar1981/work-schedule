@@ -121,9 +121,9 @@
 
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
-        .summary-table th { background-color: #34495e; color: white; font-size: 0.85em; padding: 8px 4px; }
-        .summary-table td { font-size: 0.85em; padding: 6px 4px; }
-        .stat-num { font-weight: bold; font-size: 1em; }
+        .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; padding: 8px 3px; }
+        .summary-table td { font-size: 0.8em; padding: 6px 3px; }
+        .stat-num { font-weight: bold; font-size: 0.95em; }
         
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .modal-card { background: white; padding: 15px; border-radius: 10px; width: 90%; max-width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
@@ -433,20 +433,21 @@
         </div>
 
         <div class="card">
-            <h2>סיכום שבועי ומעקב זמינויות</h2>
+            <h2>סיכום שבועי, מעקב זמינויות וצפיות</h2>
             <div id="submissionSummaryCount"></div>
             <div class="table-wrapper">
                 <table class="summary-table">
                     <thead>
                         <tr>
                             <th>שם העובד/ת</th>
-                            <th>סטטוס</th>
+                            <th>הגשה</th>
                             <th>זמינות</th>
                             <th>בפועל</th>
+                            <th>צפה בסידור</th>
                         </tr>
                     </thead>
                     <tbody id="summaryTableBody">
-                        <tr><td colspan="4" style="color: #888;">טוען נתונים...</td></tr>
+                        <tr><td colspan="5" style="color: #888;">טוען נתונים...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -537,6 +538,14 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
+        // בדיקה האם הגענו ליום שישי בשעה 07:00 בבוקר או מאוחר יותר בשבוע
+        function isPastFriday7AM() {
+            const now = new Date();
+            const day = now.getDay(); // 0=ראשון, 5=שישי, 6=שבת
+            const hour = now.getHours();
+            return (day === 5 && hour >= 7) || day === 6;
+        }
+
         function initRealtimeListeners() {
             onSnapshot(collection(db, "employees"), (snapshot) => {
                 employees = [];
@@ -569,14 +578,26 @@
                 renderManagerNotes();
             });
 
-            onSnapshot(doc(db, "settings", "published_schedule"), (scheduleSnap) => {
+            onSnapshot(doc(db, "settings", "published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
-                    const data = scheduleSnap.data();
-                    currentSchedule = data.schedule || {};
-                    publishedTimes = data.times || {};
-                    customShiftTimes = data.slotTimes || {};
-                    isPublished = true;
-                    updatePublishBadge(true);
+                    // מנגנון הסרה אוטומטית ביום שישי ב-07:00 בבוקר
+                    if (isPastFriday7AM()) {
+                        currentSchedule = {};
+                        publishedTimes = {};
+                        customShiftTimes = {};
+                        isPublished = false;
+                        updatePublishBadge(false);
+                        try {
+                            await deleteDoc(doc(db, "settings", "published_schedule"));
+                        } catch(e) { console.error(e); }
+                    } else {
+                        const data = scheduleSnap.data();
+                        currentSchedule = data.schedule || {};
+                        publishedTimes = data.times || {};
+                        customShiftTimes = data.slotTimes || {};
+                        isPublished = true;
+                        updatePublishBadge(true);
+                    }
                 } else {
                     currentSchedule = {};
                     publishedTimes = {};
@@ -584,8 +605,9 @@
                     isPublished = false;
                     updatePublishBadge(false);
                 }
+                
                 renderFullScheduleForManager();
-                renderSummaryTable(); // עדכון אוטומטי של טבלת הסיכום בעת טעינת הסידור המפורסם
+                renderSummaryTable();
                 if(verifiedEmployeeName) {
                     renderScheduleForEmployee(verifiedEmployeeName);
                 }
@@ -820,7 +842,7 @@
             document.getElementById('employeeFormArea').classList.add('hidden');
         };
 
-        window.verifyEmployeePin = function() {
+        window.verifyEmployeePin = async function() {
             const selectedName = document.getElementById('employeeNameDropdown').value;
             const inputPin = document.getElementById('employeePinInput').value.trim();
 
@@ -835,6 +857,21 @@
             if (inputPin === correctPin) {
                 verifiedEmployeeName = selectedName;
                 document.getElementById('employeeFormArea').classList.remove('hidden');
+
+                // תיעוד זמן צפייה ב-Firebase עבור המנהל
+                try {
+                    const now = new Date();
+                    const formattedTime = now.toLocaleString('he-IL', { 
+                        weekday: 'short', 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        day: 'numeric',
+                        month: 'numeric'
+                    });
+                    await setDoc(doc(db, "employees", selectedName), { 
+                        lastViewedAt: formattedTime 
+                    }, { merge: true });
+                } catch(e) { console.error(e); }
                 
                 let existingAvail = employeeAvailMap[selectedName] || {};
                 let existingNote = employeeNotesMap[selectedName] || '';
@@ -1201,7 +1238,7 @@
             if (!tbody) return;
             
             if (employees.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4">אין עובדים במערכת</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">אין עובדים במערכת</td></tr>';
                 return;
             }
 
@@ -1223,6 +1260,10 @@
                         assignedCount += list.filter(name => name === emp.name).length;
                     }
                 });
+
+                let lastView = emp.lastViewedAt 
+                    ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${emp.lastViewedAt}</span>` 
+                    : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
                 
                 return `
                     <tr>
@@ -1230,6 +1271,7 @@
                         <td>${statusHtml}</td>
                         <td><span class="stat-num">${availCount}</span></td>
                         <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
+                        <td>${lastView}</td>
                     </tr>`;
             }).join('');
 
