@@ -47,31 +47,30 @@
         .export-btn { flex: 1; min-width: 120px; font-size: 0.9em; font-weight: bold; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 0; }
         .whatsapp-btn { background-color: #25D366; color: white; }
         .pdf-btn { background-color: #e74c3c; color: white; }
-        .word-btn { background-color: #2b579a; color: white; }
 
         .reset-btn { background-color: #e67e22; margin-top: 10px; }
         .time-range { display: flex; gap: 5px; }
         .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
         
-        .table-wrapper { overflow-x: hidden; width: 100%; }
+        .table-wrapper { overflow-x: auto; width: 100%; }
+        
+        /* עיצוב רגיל לטבלאות מנהל */
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border: 1px solid #ddd; padding: 3px 1px; text-align: center; vertical-align: middle; }
-        th { background-color: #f5f6f7; }
+        th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; }
+        th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* התאמת טבלה רוחבית לרוחב מסך נייד ללא גלילה */
+        /* עיצוב קומפקטי ייעודי *רק* לטבלת העובד לנייד */
         .compact-table {
             width: 100% !important;
             min-width: 0 !important;
             table-layout: fixed;
         }
-
         .compact-table th, 
         .compact-table td {
             padding: 3px 1px !important;
             font-size: 0.72em !important;
             word-break: break-word;
         }
-
         .compact-table .emp-tag {
             font-size: 0.75em !important;
             padding: 2px 1px !important;
@@ -80,17 +79,11 @@
             line-height: 1.1;
         }
 
-        .compact-table .emp-container {
-            padding: 1px !important;
-            margin-bottom: 2px !important;
-        }
-
-        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; }
+        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 3px; padding: 2px; }
         .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
         
-        .emp-tag { display: block; padding: 3px 1px; border-radius: 4px; font-weight: bold; color: black; margin-bottom: 2px; font-size: 0.8em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+        .emp-tag { display: block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
-        /* הדגשה זהובה למשמרת של העובד המחובר */
         .my-shift-highlight {
             border: 2px solid #f1c40f !important;
             box-shadow: 0 0 6px rgba(241, 196, 15, 0.8) !important;
@@ -116,8 +109,9 @@
 
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
-        .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; }
-        .summary-table td { font-size: 0.8em; }
+        /* טבלת סיכום מנהל רגילה */
+        .summary-table th { background-color: #34495e; color: white; font-size: 0.85em; padding: 8px 4px; }
+        .summary-table td { font-size: 0.85em; padding: 6px 4px; }
         .stat-num { font-weight: bold; font-size: 1em; }
         
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -190,12 +184,12 @@
 
         <div id="employeeFormArea" class="hidden">
             
-            <!-- אזור תצוגת סידור עבודה מוכן עבור העובד -->
+            <!-- אזור תצוגת סידור עבודה קומפקטי לעובד בלבד -->
             <div id="employeeScheduleSection" style="margin-top: 15px;">
                 <div id="myShiftsSummary"></div>
                 
                 <h3 style="text-align: right; margin-top: 15px;">לוח משמרות שבועי מלא:</h3>
-                <div class="table-wrapper">
+                <div class="table-wrapper" style="overflow-x: hidden;">
                     <table class="schedule-table compact-table">
                         <thead>
                             <tr>
@@ -261,7 +255,7 @@
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
 
-    <!-- מסך מנהל -->
+    <!-- מסך מנהל (עיצוב מפורט ושלם) -->
     <div class="hidden" id="managerView">
         
         <div class="card">
@@ -335,16 +329,16 @@
             <h2>לוח משמרות שבועי (מנהל)</h2>
             <div class="print-only">סידור עבודה שבועי</div>
             <div class="table-wrapper">
-                <table class="schedule-table compact-table">
+                <table class="schedule-table" style="min-width: 600px;">
                     <thead>
                         <tr>
-                            <th style="width: 14%;">משמרת</th>
-                            <th style="width: 14.3%;">א'</th>
-                            <th style="width: 14.3%;">ב'</th>
-                            <th style="width: 14.3%;">ג'</th>
-                            <th style="width: 14.3%;">ד'</th>
-                            <th style="width: 14.3%;">ה'</th>
-                            <th style="width: 14.3%;">ו'</th>
+                            <th>משמרת</th>
+                            <th>ראשון</th>
+                            <th>שני</th>
+                            <th>שלישי</th>
+                            <th>רביעי</th>
+                            <th>חמישי</th>
+                            <th>שישי</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -364,7 +358,7 @@
                             <td id="cell-2-e"></td>
                             <td id="cell-3-e"></td>
                             <td id="cell-4-e"></td>
-                            <td style="background-color: #f2f2f2; color: #888; font-size: 0.7em;">סגור</td>
+                            <td style="background-color: #f2f2f2; color: #888;">סגור</td>
                         </tr>
                     </tbody>
                 </table>
