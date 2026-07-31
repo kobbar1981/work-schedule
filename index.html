@@ -92,7 +92,6 @@
 
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
         
-        /* כפתור תג שעות לחיץ וחכם */
         .time-badge-btn {
             display: inline-block;
             font-size: 0.68em;
@@ -182,7 +181,6 @@
         .hidden { display: none !important; }
         .print-only { display: none; }
 
-        /* הגדרות מדויקות לייצוא PDF והדפסה */
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
@@ -476,7 +474,7 @@
         </div>
     </div>
 
-    <!-- מודאל חכם ונוח לעדכון שעות משמרת -->
+    <!-- מודאל עדכון שעות משמרת -->
     <div id="timeModal" class="modal-overlay">
         <div class="modal-card">
             <h3 id="timeModalTitle">עדכון שעות משמרת לעובד</h3>
@@ -539,7 +537,6 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
-        // הפעלת האזנה בזמן אמת
         function initRealtimeListeners() {
             onSnapshot(collection(db, "employees"), (snapshot) => {
                 employees = [];
@@ -588,6 +585,7 @@
                     updatePublishBadge(false);
                 }
                 renderFullScheduleForManager();
+                renderSummaryTable(); // עדכון אוטומטי של טבלת הסיכום בעת טעינת הסידור המפורסם
                 if(verifiedEmployeeName) {
                     renderScheduleForEmployee(verifiedEmployeeName);
                 }
@@ -614,7 +612,6 @@
             }
         }
 
-        // ניהול מודאל השעות החדש
         window.openTimeModal = function(shiftKey, index, currentHoursStr, empName) {
             activeTimeKey = shiftKey;
             activeTimeIndex = index;
@@ -1221,7 +1218,11 @@
 
                 let availCount = Object.values(userAvail).filter(Boolean).length;
                 let assignedCount = 0;
-                Object.values(currentSchedule).forEach(list => { if(Array.isArray(list) && list.includes(emp.name)) assignedCount++; });
+                Object.values(currentSchedule).forEach(list => { 
+                    if(Array.isArray(list)) {
+                        assignedCount += list.filter(name => name === emp.name).length;
+                    }
+                });
                 
                 return `
                     <tr>
