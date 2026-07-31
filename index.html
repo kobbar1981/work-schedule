@@ -37,11 +37,9 @@
         }
 
         button { background-color: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; }
-        button:hover { background-color: #166fe5; }
-        .auto-btn { background-color: #42b72a; font-size: 1.05em; padding: 12px; }
-        .auto-btn:hover { background-color: #36a420; }
+        button:hover { opacity: 0.9; }
+        .auto-btn { font-size: 0.95em; padding: 12px; }
         .manager-login-btn { background-color: #5f6368; margin-top: 10px; }
-        .manager-login-btn:hover { background-color: #4a4d51; }
         
         .export-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
         .export-btn { flex: 1; min-width: 120px; font-size: 0.9em; font-weight: bold; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 0; }
@@ -54,12 +52,11 @@
         
         .table-wrapper { overflow-x: auto; width: 100%; }
         
-        /* עיצוב רגיל לטבלאות */
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* עיצוב קומפקטי ללא גלילה (ללוחות משמרות בעובד ובמנהל) */
+        /* עיצוב קומפקטי ללא גלילה */
         .compact-table {
             width: 100% !important;
             min-width: 0 !important;
@@ -117,7 +114,6 @@
 
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
-        /* טבלת סיכום מנהל */
         .summary-table th { background-color: #34495e; color: white; font-size: 0.85em; padding: 8px 4px; }
         .summary-table td { font-size: 0.85em; padding: 6px 4px; }
         .stat-num { font-weight: bold; font-size: 1em; }
@@ -151,13 +147,24 @@
             margin-bottom: 12px;
         }
 
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .status-draft { background-color: #ffeaa7; color: #d35400; }
+        .status-published { background-color: #55efc4; color: #00b894; }
+
         .hidden { display: none !important; }
         .print-only { display: none; }
 
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .unavail-badge, h1 { display: none !important; }
+            .export-group, .empty-slot, .unavail-badge, h1, .status-badge { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
         }
@@ -268,7 +275,7 @@
         <div class="card">
             <h2>1. הוספת עובד/ת ודירוג</h2>
             <div class="form-group">
-                <label>שם העובד/ת (מומלץ כולל שם משפחה):</label>
+                <label>שם העובד/ת:</label>
                 <input type="text" id="empName" placeholder="הכנס שם מלא...">
             </div>
             <div class="form-group">
@@ -327,16 +334,22 @@
             </div>
         </div>
 
+        <!-- 2 כפתורים נפרדים לצור ופרסם -->
         <div class="card">
             <h2>3. שיבוץ אוטומטי ופרסום</h2>
-            <button class="auto-btn" onclick="generateSchedule()">צור ופרסם סידור עבודה</button>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 130px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
+                <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 130px; background-color: #27ae60;">2. פרסם סידור לעובדים</button>
+            </div>
         </div>
 
         <div class="card" id="scheduleCard">
-            <h2>לוח משמרות שבועי (מנהל)</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>לוח משמרות שבועי (מנהל)</h2>
+                <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
+            </div>
             <div class="print-only">סידור עבודה שבועי</div>
             
-            <!-- לוח משמרות מנהל ללא גלילה -->
             <div class="table-wrapper" style="overflow-x: hidden;">
                 <table class="schedule-table compact-table">
                     <thead>
@@ -444,6 +457,7 @@
         let employeeAvailMap = {};
         let employeeNotesMap = {};
         let currentSchedule = {};
+        let isPublished = false;
         let activeSwapKey = null;
         let activeSwapIndex = null;
         let verifiedEmployeeName = null;
@@ -518,7 +532,12 @@
                 const scheduleSnap = await getDoc(doc(db, "settings", "published_schedule"));
                 if (scheduleSnap.exists()) {
                     currentSchedule = scheduleSnap.data().schedule || {};
+                    isPublished = true;
+                    updatePublishBadge(true);
                     renderFullScheduleForManager();
+                } else {
+                    isPublished = false;
+                    updatePublishBadge(false);
                 }
 
                 renderEmployeesList();
@@ -526,6 +545,18 @@
                 renderManagerNotes();
             } catch(e) { console.error(e); }
         };
+
+        function updatePublishBadge(published) {
+            const badge = document.getElementById('publishStatusBadge');
+            if(!badge) return;
+            if(published) {
+                badge.innerText = "פורסם לעובדים";
+                badge.className = "status-badge status-published";
+            } else {
+                badge.innerText = "טיוטה (טרם פורסם)";
+                badge.className = "status-badge status-draft";
+            }
+        }
 
         window.addEmployee = async function() {
             const name = document.getElementById('empName').value.trim();
@@ -759,7 +790,8 @@
             } catch(e) { alert("שגיאה בשמירת הזמינות."); }
         };
 
-        window.generateSchedule = async function() {
+        /* 1. יצירת סידור (טיוטה בלבד) */
+        window.generateSchedule = function() {
             if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
 
             let shiftCounts = {};
@@ -784,14 +816,32 @@
                 }
             });
 
-            try {
-                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
-                alert("הסידור נוצר ופורסם בהצלחה לעובדים!");
-            } catch(e) { console.error("שגיאה בשמירת הסידור:", e); }
+            isPublished = false;
+            updatePublishBadge(false);
 
             renderFullScheduleForManager();
             renderSummaryTable();
             renderManagerNotes();
+
+            alert("הסידור נוצר כטיוטה! לחץ על 'פרסם סידור לעובדים' כדי לחשוף אותו.");
+        };
+
+        /* 2. פרסום סידור לעובדים */
+        window.publishSchedule = async function() {
+            if (!currentSchedule || Object.keys(currentSchedule).length === 0) {
+                alert("אין סידור עבודה להפצה! אנא לחץ על 'צור סידור' תחילה.");
+                return;
+            }
+
+            try {
+                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
+                isPublished = true;
+                updatePublishBadge(true);
+                alert("הסידור פורסם בהצלחה לעובדים!");
+            } catch(e) {
+                alert("שגיאה בפרסום הסידור.");
+                console.error(e);
+            }
         };
 
         function renderFullScheduleForManager() {
@@ -887,16 +937,16 @@
 
         window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; };
 
-        window.applySwap = async function(empName) {
+        window.applySwap = function(empName) {
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
 
             currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             closeModal();
 
-            try {
-                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
-            } catch(e){}
+            /* שינוי ידני מעביר את הסידור למצב טיוטה בלתי פורסם עד ללחיצה מחדש על פרסום */
+            isPublished = false;
+            updatePublishBadge(false);
 
             renderFullScheduleForManager();
             renderSummaryTable();
@@ -961,6 +1011,8 @@
                 await deleteDoc(doc(db, "settings", "published_schedule"));
                 
                 currentSchedule = {};
+                isPublished = false;
+                updatePublishBadge(false);
                 employeeAvailMap = {};
                 employeeNotesMap = {};
                 renderFullScheduleForManager();
@@ -970,8 +1022,8 @@
         };
 
         window.sendScheduleToWhatsapp = function() {
-            if (!currentSchedule || Object.keys(currentSchedule).length === 0) { 
-                alert("טרם פורסם סידור עבודה! יש ליצור סידור לפני שליחה לוואטסאפ."); 
+            if (!isPublished) { 
+                alert("טרם פורסם סידור עבודה! לא ניתן לשלוח לוואטסאפ סידור שטרם פורסם."); 
                 return; 
             }
             let text = "סידור עבודה שבועי\n\n";
@@ -987,10 +1039,9 @@
             window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
         };
 
-        /* פונקציית ייצוא ל-PDF/הדפסה עם בדיקת פרסום */
         window.exportToPDF = function() {
-            if (!currentSchedule || Object.keys(currentSchedule).length === 0) {
-                alert("טרם פורסם סידור עבודה! לא ניתן לייצא או להדפיס סידור ריק.");
+            if (!isPublished) {
+                alert("טרם פורסם סידור עבודה! לא ניתן לייצא או להדפיס סידור שטרם פורסם.");
                 return;
             }
             window.print();
