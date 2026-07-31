@@ -54,12 +54,12 @@
         
         .table-wrapper { overflow-x: auto; width: 100%; }
         
-        /* עיצוב רגיל לטבלאות מנהל */
+        /* עיצוב רגיל לטבלאות */
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* עיצוב קומפקטי ייעודי *רק* לטבלת העובד לנייד */
+        /* עיצוב קומפקטי ללא גלילה (ללוחות משמרות בעובד ובמנהל) */
         .compact-table {
             width: 100% !important;
             min-width: 0 !important;
@@ -72,11 +72,19 @@
             word-break: break-word;
         }
         .compact-table .emp-tag {
-            font-size: 0.75em !important;
+            font-size: 0.7em !important;
             padding: 2px 1px !important;
             margin-bottom: 2px !important;
             white-space: normal !important;
             line-height: 1.1;
+        }
+        .compact-table .custom-time-input { 
+            font-size: 8px !important; 
+            padding: 0 !important; 
+        }
+        .compact-table .empty-slot { 
+            font-size: 0.7em !important; 
+            padding: 2px 1px !important; 
         }
 
         .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 3px; padding: 2px; }
@@ -90,7 +98,7 @@
             background-color: #fffde7 !important;
         }
 
-        .unavail-badge { background-color: #d63031; color: white; font-size: 0.65em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
+        .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
         
         .custom-time-input { 
             font-size: 9px !important; 
@@ -184,7 +192,6 @@
 
         <div id="employeeFormArea" class="hidden">
             
-            <!-- אזור תצוגת סידור עבודה קומפקטי לעובד בלבד -->
             <div id="employeeScheduleSection" style="margin-top: 15px;">
                 <div id="myShiftsSummary"></div>
                 
@@ -328,17 +335,19 @@
         <div class="card" id="scheduleCard">
             <h2>לוח משמרות שבועי (מנהל)</h2>
             <div class="print-only">סידור עבודה שבועי</div>
-            <div class="table-wrapper">
-                <table class="schedule-table" style="min-width: 600px;">
+            
+            <!-- לוח משמרות מנהל ללא גלילה -->
+            <div class="table-wrapper" style="overflow-x: hidden;">
+                <table class="schedule-table compact-table">
                     <thead>
                         <tr>
-                            <th>משמרת</th>
-                            <th>ראשון</th>
-                            <th>שני</th>
-                            <th>שלישי</th>
-                            <th>רביעי</th>
-                            <th>חמישי</th>
-                            <th>שישי</th>
+                            <th style="width: 14%;">משמרת</th>
+                            <th style="width: 14.3%;">א'</th>
+                            <th style="width: 14.3%;">ב'</th>
+                            <th style="width: 14.3%;">ג'</th>
+                            <th style="width: 14.3%;">ד'</th>
+                            <th style="width: 14.3%;">ה'</th>
+                            <th style="width: 14.3%;">ו'</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -358,7 +367,7 @@
                             <td id="cell-2-e"></td>
                             <td id="cell-3-e"></td>
                             <td id="cell-4-e"></td>
-                            <td style="background-color: #f2f2f2; color: #888;">סגור</td>
+                            <td style="background-color: #f2f2f2; color: #888; font-size: 0.7em;">סגור</td>
                         </tr>
                     </tbody>
                 </table>
@@ -893,7 +902,6 @@
             renderSummaryTable();
         };
 
-        /* פונקציית סיכום מנהל המעודכנת למעקב זמינויות וסטטוס מוגדר */
         function renderSummaryTable() {
             const tbody = document.getElementById('summaryTableBody');
             const countSummary = document.getElementById('submissionSummaryCount');
@@ -910,7 +918,6 @@
                 
                 if (hasSubmitted) submittedCount++;
 
-                // עיצוב עמודת הסטטוס עם סימוני V/X צבעוניים ובולטים
                 let statusHtml = hasSubmitted 
                     ? '<span style="color: #27ae60; font-weight: bold; font-size: 1.25em;">✔</span>' 
                     : '<span style="color: #e74c3c; font-weight: bold; font-size: 1.25em;">✖</span>';
@@ -963,7 +970,10 @@
         };
 
         window.sendScheduleToWhatsapp = function() {
-            if (Object.keys(currentSchedule).length === 0) { alert("טרם נוצר סידור!"); return; }
+            if (!currentSchedule || Object.keys(currentSchedule).length === 0) { 
+                alert("טרם פורסם סידור עבודה! יש ליצור סידור לפני שליחה לוואטסאפ."); 
+                return; 
+            }
             let text = "סידור עבודה שבועי\n\n";
             daysKeys.forEach(dIdx => {
                 text += `יום ${daysNames[dIdx]}\n`;
@@ -977,7 +987,14 @@
             window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
         };
 
-        window.exportToPDF = () => window.print();
+        /* פונקציית ייצוא ל-PDF/הדפסה עם בדיקת פרסום */
+        window.exportToPDF = function() {
+            if (!currentSchedule || Object.keys(currentSchedule).length === 0) {
+                alert("טרם פורסם סידור עבודה! לא ניתן לייצא או להדפיס סידור ריק.");
+                return;
+            }
+            window.print();
+        };
 
         loadManagerData();
     </script>
