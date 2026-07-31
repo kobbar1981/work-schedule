@@ -12,7 +12,7 @@
     
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; margin: 8px; background-color: #f0f2f5; color: #1c1e21; }
-        h1, h2, h3 { color: #050505; margin-top: 0; text-align: center; }
+        h1, h2, h3, h4 { color: #050505; margin-top: 0; text-align: center; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; }
         .form-group { margin-bottom: 10px; }
         label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85em; }
@@ -86,7 +86,7 @@
         .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 3px; padding: 2px; }
         .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
         
-        .emp-tag { display: block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+        .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
         .my-shift-highlight {
             border: 2px solid #f1c40f !important;
@@ -333,7 +333,6 @@
             </div>
         </div>
 
-        <!-- 3 כפתורים: צור, פרסם ובטל פרסום -->
         <div class="card">
             <h2>3. שיבוץ אוטומטי, פרסום וביטול</h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -389,6 +388,25 @@
             <div class="export-group">
                 <button class="export-btn whatsapp-btn" onclick="sendScheduleToWhatsapp()">שלח לוואטסאפ</button>
                 <button class="export-btn pdf-btn" onclick="exportToPDF()">ייצא ל-PDF / הדפסה</button>
+            </div>
+        </div>
+
+        <!-- טבלת זמינויות לפי ימים (חדש) -->
+        <div class="card">
+            <h2>פירוט זמינויות עובדים לפי ימים</h2>
+            <div class="table-wrapper">
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">יום</th>
+                            <th style="width: 42.5%;">זמינים לבוקר</th>
+                            <th style="width: 42.5%;">זמינים לערב</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyAvailTableBody">
+                        <tr><td colspan="3" style="color: #888;">טוען נתונים...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -538,9 +556,11 @@
                 } else {
                     isPublished = false;
                     updatePublishBadge(false);
+                    renderFullScheduleForManager();
                 }
 
                 renderEmployeesList();
+                renderDailyAvailabilityTable();
                 renderSummaryTable();
                 renderManagerNotes();
             } catch(e) { console.error(e); }
@@ -617,7 +637,7 @@
             list.innerHTML = employees.map((e) => `
                 <div class="emp-item">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                        <span class="emp-tag" style="background-color: ${e.color || '#888'}; display:inline-block; margin:0;">${e.name}</span>
+                        <span class="emp-tag" style="background-color: ${e.color || '#888'}; margin:0;">${e.name}</span>
                         <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 4px; border-radius: 4px;">
                             <span style="font-size:0.75em; color:#555; font-weight:bold;">קוד:</span>
                             <input type="text" value="${e.pin || '1234'}" maxlength="4" 
@@ -733,6 +753,7 @@
                         let html = '';
 
                         assigned.forEach(name => {
+                            if(!name) return;
                             const empObj = employees.find(e => e.name === name);
                             const empColor = empObj ? empObj.color : '#888';
                             const isMe = (name === empName);
@@ -790,7 +811,7 @@
             } catch(e) { alert("שגיאה בשמירת הזמינות."); }
         };
 
-        /* 1. יצירת סידור (טיוטה בלבד) */
+        /* 1. יצירת סידור */
         window.generateSchedule = function() {
             if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
 
@@ -823,7 +844,7 @@
             alert("הסידור נוצר כטיוטה על המסך! לחץ על 'פרסם לעובדים' כדי לחשוף אותו באפליקציה.");
         };
 
-        /* 2. פרסום סידור לעובדים */
+        /* 2. פרסום סידור */
         window.publishSchedule = async function() {
             if (!currentSchedule || Object.keys(currentSchedule).length === 0) {
                 alert("אין סידור עבודה להפצה! אנא לחץ על 'צור סידור' תחילה.");
@@ -841,7 +862,7 @@
             }
         };
 
-        /* 3. ביטול פרסום (הורדה מהאוויר) */
+        /* 3. ביטול פרסום */
         window.unpublishSchedule = async function() {
             if (!isPublished) {
                 alert("הסידור כרגע אינו מפורסם לעובדים.");
@@ -906,33 +927,44 @@
             return chosen;
         }
 
+        /* רינדור תאי המשמרות עם אפשרות לאלץ עובד נוסף */
         function renderShiftCell(dayIdx, shiftType, defaultTime) {
             const key = `${dayIdx}-${shiftType}`;
             const cell = document.getElementById(`cell-${key}`);
             if (!cell) return;
 
-            const assignedNames = currentSchedule[key] || [];
-            let reqCount = (dayIdx === '5' && shiftType === 'm') ? parseInt(document.getElementById('friMCount').value) : (shiftType === 'm' ? parseInt(document.getElementById('mCount').value) : parseInt(document.getElementById('eCount').value));
+            const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+            let reqCount = (dayIdx === '5' && shiftType === 'm') 
+                ? parseInt(document.getElementById('friMCount').value) 
+                : (shiftType === 'm' ? parseInt(document.getElementById('mCount').value) : parseInt(document.getElementById('eCount').value));
 
             let html = '';
-            for (let i = 0; i < reqCount; i++) {
-                const empName = assignedNames[i];
-                if (empName) {
-                    const emp = employees.find(e => e.name === empName);
-                    const isAvail = employeeAvailMap[empName]?.[key];
-                    const empColor = (emp && emp.color) ? emp.color : '#888888';
-                    html += `
-                        <div class="emp-container">
-                            <span class="emp-tag" style="background-color: ${empColor}" onclick="openSwapModal('${key}', ${i})">
-                                ${empName}
-                            </span>
-                            ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
-                            <input type="text" class="custom-time-input" value="${defaultTime}">
-                        </div>`;
-                } else {
-                    html += `<div class="empty-slot" onclick="openSwapModal('${key}', ${i})">+ לאלץ</div>`;
-                }
+
+            // הצגת העובדים שמשובצים כבר
+            assignedNames.forEach((empName, index) => {
+                const emp = employees.find(e => e.name === empName);
+                const isAvail = employeeAvailMap[empName]?.[key];
+                const empColor = (emp && emp.color) ? emp.color : '#888888';
+                html += `
+                    <div class="emp-container">
+                        <span class="emp-tag" style="background-color: ${empColor}" onclick="openSwapModal('${key}', ${index})">
+                            ${empName}
+                        </span>
+                        ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
+                        <input type="text" class="custom-time-input" value="${defaultTime}">
+                    </div>`;
+            });
+
+            // יצירת משבצות לאכלוס חסר או לאילוץ עובד נוסף
+            let maxSlots = Math.max(reqCount, assignedNames.length + 1);
+            for (let i = assignedNames.length; i < maxSlots; i++) {
+                const isExtra = i >= reqCount;
+                html += `
+                    <div class="empty-slot" style="${isExtra ? 'border-color:#e67e22; color:#d35400; background:#fef5e7;' : ''}" onclick="openSwapModal('${key}', ${i})">
+                        + ${isExtra ? 'לאלץ עובד נוסף' : 'שיבוץ עובד'}
+                    </div>`;
             }
+
             cell.innerHTML = html;
         }
 
@@ -947,7 +979,7 @@
                 const isAvail = employeeAvailMap[emp.name]?.[shiftKey];
                 list.innerHTML += `
                     <button class="modal-emp-btn" onclick="applySwap('${emp.name}')">
-                        <span><strong style="color:${emp.color || '#888'}">●</strong> ${emp.name}</span>
+                        <span><strong style="color:${emp.color || '#888'}">●</strong> ${emp.name} (רמה ${emp.rank || 1})</span>
                         <span style="font-size:0.75em; color:${isAvail?'green':'red'}">${isAvail?'זמין':'לא הגיש'}</span>
                     </button>`;
             });
@@ -960,12 +992,51 @@
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
 
-            currentSchedule[activeSwapKey][activeSwapIndex] = empName;
+            if (empName === null) {
+                currentSchedule[activeSwapKey].splice(activeSwapIndex, 1);
+            } else {
+                currentSchedule[activeSwapKey][activeSwapIndex] = empName;
+            }
             closeModal();
 
             renderFullScheduleForManager();
             renderSummaryTable();
         };
+
+        /* רינדור טבלת זמינויות לפי ימים (חדש) */
+        function renderDailyAvailabilityTable() {
+            const tbody = document.getElementById('dailyAvailTableBody');
+            if (!tbody) return;
+
+            let html = '';
+            daysKeys.forEach((dIdx) => {
+                const dayName = daysNames[dIdx];
+                const mKey = `${dIdx}-m`;
+                const eKey = `${dIdx}-e`;
+
+                let morningAvail = employees.filter(e => employeeAvailMap[e.name]?.[mKey]);
+                let eveningAvail = (dIdx === '5') ? [] : employees.filter(e => employeeAvailMap[e.name]?.[eKey]);
+
+                let mHtml = morningAvail.length > 0 
+                    ? morningAvail.map(e => `<span class="emp-tag" style="background-color:${e.color || '#888'}; font-size:0.75em; margin:2px;">${e.name} (${e.rank || 1})</span>`).join(' ')
+                    : '<span style="color:#aaa; font-size:0.8em;">אין זמינים</span>';
+
+                let eHtml = (dIdx === '5') 
+                    ? '<span style="color:#aaa; font-size:0.8em;">סגור</span>'
+                    : (eveningAvail.length > 0 
+                        ? eveningAvail.map(e => `<span class="emp-tag" style="background-color:${e.color || '#888'}; font-size:0.75em; margin:2px;">${e.name} (${e.rank || 1})</span>`).join(' ')
+                        : '<span style="color:#aaa; font-size:0.8em;">אין זמינים</span>');
+
+                html += `
+                    <tr>
+                        <td><b>${dayName}</b></td>
+                        <td style="text-align: right;">${mHtml}</td>
+                        <td style="text-align: right;">${eHtml}</td>
+                    </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
 
         function renderSummaryTable() {
             const tbody = document.getElementById('summaryTableBody');
@@ -989,7 +1060,7 @@
 
                 let availCount = Object.values(userAvail).filter(Boolean).length;
                 let assignedCount = 0;
-                Object.values(currentSchedule).forEach(list => { if(list.includes(emp.name)) assignedCount++; });
+                Object.values(currentSchedule).forEach(list => { if(Array.isArray(list) && list.includes(emp.name)) assignedCount++; });
                 
                 return `
                     <tr>
@@ -1031,6 +1102,7 @@
                 employeeAvailMap = {};
                 employeeNotesMap = {};
                 renderFullScheduleForManager();
+                renderDailyAvailabilityTable();
                 renderSummaryTable();
                 alert("הנתונים אופסו בהצלחה!");
             } catch(e){}
@@ -1046,7 +1118,7 @@
                 text += `יום ${daysNames[dIdx]}\n`;
                 ['m', 'e'].forEach(shift => {
                     if(dIdx === '5' && shift === 'e') return;
-                    let emps = (currentSchedule[`${dIdx}-${shift}`] || []).join(', ');
+                    let emps = (currentSchedule[`${dIdx}-${shift}`] || []).filter(Boolean).join(', ');
                     text += `${shift==='m'?'בוקר':'ערב'}: ${emps || 'אין'}\n`;
                 });
                 text += "───────────────────\n";
