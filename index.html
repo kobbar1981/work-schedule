@@ -312,8 +312,8 @@
             <h2>2. הגדרת שעות וכמות עובדים</h2>
             <h4>משמרת בוקר (ראשון–חמישי)</h4>
             <div class="form-group time-range">
-                <input type="time" id="mStart" value="11:00">
-                <input type="time" id="mEnd" value="16:00">
+                <input type="time" id="mStart" value="11:00" onchange="renderFullScheduleForManager()">
+                <input type="time" id="mEnd" value="16:00" onchange="renderFullScheduleForManager()">
             </div>
             <div class="form-group">
                 <label>כמות עובדים בבוקר (א'-ה'):</label>
@@ -322,8 +322,8 @@
             <hr>
             <h4>משמרת בוקר שישי</h4>
             <div class="form-group time-range">
-                <input type="time" id="friMStart" value="09:30">
-                <input type="time" id="friMEnd" value="14:00">
+                <input type="time" id="friMStart" value="09:30" onchange="renderFullScheduleForManager()">
+                <input type="time" id="friMEnd" value="14:00" onchange="renderFullScheduleForManager()">
             </div>
             <div class="form-group">
                 <label>כמות עובדים בשישי בוקר:</label>
@@ -332,8 +332,8 @@
             <hr>
             <h4>משמרת ערב (ראשון–חמישי)</h4>
             <div class="form-group time-range">
-                <input type="time" id="eStart" value="16:00">
-                <input type="time" id="eEnd" value="21:00">
+                <input type="time" id="eStart" value="16:00" onchange="renderFullScheduleForManager()">
+                <input type="time" id="eEnd" value="21:00" onchange="renderFullScheduleForManager()">
             </div>
             <div class="form-group">
                 <label>כמות עובדים בערב (א'-ה'):</label>
@@ -483,15 +483,15 @@
         let employeeAvailMap = {};
         let employeeNotesMap = {};
         let currentSchedule = {};
+        let customShiftTimes = {}; // שומר שעות יזומות פר משבצת עובד
         let publishedTimes = {};
         let isPublished = false;
         let activeSwapKey = null;
         let activeSwapIndex = null;
         let verifiedEmployeeName = null;
 
-        // הפעלת האזנה בזמן אמת (Real-time Sync)
+        // הפעלת האזנה בזמן אמת
         function initRealtimeListeners() {
-            // 1. האזנה לשינויים בעובדים
             onSnapshot(collection(db, "employees"), (snapshot) => {
                 employees = [];
                 snapshot.forEach((d, idx) => {
@@ -509,7 +509,6 @@
                 }
             });
 
-            // 2. האזנה לשינויים בזמינויות
             onSnapshot(collection(db, "availability"), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
@@ -524,17 +523,18 @@
                 renderManagerNotes();
             });
 
-            // 3. האזנה לשינויים בסידור המפורסם
             onSnapshot(doc(db, "settings", "published_schedule"), (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
                     currentSchedule = data.schedule || {};
                     publishedTimes = data.times || {};
+                    customShiftTimes = data.slotTimes || {};
                     isPublished = true;
                     updatePublishBadge(true);
                 } else {
                     currentSchedule = {};
                     publishedTimes = {};
+                    customShiftTimes = {};
                     isPublished = false;
                     updatePublishBadge(false);
                 }
@@ -564,6 +564,10 @@
                 return `${s} - ${e}`;
             }
         }
+
+        window.updateCustomTime = function(shiftKey, index, newTime) {
+            customShiftTimes[`${shiftKey}-${index}`] = newTime;
+        };
 
         window.switchView = function(viewName) {
             document.getElementById('selectionView').classList.add('hidden');
@@ -767,15 +771,18 @@
                     if(!cell) return;
 
                     const assigned = currentSchedule[key] || [];
-                    const shiftHours = getShiftHours(dIdx, shiftType);
                     let html = '';
 
-                    assigned.forEach(name => {
+                    assigned.forEach((name, index) => {
                         if(!name) return;
                         const empObj = employees.find(e => e.name === name);
                         const empColor = empObj ? empObj.color : '#888';
                         const isMe = (name === empName);
                         
+                        const shiftHours = (customShiftTimes[`${key}-${index}`]) 
+                            ? customShiftTimes[`${key}-${index}`] 
+                            : getShiftHours(dIdx, shiftType);
+
                         if (isMe) {
                             myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'} ${shiftHours})`);
                         }
@@ -834,6 +841,7 @@
             let shiftCounts = {};
             employees.forEach(e => shiftCounts[e.name] = 0);
             currentSchedule = {};
+            customShiftTimes = {}; // איפוס שעות מותאמות בעת יצירת טיוטה חדשה
 
             daysKeys.forEach(dIdx => {
                 let assignedToday = [];
@@ -878,7 +886,8 @@
             try {
                 await setDoc(doc(db, "settings", "published_schedule"), { 
                     schedule: currentSchedule,
-                    times: currentTimes
+                    times: currentTimes,
+                    slotTimes: customShiftTimes
                 });
                 alert("הסידור ושעות המשמרת פורסמו בהצלחה לעובדים!");
             } catch(e) {
@@ -906,7 +915,7 @@
             }
         };
 
-        function renderFullScheduleForManager() {
+        window.renderFullScheduleForManager = function() {
             const mStart = document.getElementById('mStart')?.value || "11:00";
             const mEnd = document.getElementById('mEnd')?.value || "16:00";
             const friMStart = document.getElementById('friMStart')?.value || "09:30";
@@ -917,12 +926,12 @@
             daysKeys.forEach(dIdx => {
                 let currentMStart = (dIdx === '5') ? friMStart : mStart;
                 let currentMEnd = (dIdx === '5') ? friMEnd : mEnd;
-                renderShiftCell(dIdx, 'm', `${currentMStart}-${currentMEnd}`);
+                renderShiftCell(dIdx, 'm', `${currentMStart} - ${currentMEnd}`);
                 if (dIdx !== '5') {
-                    renderShiftCell(dIdx, 'e', `${eStart}-${eEnd}`);
+                    renderShiftCell(dIdx, 'e', `${eStart} - ${eEnd}`);
                 }
             });
-        }
+        };
 
         function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
             const key = `${dayIdx}-${shiftType}`;
@@ -965,13 +974,15 @@
                 const emp = employees.find(e => e.name === empName);
                 const isAvail = employeeAvailMap[empName]?.[key];
                 const empColor = (emp && emp.color) ? emp.color : '#888888';
+                const slotTime = customShiftTimes[`${key}-${index}`] || defaultTime;
+
                 html += `
                     <div class="emp-container">
                         <span class="emp-tag" style="background-color: ${empColor}" onclick="openSwapModal('${key}', ${index})">
                             ${empName}
                         </span>
                         ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
-                        <input type="text" class="custom-time-input" value="${defaultTime}">
+                        <input type="text" class="custom-time-input" value="${slotTime}" onchange="updateCustomTime('${key}', ${index}, this.value)">
                     </div>`;
             });
 
@@ -1013,6 +1024,7 @@
 
             if (empName === null) {
                 currentSchedule[activeSwapKey].splice(activeSwapIndex, 1);
+                delete customShiftTimes[`${activeSwapKey}-${activeSwapIndex}`];
             } else {
                 currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             }
@@ -1030,7 +1042,8 @@
                     };
                     await setDoc(doc(db, "settings", "published_schedule"), { 
                         schedule: currentSchedule,
-                        times: currentTimes
+                        times: currentTimes,
+                        slotTimes: customShiftTimes
                     });
                 } catch(e) { console.error(e); }
             } else {
@@ -1146,9 +1159,14 @@
                 text += `יום ${daysNames[dIdx]}\n`;
                 ['m', 'e'].forEach(shift => {
                     if(dIdx === '5' && shift === 'e') return;
-                    let emps = (currentSchedule[`${dIdx}-${shift}`] || []).filter(Boolean).join(', ');
-                    let hours = getShiftHours(dIdx, shift);
-                    text += `${shift==='m'?'בוקר':'ערב'} (${hours}): ${emps || 'אין'}\n`;
+                    let key = `${dIdx}-${shift}`;
+                    let empsArr = currentSchedule[key] || [];
+                    let empsWithHours = empsArr.filter(Boolean).map((empName, idx) => {
+                        let hours = customShiftTimes[`${key}-${idx}`] || getShiftHours(dIdx, shift);
+                        return `${empName} (${hours})`;
+                    });
+                    
+                    text += `${shift==='m'?'בוקר':'ערב'}: ${empsWithHours.join(', ') || 'אין'}\n`;
                 });
                 text += "───────────────────\n";
             });
