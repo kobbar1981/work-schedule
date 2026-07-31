@@ -73,9 +73,16 @@
         
         .emp-tag { display: block; padding: 5px 2px; border-radius: 5px; font-weight: bold; color: black; margin-bottom: 3px; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
         
+        /* הדגשה זהובה למשמרת של העובד המחובר */
+        .my-shift-highlight {
+            border: 2px solid #f1c40f !important;
+            box-shadow: 0 0 8px rgba(241, 196, 15, 0.8) !important;
+            transform: scale(1.03);
+            background-color: #fffde7 !important;
+        }
+
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.7em; padding: 1px 3px; border-radius: 4px; margin-top: 2px; display: inline-block; font-weight: bold; }
         
-        /* עיצוב משופר לשדה השעות למניעת חיתוך בכל מסך */
         .custom-time-input { 
             font-size: 10px !important; 
             font-weight: bold;
@@ -118,6 +125,14 @@
             font-size: 0.9em;
         }
 
+        .my-shifts-box {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
         .hidden { display: none !important; }
         .print-only { display: none; }
 
@@ -136,13 +151,13 @@
 
     <div class="card" id="selectionView">
         <h2>בחר אופן כניסה למערכת:</h2>
-        <button onclick="switchView('employee')">כניסת עובדים (הגשת זמינות)</button>
+        <button onclick="switchView('employee')">כניסת עובדים (הגשת זמינות וצפייה בסידור)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל (ניהול ושיבוץ)</button>
     </div>
 
     <!-- מסך כניסת עובד -->
     <div class="card hidden" id="employeeView">
-        <h2>הגשת זמינות שבועית לעובד/ת</h2>
+        <h2>אזור עובד/ת</h2>
         
         <div class="form-group">
             <label>1. בחר את שמך מהרשימה:</label>
@@ -154,11 +169,56 @@
         <div class="form-group" id="pinStepArea">
             <label>2. הכנס קוד אישי (4 ספרות):</label>
             <input type="password" id="employeePinInput" maxlength="4" placeholder="****" pattern="[0-9]*" inputmode="numeric">
-            <button onclick="verifyEmployeePin()" style="margin-top: 8px; background-color: #3498db;">אימות קוד</button>
+            <button onclick="verifyEmployeePin()" style="margin-top: 8px; background-color: #3498db;">אימות קוד וכניסה</button>
         </div>
 
         <div id="employeeFormArea" class="hidden">
-            <hr style="margin: 15px 0;">
+            
+            <!-- אזור תצוגת סידור עבודה מוכן עבור העובד -->
+            <div id="employeeScheduleSection" style="margin-top: 15px;">
+                <div id="myShiftsSummary"></div>
+                
+                <h3 style="text-align: right; margin-top: 15px;">לוח משמרות שבועי מלא:</h3>
+                <div class="table-wrapper">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>משמרת</th>
+                                <th>ראשון</th>
+                                <th>שני</th>
+                                <th>שלישי</th>
+                                <th>רביעי</th>
+                                <th>חמישי</th>
+                                <th>שישי</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><b>בוקר</b></td>
+                                <td id="emp-cell-0-m"></td>
+                                <td id="emp-cell-1-m"></td>
+                                <td id="emp-cell-2-m"></td>
+                                <td id="emp-cell-3-m"></td>
+                                <td id="emp-cell-4-m"></td>
+                                <td id="emp-cell-5-m"></td>
+                            </tr>
+                            <tr>
+                                <td><b>ערב</b></td>
+                                <td id="emp-cell-0-e"></td>
+                                <td id="emp-cell-1-e"></td>
+                                <td id="emp-cell-2-e"></td>
+                                <td id="emp-cell-3-e"></td>
+                                <td id="emp-cell-4-e"></td>
+                                <td style="background-color: #f2f2f2; color: #888;">סגור</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0;">
+
+            <h3>הגשת זמינות שבועית לשבוע הבא</h3>
             <label>סמן את המשמרות שאתה יכול לעבוד בהן:</label>
             <div class="shift-checkboxes" id="shiftsCheckboxContainer">
                 <label><input type="checkbox" value="0-m"> <span>ראשון בוקר</span></label>
@@ -179,7 +239,7 @@
                 <textarea id="employeeNoteInput" placeholder="למשל: יכול להגיע רק מ-12:00..."></textarea>
             </div>
 
-            <button onclick="submitEmployeeAvailability()" style="background-color: #27ae60;">שלח זמינות למנהל</button>
+            <button onclick="submitEmployeeAvailability()" style="background-color: #27ae60;">עדכן זמינות למנהל</button>
         </div>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
@@ -213,7 +273,7 @@
             <button onclick="addEmployee()">הוסף עובד</button>
             <button class="reset-btn" onclick="resetScheduleOnly()">איפוס שיבוץ וזמינויות בלבד</button>
 
-            <h3>צוות העובדים במערכת (ניתן לערוך קוד/רמה):</h3>
+            <h3>צוות העובדים במערכת:</h3>
             <div id="empList"></div>
         </div>
 
@@ -251,12 +311,12 @@
         </div>
 
         <div class="card">
-            <h2>3. שיבוץ אוטומטי</h2>
-            <button class="auto-btn" onclick="generateSchedule()">צור סידור עבודה אוטומטי</button>
+            <h2>3. שיבוץ אוטומטי ופרסום</h2>
+            <button class="auto-btn" onclick="generateSchedule()">צור ופרסם סידור עבודה</button>
         </div>
 
         <div class="card" id="scheduleCard">
-            <h2>לוח משמרות שבועי</h2>
+            <h2>לוח משמרות שבועי (מנהל)</h2>
             <div class="print-only">סידור עבודה שבועי</div>
             <div class="table-wrapper">
                 <table class="schedule-table">
@@ -322,7 +382,6 @@
             <div id="managerNotesContainer" style="margin-top: 15px;"></div>
         </div>
 
-        <!-- הגדרות מנהל -->
         <div class="card">
             <h2>הגדרות מנהל</h2>
             <div class="form-group">
@@ -394,9 +453,7 @@
                 if (docSnap.exists() && docSnap.data().password) {
                     currentPass = docSnap.data().password;
                 }
-            } catch(e) {
-                console.error("שגיאה בשליפת סיסמת מנהל:", e);
-            }
+            } catch(e) { console.error(e); }
 
             const pass = prompt("הכנס סיסמת מנהל:");
             if(pass === currentPass) {
@@ -408,18 +465,12 @@
 
         window.updateManagerPassword = async function() {
             const newPass = document.getElementById('newManagerPass').value.trim();
-            if (!newPass) {
-                alert("אנא הכנס סיסמה חדשה!");
-                return;
-            }
+            if (!newPass) { alert("אנא הכנס סיסמה חדשה!"); return; }
             try {
                 await setDoc(doc(db, "settings", "manager_config"), { password: newPass }, { merge: true });
                 alert("סיסמת המנהל עודכנה בהצלחה!");
                 document.getElementById('newManagerPass').value = '';
-            } catch(e) {
-                console.error("שגיאה בעדכון סיסמת מנהל:", e);
-                alert("אירעה שגיאה בעדכון הסיסמה.");
-            }
+            } catch(e) { alert("אירעה שגיאה בעדכון הסיסמה."); }
         };
 
         window.loadManagerData = async function() {
@@ -432,10 +483,7 @@
                     let docId = d.id; 
                     if(!data.name) data.name = docId; 
                     if(!data.pin) data.pin = "1234";
-                    if(!data.color) {
-                        data.color = colors[idx % colors.length];
-                        try { setDoc(doc(db, "employees", docId), { color: data.color }, { merge: true }); } catch(err){}
-                    }
+                    if(!data.color) data.color = colors[idx % colors.length];
                     employees.push(data);
                 });
 
@@ -449,12 +497,17 @@
                     if(data.note) employeeNotesMap[empName] = data.note;
                 });
 
+                // טעינת סידור קיים
+                const scheduleSnap = await getDoc(doc(db, "settings", "published_schedule"));
+                if (scheduleSnap.exists()) {
+                    currentSchedule = scheduleSnap.data().schedule || {};
+                    renderFullScheduleForManager();
+                }
+
                 renderEmployeesList();
                 renderSummaryTable();
                 renderManagerNotes();
-            } catch(e) {
-                console.error("שגיאה בטעינת הנתונים:", e);
-            }
+            } catch(e) { console.error(e); }
         };
 
         window.addEmployee = async function() {
@@ -474,10 +527,7 @@
                 document.getElementById('empPin').value = '';
                 alert("העובד נוסף בהצלחה!");
                 loadManagerData();
-            } catch(e) {
-                console.error(e);
-                alert("שגיאה בהוספת עובד.");
-            }
+            } catch(e) { alert("שגיאה בהוספת עובד."); }
         };
 
         window.updateEmployeePin = async function(name, newPin) {
@@ -491,21 +541,13 @@
                 await setDoc(doc(db, "employees", name), { pin: newPin }, { merge: true });
                 const emp = employees.find(e => e.name === name);
                 if (emp) emp.pin = newPin;
-            } catch(e) {
-                console.error("שגיאה בעדכון קוד עובד:", e);
-                alert("אירעה שגיאה בעדכון הקוד.");
-            }
+            } catch(e) { alert("אירעה שגיאה בעדכון הקוד."); }
         };
 
         window.updateEmployeeRank = async function(name, newRank) {
             try {
-                const parsedRank = parseInt(newRank);
-                await setDoc(doc(db, "employees", name), { rank: parsedRank }, { merge: true });
-                const emp = employees.find(e => e.name === name);
-                if (emp) emp.rank = parsedRank;
-            } catch(e) {
-                console.error(e);
-            }
+                await setDoc(doc(db, "employees", name), { rank: parseInt(newRank) }, { merge: true });
+            } catch(e){}
         };
 
         window.deleteEmployee = async function(name) {
@@ -514,9 +556,7 @@
                     await deleteDoc(doc(db, "employees", name));
                     await deleteDoc(doc(db, "availability", name));
                     loadManagerData();
-                } catch(e) {
-                    console.error(e);
-                }
+                } catch(e){}
             }
         };
 
@@ -526,31 +566,26 @@
                 list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>';
                 return;
             }
-            list.innerHTML = employees.map((e) => {
-                const empColor = e.color || "#888"; 
-                return `
-                    <div class="emp-item">
-                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                            <span class="emp-tag" style="background-color: ${empColor}; display:inline-block; margin:0;">${e.name}</span>
-                            
-                            <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 6px; border-radius: 4px;">
-                                <span style="font-size:0.8em; color:#555; font-weight:bold;">קוד:</span>
-                                <input type="text" value="${e.pin || '1234'}" maxlength="4" 
-                                       style="width: 55px; padding: 2px 4px; font-size: 0.85em; text-align: center; margin: 0; background: white;" 
-                                       onchange="updateEmployeePin('${e.name}', this.value)" 
-                                       pattern="[0-9]*" inputmode="numeric" title="לחץ לשנה קוד">
-                            </div>
-
-                            <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0;">
-                                <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
-                                <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
-                                <option value="1" ${e.rank == 1 ? 'selected' : ''}>חלש (1)</option>
-                            </select>
+            list.innerHTML = employees.map((e) => `
+                <div class="emp-item">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span class="emp-tag" style="background-color: ${e.color || '#888'}; display:inline-block; margin:0;">${e.name}</span>
+                        <div style="display: flex; align-items: center; gap: 4px; background: #eee; padding: 2px 6px; border-radius: 4px;">
+                            <span style="font-size:0.8em; color:#555; font-weight:bold;">קוד:</span>
+                            <input type="text" value="${e.pin || '1234'}" maxlength="4" 
+                                   style="width: 55px; padding: 2px 4px; font-size: 0.85em; text-align: center; margin: 0; background: white;" 
+                                   onchange="updateEmployeePin('${e.name}', this.value)" 
+                                   pattern="[0-9]*" inputmode="numeric">
                         </div>
-                        <button class="delete-btn" onclick="deleteEmployee('${e.name}')">הסר</button>
+                        <select onchange="updateEmployeeRank('${e.name}', this.value)" style="width: auto; padding: 4px 8px; font-size: 0.85em; margin: 0;">
+                            <option value="3" ${e.rank == 3 ? 'selected' : ''}>חזק (3)</option>
+                            <option value="2" ${e.rank == 2 ? 'selected' : ''}>בינוני (2)</option>
+                            <option value="1" ${e.rank == 1 ? 'selected' : ''}>חלש (1)</option>
+                        </select>
                     </div>
-                `;
-            }).join('');
+                    <button class="delete-btn" onclick="deleteEmployee('${e.name}')">הסר</button>
+                </div>
+            `).join('');
         }
 
         async function loadEmployeesForEmployeeView() {
@@ -570,9 +605,7 @@
                 employees.forEach(emp => {
                     dropdown.innerHTML += `<option value="${emp.name}">${emp.name}</option>`;
                 });
-            } catch(e) {
-                console.error(e);
-            }
+            } catch(e) { console.error(e); }
         }
 
         window.resetPinStep = function() {
@@ -585,12 +618,8 @@
             const selectedName = document.getElementById('employeeNameDropdown').value;
             const inputPin = document.getElementById('employeePinInput').value.trim();
 
-            if (!selectedName) {
-                alert("אנא בחר שם עובד מהרשימה!");
-                return;
-            }
-            if (!inputPin) {
-                alert("אנא הכנס קוד אישי!");
+            if (!selectedName || !inputPin) {
+                alert("אנא בחר שם והכנס קוד אישי!");
                 return;
             }
 
@@ -602,6 +631,7 @@
                 document.getElementById('employeeFormArea').classList.remove('hidden');
                 
                 try {
+                    // טעינת זמינות העובד
                     const availSnap = await getDocs(collection(db, "availability"));
                     let existingAvail = {};
                     let existingNote = '';
@@ -616,26 +646,92 @@
                         cb.checked = !!existingAvail[cb.value];
                     });
                     document.getElementById('employeeNoteInput').value = existingNote;
-                } catch(err) {
-                    console.error(err);
-                }
+
+                    // טעינת הסידור המפורסם והצגתו
+                    renderScheduleForEmployee(selectedName);
+
+                } catch(err) { console.error(err); }
             } else {
-                alert("קוד אישי שגוי! גישה נדחתה.");
+                alert("קוד אישי שגוי!");
                 document.getElementById('employeeFormArea').classList.add('hidden');
             }
         };
 
+        async function renderScheduleForEmployee(empName) {
+            try {
+                const scheduleSnap = await getDoc(doc(db, "settings", "published_schedule"));
+                const summaryBox = document.getElementById('myShiftsSummary');
+
+                if (!scheduleSnap.exists() || !scheduleSnap.data().schedule) {
+                    summaryBox.innerHTML = `
+                        <div style="background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba; text-align: center;">
+                            <b>סידור העבודה לשבוע הבא טרם פורסם.</b><br>ניתן לעדכן זמינות בטופס שלמטה.
+                        </div>`;
+                    daysKeys.forEach(d => ['m','e'].forEach(s => {
+                        const cell = document.getElementById(`emp-cell-${d}-${s}`);
+                        if(cell) cell.innerHTML = '-';
+                    }));
+                    return;
+                }
+
+                const sched = scheduleSnap.data().schedule;
+                let myShiftsList = [];
+
+                daysKeys.forEach(dIdx => {
+                    ['m', 'e'].forEach(shiftType => {
+                        const key = `${dIdx}-${shiftType}`;
+                        const cell = document.getElementById(`emp-cell-${key}`);
+                        if(!cell) return;
+
+                        const assigned = sched[key] || [];
+                        let html = '';
+
+                        assigned.forEach(name => {
+                            const empObj = employees.find(e => e.name === name);
+                            const empColor = empObj ? empObj.color : '#888';
+                            const isMe = (name === empName);
+                            
+                            if (isMe) {
+                                myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'})`);
+                            }
+
+                            html += `
+                                <div class="emp-container ${isMe ? 'my-shift-highlight' : ''}">
+                                    <span class="emp-tag" style="background-color: ${empColor}">
+                                        ${name} ${isMe ? '⭐ (אתה)' : ''}
+                                    </span>
+                                </div>`;
+                        });
+
+                        cell.innerHTML = html || '-';
+                    });
+                });
+
+                // סיכום אישי בחלק העליון
+                if (myShiftsList.length > 0) {
+                    summaryBox.innerHTML = `
+                        <div class="my-shifts-box">
+                            <h3 style="margin: 0 0 8px 0; color: #0d47a1;">שלום ${empName}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3>
+                            <ul style="margin: 0; padding-right: 20px; color: #1565c0; font-weight: bold;">
+                                ${myShiftsList.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>`;
+                } else {
+                    summaryBox.innerHTML = `
+                        <div class="my-shifts-box" style="background:#f5f5f5; border-color:#ccc;">
+                            <h3 style="margin:0; color:#666;">שלום ${empName}, לא שובצת למשמרות השבוע.</h3>
+                        </div>`;
+                }
+
+            } catch(e) { console.error(e); }
+        }
+
         window.submitEmployeeAvailability = async function() {
-            if(!verifiedEmployeeName) {
-                alert("יש לאמת קוד אישי תחילה!");
-                return;
-            }
+            if(!verifiedEmployeeName) return;
 
             const checkboxes = document.querySelectorAll('#shiftsCheckboxContainer input:checked');
             let selectedShifts = {};
-            checkboxes.forEach(cb => {
-                selectedShifts[cb.value] = true;
-            });
+            checkboxes.forEach(cb => selectedShifts[cb.value] = true);
             const note = document.getElementById('employeeNoteInput').value.trim();
 
             try {
@@ -644,24 +740,13 @@
                     shifts: selectedShifts,
                     note: note
                 });
-                
-                alert("הזמינות נשמרה בהצלחה!");
+                alert("הזמינות עודכנה בהצלחה!");
                 switchView('selection');
-            } catch(e) {
-                console.error(e);
-                alert("שגיאה בשמירת הזמינות.");
-            }
+            } catch(e) { alert("שגיאה בשמירת הזמינות."); }
         };
 
-        window.generateSchedule = function() {
+        window.generateSchedule = async function() {
             if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
-
-            const mStart = document.getElementById('mStart').value;
-            const mEnd = document.getElementById('mEnd').value;
-            const friMStart = document.getElementById('friMStart').value;
-            const friMEnd = document.getElementById('friMEnd').value;
-            const eStart = document.getElementById('eStart').value;
-            const eEnd = document.getElementById('eEnd').value;
 
             let shiftCounts = {};
             employees.forEach(e => shiftCounts[e.name] = 0);
@@ -669,8 +754,6 @@
 
             daysKeys.forEach(dIdx => {
                 let assignedToday = [];
-                let currentMStart = (dIdx === '5') ? friMStart : mStart;
-                let currentMEnd = (dIdx === '5') ? friMEnd : mEnd;
                 let reqMCount = (dIdx === '5') ? parseInt(document.getElementById('friMCount').value) : parseInt(document.getElementById('mCount').value);
 
                 let morningShift = assignShift(reqMCount, dIdx, 'm', assignedToday, shiftCounts);
@@ -685,24 +768,40 @@
                     eveningShift.forEach(e => shiftCounts[e.name]++);
                     currentSchedule[`${dIdx}-e`] = eveningShift.map(e => e.name);
                 }
+            });
 
+            // שמירת הסידור ב-Firebase לגישת העובדים
+            try {
+                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
+                alert("הסידור נוצר ופורסם בהצלחה לעובדים!");
+            } catch(e) { console.error("שגיאה בשמירת הסידור:", e); }
+
+            renderFullScheduleForManager();
+            renderSummaryTable();
+            renderManagerNotes();
+        };
+
+        function renderFullScheduleForManager() {
+            const mStart = document.getElementById('mStart').value;
+            const mEnd = document.getElementById('mEnd').value;
+            const friMStart = document.getElementById('friMStart').value;
+            const friMEnd = document.getElementById('friMEnd').value;
+            const eStart = document.getElementById('eStart').value;
+            const eEnd = document.getElementById('eEnd').value;
+
+            daysKeys.forEach(dIdx => {
+                let currentMStart = (dIdx === '5') ? friMStart : mStart;
+                let currentMEnd = (dIdx === '5') ? friMEnd : mEnd;
                 renderShiftCell(dIdx, 'm', `${currentMStart}-${currentMEnd}`);
                 if (dIdx !== '5') {
                     renderShiftCell(dIdx, 'e', `${eStart}-${eEnd}`);
                 }
             });
-
-            renderSummaryTable();
-            renderManagerNotes();
-        };
+        }
 
         function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
             const key = `${dayIdx}-${shiftType}`;
-            
-            let available = employees.filter(e => {
-                let empShifts = employeeAvailMap[e.name] || {};
-                return empShifts[key];
-            });
+            let available = employees.filter(e => (employeeAvailMap[e.name] || {})[key]);
 
             let fresh = available.filter(e => !alreadyAssignedToday.some(a => a.name === e.name));
             let tired = available.filter(e => alreadyAssignedToday.some(a => a.name === e.name));
@@ -719,29 +818,9 @@
             sortEmps(tired);
 
             let chosen = fresh.slice(0, requiredCount);
-
             if (chosen.length < requiredCount && tired.length > 0) {
-                let needed = requiredCount - chosen.length;
-                let fromTired = tired.slice(0, needed);
-                chosen.push(...fromTired);
-                tired = tired.filter(t => !fromTired.some(ft => ft.name === t.name));
+                chosen.push(...tired.slice(0, requiredCount - chosen.length));
             }
-
-            const hasStrong = chosen.some(e => e.rank === 3);
-            
-            if (!hasStrong && chosen.length > 0) {
-                const availableStrong = available.find(e => e.rank === 3 && !chosen.some(c => c.name === e.name));
-                if (availableStrong) {
-                    let lowestRankIdx = 0;
-                    for (let i = 1; i < chosen.length; i++) {
-                        if (chosen[i].rank < chosen[lowestRankIdx].rank) {
-                            lowestRankIdx = i;
-                        }
-                    }
-                    chosen[lowestRankIdx] = availableStrong;
-                }
-            }
-
             return chosen;
         }
 
@@ -753,16 +832,7 @@
             const assignedNames = currentSchedule[key] || [];
             let reqCount = (dayIdx === '5' && shiftType === 'm') ? parseInt(document.getElementById('friMCount').value) : (shiftType === 'm' ? parseInt(document.getElementById('mCount').value) : parseInt(document.getElementById('eCount').value));
 
-            let weakCount = assignedNames.filter(name => {
-                let emp = employees.find(e => e.name === name);
-                return emp && emp.rank === 1;
-            }).length;
-
-            if (weakCount >= 2) cell.classList.add('warning-shift');
-            else cell.classList.remove('warning-shift');
-
-            let html = weakCount >= 2 ? `<div class="warning-banner">2 עובדים חלשים!</div>` : '';
-
+            let html = '';
             for (let i = 0; i < reqCount; i++) {
                 const empName = assignedNames[i];
                 if (empName) {
@@ -776,8 +846,7 @@
                             </span>
                             ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
                             <input type="text" class="custom-time-input" value="${defaultTime}">
-                        </div>
-                    `;
+                        </div>`;
                 } else {
                     html += `<div class="empty-slot" onclick="openSwapModal('${key}', ${i})">+ לאלץ עובד</div>`;
                 }
@@ -794,39 +863,30 @@
 
             employees.forEach((emp) => {
                 const isAvail = employeeAvailMap[emp.name]?.[shiftKey];
-                const empColor = emp.color || '#888'; 
                 list.innerHTML += `
                     <button class="modal-emp-btn" onclick="applySwap('${emp.name}')">
-                        <span><strong style="color:${empColor}">●</strong> ${emp.name}</span>
+                        <span><strong style="color:${emp.color || '#888'}">●</strong> ${emp.name}</span>
                         <span style="font-size:0.8em; color:${isAvail?'green':'red'}">${isAvail?'זמין':'לא הגיש'}</span>
-                    </button>
-                `;
+                    </button>`;
             });
             modal.style.display = 'flex';
         };
 
-        window.closeModal = function() {
-            document.getElementById('swapModal').style.display = 'none';
-        };
+        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; };
 
-        window.applySwap = function(empName) {
+        window.applySwap = async function(empName) {
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
-
-            if (empName) {
-                const existingIndex = currentSchedule[activeSwapKey].indexOf(empName);
-                if (existingIndex !== -1 && existingIndex !== activeSwapIndex) {
-                    alert("העובד הזה כבר רשום במשמרת הזו!");
-                    return;
-                }
-            }
 
             currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             closeModal();
 
-            const [dIdx, shiftType] = activeSwapKey.split('-');
-            let defaultTime = shiftType === 'e' ? document.getElementById('eStart').value + '-' + document.getElementById('eEnd').value : (dIdx === '5' ? document.getElementById('friMStart').value + '-' + document.getElementById('friMEnd').value : document.getElementById('mStart').value + '-' + document.getElementById('mEnd').value);
-            renderShiftCell(dIdx, shiftType, defaultTime);
+            // עדכון Firebase
+            try {
+                await setDoc(doc(db, "settings", "published_schedule"), { schedule: currentSchedule });
+            } catch(e){}
+
+            renderFullScheduleForManager();
             renderSummaryTable();
         };
 
@@ -836,43 +896,28 @@
             
             if (employees.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4">אין עובדים במערכת</td></tr>';
-                if(countSummary) countSummary.innerHTML = '';
                 return;
             }
 
             let submittedCount = 0;
-
             tbody.innerHTML = employees.map((emp) => {
                 let hasSubmitted = !!employeeAvailMap[emp.name];
                 if(hasSubmitted) submittedCount++;
-                
                 let availCount = Object.values(employeeAvailMap[emp.name] || {}).filter(Boolean).length;
                 let assignedCount = 0;
-                Object.values(currentSchedule).forEach(list => {
-                    if(list.includes(emp.name)) assignedCount++;
-                });
-                const empColor = emp.color || '#888';
+                Object.values(currentSchedule).forEach(list => { if(list.includes(emp.name)) assignedCount++; });
                 
-                const statusBadge = hasSubmitted 
-                    ? `<span style="color: #27ae60; font-weight: bold; background: #e8f8f5; padding: 3px 8px; border-radius: 12px; font-size: 0.85em;">✔ מילא</span>`
-                    : `<span style="color: #e74c3c; font-weight: bold; background: #fadbd8; padding: 3px 8px; border-radius: 12px; font-size: 0.85em;">✖ טרם מילא</span>`;
-
                 return `
                     <tr>
-                        <td><span class="emp-tag" style="background-color:${empColor}; display:inline-block; margin:0;">${emp.name}</span></td>
-                        <td>${statusBadge}</td>
+                        <td><span class="emp-tag" style="background-color:${emp.color || '#888'}; display:inline-block; margin:0;">${emp.name}</span></td>
+                        <td>${hasSubmitted ? '✔ מילא' : '✖ טרם מילא'}</td>
                         <td><span class="stat-num">${availCount}</span></td>
                         <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
-                    </tr>
-                `;
+                    </tr>`;
             }).join('');
 
             if(countSummary) {
-                countSummary.innerHTML = `
-                    <div style="background: #eef5ff; padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; color: #1877f2; border: 1px solid #cce0ff;">
-                        מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים
-                    </div>
-                `;
+                countSummary.innerHTML = `<div style="background: #eef5ff; padding: 10px; border-radius: 8px; margin-bottom: 12px; text-align: center; font-weight: bold; color: #1877f2;">מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים</div>`;
             }
         }
 
@@ -886,36 +931,23 @@
                     notesHtml += `<li><strong>${name}:</strong> ${employeeNotesMap[name]}</li>`;
                 }
             });
-            notesHtml += '</ul>';
-            container.innerHTML = hasNotes ? notesHtml : '';
+            container.innerHTML = hasNotes ? notesHtml + '</ul>' : '';
         }
 
         window.resetScheduleOnly = async function() {
-            if(!confirm("האם אתה בטוח שברצונך לאפס את כל השיבוצים והזמינויות של כל העובדים?")) return;
-            
+            if(!confirm("האם לאפס את כל השיבוצים והזמינויות?")) return;
             try {
                 const availSnap = await getDocs(collection(db, "availability"));
-                const deletePromises = availSnap.docs.map(d => deleteDoc(doc(db, "availability", d.id)));
-                await Promise.all(deletePromises);
+                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, "availability", d.id))));
+                await deleteDoc(doc(db, "settings", "published_schedule"));
                 
                 currentSchedule = {};
                 employeeAvailMap = {};
                 employeeNotesMap = {};
-
-                daysKeys.forEach(dIdx => ['m','e'].forEach(s => {
-                    const c = document.getElementById(`cell-${dIdx}-${s}`);
-                    if(c) c.innerHTML = '';
-                }));
-                
+                renderFullScheduleForManager();
                 renderSummaryTable();
-                const notesContainer = document.getElementById('managerNotesContainer');
-                if(notesContainer) notesContainer.innerHTML = '';
-                
-                alert("הנתונים אופסו בהצלחה מכל בסיס הנתונים!");
-            } catch(e) {
-                console.error("שגיאה באיפוס הנתונים:", e);
-                alert("אירעה שגיאה בעת ניקוי הנתונים מהענן.");
-            }
+                alert("הנתונים אופסו בהצלחה!");
+            } catch(e){}
         };
 
         window.sendScheduleToWhatsapp = function() {
@@ -925,11 +957,8 @@
                 text += `יום ${daysNames[dIdx]}\n`;
                 ['m', 'e'].forEach(shift => {
                     if(dIdx === '5' && shift === 'e') return;
-                    let key = `${dIdx}-${shift}`;
-                    let emps = (currentSchedule[key] || []).join(', ');
-                    let cell = document.getElementById(`cell-${key}`);
-                    let time = cell ? cell.querySelector('.custom-time-input')?.value : '';
-                    text += `${shift==='m'?'בוקר':'ערב'} (${time}): ${emps || 'אין'}\n`;
+                    let emps = (currentSchedule[`${dIdx}-${shift}`] || []).join(', ');
+                    text += `${shift==='m'?'בוקר':'ערב'}: ${emps || 'אין'}\n`;
                 });
                 text += "───────────────────\n";
             });
@@ -937,20 +966,6 @@
         };
 
         window.exportToPDF = () => window.print();
-
-        window.exportToWord = function() {
-            if (Object.keys(currentSchedule).length === 0) { alert("טרם נוצר סידור!"); return; }
-            let html = `<html dir="rtl"><head><meta charset="utf-8"></head><body><h2>סידור עבודה</h2><table border="1">`;
-            daysKeys.forEach(dIdx => {
-                html += `<tr><td><b>${daysNames[dIdx]}</b></td><td>בוקר: ${(currentSchedule[`${dIdx}-m`]||[]).join(', ')}</td><td>ערב: ${(currentSchedule[`${dIdx}-e`]||[]).join(', ')}</td></tr>`;
-            });
-            html += `</table></body></html>`;
-            let file = new Blob([html], {type: 'application/msword'});
-            let a = document.createElement('a');
-            a.href = URL.createObjectURL(file);
-            a.download = 'schedule.doc';
-            a.click();
-        };
 
         loadManagerData();
     </script>
