@@ -184,10 +184,18 @@
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .unavail-badge, h1, .status-badge, button, .manager-login-btn { display: none !important; }
+            .export-group, .empty-slot, .unavail-badge, h1, .status-badge, button:not(.time-badge-btn), .manager-login-btn { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
-            .time-badge-btn { border: none !important; background: transparent !important; padding: 0 !important; }
+            .time-badge-btn { 
+                display: block !important; 
+                border: none !important; 
+                background: transparent !important; 
+                padding: 0 !important; 
+                color: #000 !important;
+                font-size: 0.75em !important;
+                font-weight: bold !important;
+            }
         }
     </style>
 </head>
