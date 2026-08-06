@@ -107,25 +107,9 @@
             transition: background 0.2s;
         }
         
-        /* הוספת סמל העיפרון באמצעות CSS בלבד למסך */
-        .time-badge-btn::before {
-            content: "✏️ ";
-            margin-right: 2px;
-        }
-
-        .time-badge-btn:hover {
-            background: #dce4ec;
-            border-color: #1877f2;
-        }
-
-        .shift-time-text {
-            font-size: 0.68em;
-            color: #444;
-            font-weight: bold;
-            margin-top: 2px;
-            direction: ltr;
-        }
-
+        .time-badge-btn::before { content: "✏️ "; margin-right: 2px; }
+        .time-badge-btn:hover { background: #dce4ec; border-color: #1877f2; }
+        .shift-time-text { font-size: 0.68em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr; }
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
 
         .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; padding: 8px 3px; }
@@ -137,51 +121,15 @@
         .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; }
         
-        .quick-time-btn {
-            background: #f1f3f5;
-            color: #333;
-            border: 1px solid #ced4da;
-            padding: 5px 8px;
-            font-size: 0.78em;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 2px;
-            font-weight: bold;
-        }
+        .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
         .quick-time-btn:hover { background: #e2e6ea; }
 
         .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; }
-        .shift-checkboxes label { 
-            background: #f8f9fa; 
-            padding: 8px 6px; 
-            border: 1px solid #ddd; 
-            border-radius: 6px; 
-            display: flex; 
-            align-items: center; 
-            gap: 6px; 
-            font-weight: normal; 
-            cursor: pointer; 
-            box-sizing: border-box;
-            white-space: nowrap;
-            font-size: 0.85em;
-        }
+        .shift-checkboxes label { background: #f8f9fa; padding: 8px 6px; border: 1px solid #ddd; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; box-sizing: border-box; white-space: nowrap; font-size: 0.85em; }
 
-        .my-shifts-box {
-            background: #e3f2fd;
-            border: 2px solid #2196f3;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 12px;
-        }
+        .my-shifts-box { background: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; margin-bottom: 8px; }
         .status-draft { background-color: #ffeaa7; color: #d35400; }
         .status-published { background-color: #55efc4; color: #00b894; }
 
@@ -194,20 +142,8 @@
             .export-group, .empty-slot, .unavail-badge, h1, .status-badge, button:not(.time-badge-btn), .manager-login-btn { display: none !important; }
             .card { box-shadow: none; border: none; padding: 0; }
             .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
-            .time-badge-btn { 
-                display: block !important; 
-                border: none !important; 
-                background: transparent !important; 
-                padding: 0 !important; 
-                color: #000 !important;
-                font-size: 0.75em !important;
-                font-weight: bold !important;
-            }
-            /* הסרת העיפרון בייצוא ל-PDF ובהדפסה לחלוטין */
-            .time-badge-btn::before {
-                display: none !important;
-                content: none !important;
-            }
+            .time-badge-btn { display: block !important; border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; font-size: 0.75em !important; font-weight: bold !important; }
+            .time-badge-btn::before { display: none !important; content: none !important; }
         }
     </style>
 </head>
@@ -336,7 +272,7 @@
                 <input type="color" id="empColorInput" value="#3498db" style="padding: 0; height: 35px; cursor: pointer;">
             </div>
             <button onclick="addEmployee()">הוסף עובד</button>
-            <button class="reset-btn" onclick="resetScheduleOnly()">איפוס שיבוץ וזמינויות בלבד</button>
+            <button class="reset-btn" onclick="resetScheduleOnly()">מחיקת כל הנתונים מהשרת ידנית</button>
 
             <h3>צוות העובדים במערכת:</h3>
             <div id="empList"></div>
@@ -564,16 +500,25 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
-        // חישוב הזמן המדויק של יום שישי האחרון ב-07:00 בבוקר
+        // --- פונקציות לאיפוס אוטומטי ---
+        
+        // 1. חישוב הזמן המדויק של יום שישי האחרון ב-07:00 בבוקר (לאיפוס הסידור המפורסם)
         function getLastFriday7AM() {
             const now = new Date();
             const d = new Date(now);
             let daysToSubtract = (d.getDay() - 5 + 7) % 7;
-            
-            if (d.getDay() === 5 && d.getHours() < 7) {
-                daysToSubtract = 7;
-            }
+            if (d.getDay() === 5 && d.getHours() < 7) { daysToSubtract = 7; }
+            d.setDate(d.getDate() - daysToSubtract);
+            d.setHours(7, 0, 0, 0);
+            return d.getTime();
+        }
 
+        // 2. חישוב הזמן המדויק של יום חמישי האחרון ב-07:00 בבוקר (לאיפוס זמינויות העובדים)
+        function getLastThursday7AM() {
+            const now = new Date();
+            const d = new Date(now);
+            let daysToSubtract = (d.getDay() - 4 + 7) % 7;
+            if (d.getDay() === 4 && d.getHours() < 7) { daysToSubtract = 7; }
             d.setDate(d.getDate() - daysToSubtract);
             d.setHours(7, 0, 0, 0);
             return d.getTime();
@@ -637,14 +582,21 @@
                 }
             });
 
+            // האזנה לטבלת הזמינויות עם סינון יום חמישי ב-07:00
             onSnapshot(collection(db, "availability"), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
+                const lastThu7AM = getLastThursday7AM();
+
                 snapshot.forEach(d => {
                     let data = d.data();
-                    let empName = data.name || d.id;
-                    employeeAvailMap[empName] = data.shifts || {};
-                    if(data.note) employeeNotesMap[empName] = data.note;
+                    // בדיקה האם הזמינות הוגשה *אחרי* יום חמישי האחרון ב-7 בבוקר.
+                    // אם הוגשה לפני כן - היא מסוננת והעובד/המנהל יראו טופס ריק לקראת השבוע החדש.
+                    if (data.updatedAt && data.updatedAt >= lastThu7AM) {
+                        let empName = data.name || d.id;
+                        employeeAvailMap[empName] = data.shifts || {};
+                        if(data.note) employeeNotesMap[empName] = data.note;
+                    }
                 });
                 renderDailyAvailabilityTable();
                 renderSummaryTable();
@@ -944,6 +896,8 @@
                     }, { merge: true });
                 } catch(e) { console.error(e); }
                 
+                // מאחר והסינון בוצע בשלב המשיכה (onSnapshot), המשתנה הזה יהיה ריק
+                // אם העובד הגיש זמינות לפני יום חמישי האחרון ב-07:00
                 let existingAvail = employeeAvailMap[selectedName] || {};
                 let existingNote = employeeNotesMap[selectedName] || '';
 
@@ -1041,7 +995,8 @@
                 await setDoc(doc(db, "availability", verifiedEmployeeName), {
                     name: verifiedEmployeeName,
                     shifts: selectedShifts,
-                    note: note
+                    note: note,
+                    updatedAt: Date.now() // חותמת זמן! קריטי לאיפוס של יום חמישי
                 });
                 alert("הזמינות עודכנה בהצלחה!");
                 switchView('selection');
@@ -1354,7 +1309,7 @@
         }
 
         window.resetScheduleOnly = async function() {
-            if(!confirm("האם לאפס את כל השיבוצים, הטיוטות והזמינויות?")) return;
+            if(!confirm("אזהרה: פעולה זו תמחק את כל זמינויות העובדים והסידור משרת הנתונים. האם אתה בטוח?")) return;
             try {
                 const availSnap = await getDocs(collection(db, "availability"));
                 await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, "availability", d.id))));
