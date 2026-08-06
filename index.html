@@ -500,31 +500,36 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
-        // --- פונקציות לאיפוס אוטומטי ---
-        
-        // 1. חישוב הזמן המדויק של יום שישי האחרון ב-07:00 בבוקר (לאיפוס הסידור המפורסם)
+        // --- מנגנון תזמון מותאם לשעון ישראל (עובד מכל מקום בעולם) ---
+        function getIsraelLastThreshold(targetDay) {
+            const nowMs = Date.now();
+            const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
+            const dIsrael = new Date(strIsrael);
+            const currentIsraelTime = dIsrael.getTime();
+            
+            let daysToSubtract = (dIsrael.getDay() - targetDay + 7) % 7;
+            if (dIsrael.getDay() === targetDay && dIsrael.getHours() < 7) { 
+                daysToSubtract = 7; 
+            }
+            
+            dIsrael.setDate(dIsrael.getDate() - daysToSubtract);
+            dIsrael.setHours(7, 0, 0, 0);
+            
+            const diffMs = currentIsraelTime - dIsrael.getTime();
+            return nowMs - diffMs;
+        }
+
+        // חישוב יום שישי האחרון ב-07:00 בבוקר לפי שעון ישראל (לאיפוס הסידור)
         function getLastFriday7AM() {
-            const now = new Date();
-            const d = new Date(now);
-            let daysToSubtract = (d.getDay() - 5 + 7) % 7;
-            if (d.getDay() === 5 && d.getHours() < 7) { daysToSubtract = 7; }
-            d.setDate(d.getDate() - daysToSubtract);
-            d.setHours(7, 0, 0, 0);
-            return d.getTime();
+            return getIsraelLastThreshold(5);
         }
 
-        // 2. חישוב הזמן המדויק של יום חמישי האחרון ב-07:00 בבוקר (לאיפוס זמינויות העובדים)
+        // חישוב יום חמישי האחרון ב-07:00 בבוקר לפי שעון ישראל (לאיפוס זמינויות)
         function getLastThursday7AM() {
-            const now = new Date();
-            const d = new Date(now);
-            let daysToSubtract = (d.getDay() - 4 + 7) % 7;
-            if (d.getDay() === 4 && d.getHours() < 7) { daysToSubtract = 7; }
-            d.setDate(d.getDate() - daysToSubtract);
-            d.setHours(7, 0, 0, 0);
-            return d.getTime();
+            return getIsraelLastThreshold(4);
         }
 
-        // בדיקה האם הסידור פורסם לפני יום שישי 07:00 האחרון (פג תוקפו לעובדים)
+        // בדיקה האם הסידור פג תוקף (עבר יום שישי 07:00)
         function isScheduleExpired(publishedAt) {
             if (!publishedAt) return false;
             const lastFriday7AM = getLastFriday7AM();
@@ -582,7 +587,7 @@
                 }
             });
 
-            // האזנה לטבלת הזמינויות עם סינון יום חמישי ב-07:00
+            // האזנה לזמינויות עם סינון אוטומטי לפי חמישי 07:00 שעון ישראל
             onSnapshot(collection(db, "availability"), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
@@ -590,8 +595,6 @@
 
                 snapshot.forEach(d => {
                     let data = d.data();
-                    // בדיקה האם הזמינות הוגשה *אחרי* יום חמישי האחרון ב-7 בבוקר.
-                    // אם הוגשה לפני כן - היא מסוננת והעובד/המנהל יראו טופס ריק לקראת השבוע החדש.
                     if (data.updatedAt && data.updatedAt >= lastThu7AM) {
                         let empName = data.name || d.id;
                         employeeAvailMap[empName] = data.shifts || {};
@@ -603,7 +606,7 @@
                 renderManagerNotes();
             });
 
-            // האזנה לטיוטת המנהל (נשארת תמיד אצל המנהל!)
+            // האזנה לטיוטת המנהל
             onSnapshot(doc(db, "settings", "draft_schedule"), (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
@@ -896,8 +899,6 @@
                     }, { merge: true });
                 } catch(e) { console.error(e); }
                 
-                // מאחר והסינון בוצע בשלב המשיכה (onSnapshot), המשתנה הזה יהיה ריק
-                // אם העובד הגיש זמינות לפני יום חמישי האחרון ב-07:00
                 let existingAvail = employeeAvailMap[selectedName] || {};
                 let existingNote = employeeNotesMap[selectedName] || '';
 
@@ -996,7 +997,7 @@
                     name: verifiedEmployeeName,
                     shifts: selectedShifts,
                     note: note,
-                    updatedAt: Date.now() // חותמת זמן! קריטי לאיפוס של יום חמישי
+                    updatedAt: Date.now()
                 });
                 alert("הזמינות עודכנה בהצלחה!");
                 switchView('selection');
