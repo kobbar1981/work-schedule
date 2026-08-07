@@ -606,12 +606,24 @@
                 renderManagerNotes();
             });
 
-            // האזנה לטיוטת המנהל
-            onSnapshot(doc(db, "settings", "draft_schedule"), (snap) => {
+            // האזנה לטיוטת המנהל עם איפוס אוטומטי ביום שישי ב-07:00
+            onSnapshot(doc(db, "settings", "draft_schedule"), async (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
-                    currentSchedule = data.schedule || {};
-                    customShiftTimes = data.slotTimes || {};
+                    
+                    // בדיקה האם הטיוטה מעודכנת או שעבר יום שישי 07:00
+                    const lastFriday7AM = getLastFriday7AM();
+                    if (data.updatedAt && data.updatedAt < lastFriday7AM) {
+                        // הטיוטה ישנה משבוע שעבר - ננקה אותה אוטומטית
+                        currentSchedule = {};
+                        customShiftTimes = {};
+                        try {
+                            await deleteDoc(doc(db, "settings", "draft_schedule"));
+                        } catch(e) { console.error(e); }
+                    } else {
+                        currentSchedule = data.schedule || {};
+                        customShiftTimes = data.slotTimes || {};
+                    }
                 } else {
                     currentSchedule = {};
                     customShiftTimes = {};
