@@ -185,12 +185,12 @@
                         <thead>
                             <tr>
                                 <th style="width: 14%;">משמרת</th>
-                                <th style="width: 14.3%;">א'</th>
-                                <th style="width: 14.3%;">ב'</th>
-                                <th style="width: 14.3%;">ג'</th>
-                                <th style="width: 14.3%;">ד'</th>
-                                <th style="width: 14.3%;">ה'</th>
-                                <th style="width: 14.3%;">ו'</th>
+                                <th style="width: 14.3%;" id="th-emp-0">א'</th>
+                                <th style="width: 14.3%;" id="th-emp-1">ב'</th>
+                                <th style="width: 14.3%;" id="th-emp-2">ג'</th>
+                                <th style="width: 14.3%;" id="th-emp-3">ד'</th>
+                                <th style="width: 14.3%;" id="th-emp-4">ה'</th>
+                                <th style="width: 14.3%;" id="th-emp-5">ו'</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -219,20 +219,20 @@
 
             <hr style="margin: 20px 0;">
 
-            <h3>הגשת זמינות שבועית לשבוע הבא</h3>
+            <h3>הגשת זמינות שבועית</h3>
             <label>סמן את המשמרות שאתה יכול לעבוד בהן:</label>
             <div class="shift-checkboxes" id="shiftsCheckboxContainer">
-                <label><input type="checkbox" value="0-m"> <span>ראשון בוקר</span></label>
-                <label><input type="checkbox" value="0-e"> <span>ראשון ערב</span></label>
-                <label><input type="checkbox" value="1-m"> <span>שני בוקר</span></label>
-                <label><input type="checkbox" value="1-e"> <span>שני ערב</span></label>
-                <label><input type="checkbox" value="2-m"> <span>שלישי בוקר</span></label>
-                <label><input type="checkbox" value="2-e"> <span>שלישי ערב</span></label>
-                <label><input type="checkbox" value="3-m"> <span>רביעי בוקר</span></label>
-                <label><input type="checkbox" value="3-e"> <span>רביעי ערב</span></label>
-                <label><input type="checkbox" value="4-m"> <span>חמישי בוקר</span></label>
-                <label><input type="checkbox" value="4-e"> <span>חמישי ערב</span></label>
-                <label><input type="checkbox" value="5-m"> <span>שישי בוקר</span></label>
+                <label><input type="checkbox" value="0-m"> <span id="lbl-cb-0-m">ראשון בוקר</span></label>
+                <label><input type="checkbox" value="0-e"> <span id="lbl-cb-0-e">ראשון ערב</span></label>
+                <label><input type="checkbox" value="1-m"> <span id="lbl-cb-1-m">שני בוקר</span></label>
+                <label><input type="checkbox" value="1-e"> <span id="lbl-cb-1-e">שני ערב</span></label>
+                <label><input type="checkbox" value="2-m"> <span id="lbl-cb-2-m">שלישי בוקר</span></label>
+                <label><input type="checkbox" value="2-e"> <span id="lbl-cb-2-e">שלישי ערב</span></label>
+                <label><input type="checkbox" value="3-m"> <span id="lbl-cb-3-m">רביעי בוקר</span></label>
+                <label><input type="checkbox" value="3-e"> <span id="lbl-cb-3-e">רביעי ערב</span></label>
+                <label><input type="checkbox" value="4-m"> <span id="lbl-cb-4-m">חמישי בוקר</span></label>
+                <label><input type="checkbox" value="4-e"> <span id="lbl-cb-4-e">חמישי ערב</span></label>
+                <label><input type="checkbox" value="5-m"> <span id="lbl-cb-5-m">שישי בוקר</span></label>
             </div>
 
             <div class="form-group" style="margin-top: 15px;">
@@ -332,12 +332,12 @@
                     <thead>
                         <tr>
                             <th style="width: 14%;">משמרת</th>
-                            <th style="width: 14.3%;">א'</th>
-                            <th style="width: 14.3%;">ב'</th>
-                            <th style="width: 14.3%;">ג'</th>
-                            <th style="width: 14.3%;">ד'</th>
-                            <th style="width: 14.3%;">ה'</th>
-                            <th style="width: 14.3%;">ו'</th>
+                            <th style="width: 14.3%;" id="th-mgr-0">א'</th>
+                            <th style="width: 14.3%;" id="th-mgr-1">ב'</th>
+                            <th style="width: 14.3%;" id="th-mgr-2">ג'</th>
+                            <th style="width: 14.3%;" id="th-mgr-3">ד'</th>
+                            <th style="width: 14.3%;" id="th-mgr-4">ה'</th>
+                            <th style="width: 14.3%;" id="th-mgr-5">ו'</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -519,22 +519,72 @@
             return nowMs - diffMs;
         }
 
-        // חישוב יום שישי האחרון ב-07:00 בבוקר לפי שעון ישראל (לאיפוס הסידור)
+        // חישוב יום שישי האחרון ב-07:00 בבוקר לפי שעון ישראל
         function getLastFriday7AM() {
             return getIsraelLastThreshold(5);
         }
 
-        // חישוב יום חמישי האחרון ב-07:00 בבוקר לפי שעון ישראל (לאיפוס זמינויות)
+        // חישוב יום חמישי האחרון ב-07:00 בבוקר לפי שעון ישראל
         function getLastThursday7AM() {
             return getIsraelLastThreshold(4);
         }
 
-        // בדיקה האם הסידור פג תוקף (עבר יום שישי 07:00)
         function isScheduleExpired(publishedAt) {
             if (!publishedAt) return false;
             const lastFriday7AM = getLastFriday7AM();
             return publishedAt < lastFriday7AM;
         }
+
+        // --- פונקציות ליצירת התאריכים המעודכנים בסידור ---
+        function getScheduleDates() {
+            const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
+            const dIsrael = new Date(strIsrael);
+            
+            const dayOfWeek = dIsrael.getDay(); 
+            const hour = dIsrael.getHours();
+            
+            let sunday = new Date(dIsrael);
+            
+            // אם אנחנו אחרי שישי ב-07:00 או בשבת - מציגים את התאריכים של שבוע הבא
+            if ((dayOfWeek === 5 && hour >= 7) || dayOfWeek === 6) {
+                const daysUntilNextSunday = (7 - dayOfWeek) % 7 || 7;
+                sunday.setDate(dIsrael.getDate() + daysUntilNextSunday);
+            } else {
+                // אחרת, מציגים את התאריכים של השבוע הנוכחי
+                sunday.setDate(dIsrael.getDate() - dayOfWeek);
+            }
+            
+            const dates = [];
+            for(let i=0; i<6; i++) { 
+                let d = new Date(sunday);
+                d.setDate(sunday.getDate() + i);
+                dates.push(`${d.getDate()}/${d.getMonth()+1}`);
+            }
+            return dates;
+        }
+
+        function updateDatesInUI() {
+            const dates = getScheduleDates();
+            const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'"];
+            const daysLong = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
+            
+            for(let i=0; i<6; i++) {
+                let thEmp = document.getElementById(`th-emp-${i}`);
+                if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+                
+                let thMgr = document.getElementById(`th-mgr-${i}`);
+                if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+                
+                let cbM = document.getElementById(`lbl-cb-${i}-m`);
+                if(cbM) cbM.innerText = `${daysLong[i]} בוקר (${dates[i]})`;
+                
+                let cbE = document.getElementById(`lbl-cb-${i}-e`);
+                if(cbE && i !== 5) cbE.innerText = `${daysLong[i]} ערב (${dates[i]})`;
+            }
+        }
+        
+        // מפעילים את העדכון של התאריכים ברגע שהדף נטען
+        updateDatesInUI();
 
         // שמירת הטיוטה של המנהל בענן
         async function saveDraftToFirestore() {
@@ -547,7 +597,6 @@
             } catch(e) { console.error("שגיאה בשמירת טיוטה:", e); }
         }
 
-        // עדכון הסידור המפורסם אם הוא כרגע מפורסם
         async function syncPublishedIfActive() {
             if (isPublished) {
                 try {
@@ -587,7 +636,6 @@
                 }
             });
 
-            // האזנה לזמינויות עם סינון אוטומטי לפי חמישי 07:00 שעון ישראל
             onSnapshot(collection(db, "availability"), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
@@ -606,15 +654,11 @@
                 renderManagerNotes();
             });
 
-            // האזנה לטיוטת המנהל עם איפוס אוטומטי ביום שישי ב-07:00
             onSnapshot(doc(db, "settings", "draft_schedule"), async (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
-                    
-                    // בדיקה האם הטיוטה מעודכנת או שעבר יום שישי 07:00
                     const lastFriday7AM = getLastFriday7AM();
                     if (data.updatedAt && data.updatedAt < lastFriday7AM) {
-                        // הטיוטה ישנה משבוע שעבר - ננקה אותה אוטומטית
                         currentSchedule = {};
                         customShiftTimes = {};
                         try {
@@ -632,7 +676,6 @@
                 renderSummaryTable();
             });
 
-            // האזנה לסידור המפורסם לעובדים
             onSnapshot(doc(db, "settings", "published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
