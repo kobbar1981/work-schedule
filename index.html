@@ -545,8 +545,8 @@
             
             let sunday = new Date(dIsrael);
             
-            // אם אנחנו אחרי שישי ב-07:00 או בשבת - מציגים את התאריכים של שבוע הבא
-            if ((dayOfWeek === 5 && hour >= 7) || dayOfWeek === 6) {
+            // מעבר לתאריכי שבוע הבא החל מיום חמישי ב-07:00 בבוקר, שישי או שבת
+            if ((dayOfWeek === 4 && hour >= 7) || dayOfWeek === 5 || dayOfWeek === 6) {
                 const daysUntilNextSunday = (7 - dayOfWeek) % 7 || 7;
                 sunday.setDate(dIsrael.getDate() + daysUntilNextSunday);
             } else {
