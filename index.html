@@ -4,138 +4,247 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>מערכת הגשת משמרות</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <style>
         :root {
-            --primary-color: #2563eb;
-            --bg-color: #f8fafc;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f1f5f9;
             --card-bg: #ffffff;
-            --text-color: #1e293b;
-            --border-color: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             justify-content: center;
         }
 
         .container {
             width: 100%;
-            max-width: 700px;
+            max-width: 650px;
             background: var(--card-bg);
+            border-radius: 16px;
             padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 16px;
         }
 
         h1 {
-            margin-top: 0;
-            font-size: 1.5rem;
-            color: var(--primary-color);
+            margin: 0 0 8px 0;
+            font-size: 1.6rem;
+            color: var(--primary);
         }
 
-        .week-range {
-            font-weight: bold;
-            background: #eff6ff;
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid #bfdbfe;
-        }
-
-        .day-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border-color);
-            gap: 10px;
-        }
-
-        .day-info {
-            flex: 1;
-        }
-
-        .day-name {
+        .badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 0.9rem;
             font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label.section-label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .day-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .day-title {
+            font-weight: 700;
         }
 
         .day-date {
             font-size: 0.85rem;
-            color: #64748b;
+            color: var(--text-muted);
         }
 
-        .shift-options {
-            display: flex;
+        .shifts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: 8px;
         }
 
-        .shift-options label {
-            font-size: 0.9rem;
+        .shift-option {
+            position: relative;
+        }
+
+        .shift-option input {
+            position: absolute;
+            opacity: 0;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: #f1f5f9;
-            padding: 6px 10px;
+        }
+
+        .shift-label {
+            display: block;
+            text-align: center;
+            padding: 8px 4px;
+            background: #ffffff;
+            border: 1px solid var(--border);
             border-radius: 6px;
-            transition: background 0.2s;
+            font-size: 0.85rem;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
         }
 
-        .shift-options input[type="checkbox"]:checked + span {
+        .shift-option input:checked + .shift-label {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
             font-weight: bold;
-            color: var(--primary-color);
         }
 
-        .submit-btn {
+        .btn-submit {
             width: 100%;
-            margin-top: 24px;
-            padding: 12px;
-            background-color: var(--primary-color);
+            padding: 14px;
+            background: var(--primary);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: 10px;
+            font-size: 1.1rem;
             font-weight: bold;
             cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
         }
 
-        .submit-btn:hover {
-            background-color: #1d4ed8;
+        .btn-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        .status-msg {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            font-weight: 600;
+        }
+
+        .status-msg.success {
+            display: block;
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-msg.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>הגשת משמרות לשבוע הבא</h1>
-    <div class="week-range" id="weekRangeDisplay">טוען תאריכים...</div>
+    <header>
+        <h1>הגשת משמרות לשבוע הבא</h1>
+        <div class="badge" id="weekDatesRange">מחשב תאריכים...</div>
+    </header>
 
-    <form id="shiftForm">
+    <form id="shiftsForm">
+        <div class="form-group">
+            <label class="section-label" for="employeeName">שם העובד/ת:</label>
+            <input type="text" id="employeeName" placeholder="הכנס שם מלא" required>
+        </div>
+
         <div id="daysContainer"></div>
-        <button type="submit" class="submit-btn">שמור הגשה</button>
+
+        <div class="form-group">
+            <label class="section-label" for="notes">הערות נוספות:</label>
+            <textarea id="notes" rows="3" placeholder="אילוץ מיוחד, בקשות ספציפיות..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">שלח הגשה</button>
+        <div id="statusMsg" class="status-msg"></div>
     </form>
 </div>
 
 <script>
-    /**
-     * מחשב את תאריכי שבוע המשמרות הבא.
-     * מיום חמישי והלאה, המערכת מציגה אוטומטית את ימים ראשון-שבת של השבוע העוקב.
-     */
-    function calculateNextWeekDates() {
+    // 1. הגדרות Firebase - יש להחליף בפרטים של הפרויקט שלך
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    // אתחול Firebase
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    // 2. חישוב תאריכים דינמי - מתאפס בימי חמישי לשבוע הבא
+    function getNextWeekDates() {
         const today = new Date();
         const currentDay = today.getDay(); // 0 = ראשון, 4 = חמישי, 6 = שבת
 
-        // מחישוב יום חמישי (4) והלאה -> קופצים ליום ראשון הקרוב של שבוע הבא
+        // אם היום הוא חמישי (4), שישי (5), או שבת (6) - מכוונים ליום ראשון הקרוב בפתחו של השבוע הבא
         let daysUntilNextSunday;
         if (currentDay >= 4) {
             daysUntilNextSunday = 7 - currentDay; // חמישי (+3), שישי (+2), שבת (+1)
         } else {
-            // בין ראשון לרביעי -> מציג את השבוע שמתחיל ביום ראשון הקרוב
+            // ימים ראשון עד רביעי - מציג את יום ראשון הקרוב
             daysUntilNextSunday = (7 - currentDay) % 7;
             if (daysUntilNextSunday === 0) daysUntilNextSunday = 7;
         }
@@ -144,81 +253,126 @@
         nextSunday.setDate(today.getDate() + daysUntilNextSunday);
 
         const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-        const weekDates = [];
+        const weekDays = [];
 
         for (let i = 0; i < 7; i++) {
             const date = new Date(nextSunday);
             date.setDate(nextSunday.getDate() + i);
 
-            weekDates.push({
+            const formattedDate = date.toLocaleDateString('he-IL', {
+                day: '2-digit',
+                month: '2-digit'
+            });
+
+            const isoDate = date.toISOString().split('T')[0];
+
+            weekDays.push({
                 dayName: dayNames[i],
-                formattedDate: date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                isoDate: date.toISOString().split('T')[0]
+                formattedDate: formattedDate,
+                isoDate: isoDate
             });
         }
 
-        return weekDates;
+        return weekDays;
     }
 
-    function renderShiftForm() {
-        const weekDates = calculateNextWeekDates();
+    // 3. רינדור ימי השבוע בטופס
+    function renderForm() {
+        const weekDays = getNextWeekDates();
         const container = document.getElementById('daysContainer');
-        const rangeDisplay = document.getElementById('weekRangeDisplay');
+        const rangeBadge = document.getElementById('weekDatesRange');
 
         // עדכון כותרת טווח התאריכים
-        const start = weekDates[0].formattedDate;
-        const end = weekDates[6].formattedDate;
-        rangeDisplay.textContent = `תאריכי שבוע ההגשה: ${start} - ${end}`;
+        rangeBadge.textContent = `שבוע: ${weekDays[0].formattedDate} - ${weekDays[6].formattedDate}`;
 
         container.innerHTML = '';
 
-        weekDates.forEach((dayData, index) => {
-            const row = document.createElement('div');
-            row.className = 'day-row';
-            row.innerHTML = `
-                <div class="day-info">
-                    <div class="day-name">יום ${dayData.dayName}</div>
-                    <div class="day-date">${dayData.formattedDate}</div>
+        weekDays.forEach(day => {
+            const dayCard = document.createElement('div');
+            dayCard.className = 'day-card';
+            dayCard.innerHTML = `
+                <div class="day-header">
+                    <span class="day-title">יום ${day.dayName}</span>
+                    <span class="day-date">${day.formattedDate}</span>
                 </div>
-                <div class="shift-options">
-                    <label>
-                        <input type="checkbox" name="shift_${dayData.isoDate}" value="בוקר">
-                        <span>בוקר</span>
-                    </label>
-                    <label>
-                        <input type="checkbox" name="shift_${dayData.isoDate}" value="ערב">
-                        <span>ערב</span>
-                    </label>
-                    <label>
-                        <input type="checkbox" name="shift_${dayData.isoDate}" value="לילה">
-                        <span>לילה</span>
-                    </label>
+                <div class="shifts-grid">
+                    <div class="shift-option">
+                        <input type="checkbox" id="morning_${day.isoDate}" name="${day.isoDate}" value="בוקר">
+                        <label class="shift-label" for="morning_${day.isoDate}">בוקר</label>
+                    </div>
+                    <div class="shift-option">
+                        <input type="checkbox" id="evening_${day.isoDate}" name="${day.isoDate}" value="ערב">
+                        <label class="shift-label" for="evening_${day.isoDate}">ערב</label>
+                    </div>
+                    <div class="shift-option">
+                        <input type="checkbox" id="night_${day.isoDate}" name="${day.isoDate}" value="לילה">
+                        <label class="shift-label" for="night_${day.isoDate}">לילה</label>
+                    </div>
                 </div>
             `;
-            container.appendChild(row);
+            container.appendChild(dayCard);
         });
     }
 
-    // טיפול בשליחת הטופס
-    document.getElementById('shiftForm').addEventListener('submit', function (e) {
+    // 4. שמירה ל-Firebase Firestore
+    document.getElementById('shiftsForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
-        const formData = new FormData(this);
-        const submissions = {};
 
-        for (let [key, value] of formData.entries()) {
-            if (!submissions[key]) {
-                submissions[key] = [];
-            }
-            submissions[key].push(value);
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('statusMsg');
+        const employeeName = document.getElementById('employeeName').value.trim();
+        const notes = document.getElementById('notes').value.trim();
+
+        if (!employeeName) {
+            alert('אנא הזן שם עובד');
+            return;
         }
 
-        console.log('נתוני הגשה לשמירה:', submissions);
-        alert('המשמרות נשמרו בהצלחה!');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'שולח...';
+        statusMsg.className = 'status-msg';
+        statusMsg.style.display = 'none';
+
+        const weekDays = getNextWeekDates();
+        const shiftsData = {};
+
+        weekDays.forEach(day => {
+            const selectedShifts = Array.from(document.querySelectorAll(`input[name="${day.isoDate}"]:checked`))
+                .map(cb => cb.value);
+            shiftsData[day.isoDate] = {
+                dayName: day.dayName,
+                formattedDate: day.formattedDate,
+                shifts: selectedShifts
+            };
+        });
+
+        const submissionPayload = {
+            employeeName: employeeName,
+            weekStart: weekDays[0].isoDate,
+            weekEnd: weekDays[6].isoDate,
+            shifts: shiftsData,
+            notes: notes,
+            submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            await db.collection("shift_submissions").add(submissionPayload);
+            
+            statusMsg.textContent = 'המשמרות נשלחו בהצלחה!';
+            statusMsg.classList.add('success');
+            document.getElementById('shiftsForm').reset();
+        } catch (error) {
+            console.error("Error adding document: ", error);
+            statusMsg.textContent = 'אירעה שגיאה בשליחה. נסה שוב.';
+            statusMsg.classList.add('error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'שלח הגשה';
+        }
     });
 
-    // הרצה בטעינת העמוד
-    renderShiftForm();
+    // הרצה בעת טעינת העמוד
+    renderForm();
 </script>
 
 </body>
