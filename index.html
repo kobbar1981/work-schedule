@@ -118,26 +118,43 @@
         .stat-num { font-weight: bold; font-size: 0.95em; }
         
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 90%; max-width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
+        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; }
         .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; }
         
         .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
         .quick-time-btn:hover { background: #e2e6ea; }
 
+        /* מניפת צבעים מורחבת (36 צבעים) */
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+            margin-top: 6px;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            max-height: 160px;
+            overflow-y: auto;
+        }
         .color-swatch {
-            width: 28px;
-            height: 28px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             cursor: pointer;
-            border: 2px solid #ddd;
+            border: 2px solid #ccc;
+            margin: auto;
             transition: transform 0.1s, border-color 0.1s;
         }
         .color-swatch.selected {
-            border-color: #1c1e21;
-            transform: scale(1.15);
-            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+            border-color: #000;
+            transform: scale(1.2);
+            box-shadow: 0 0 6px rgba(0,0,0,0.5);
         }
+
+        .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .modal-actions button { margin-top: 0; flex: 1; }
 
         .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; }
         .shift-checkboxes label { background: #f8f9fa; padding: 8px 6px; border: 1px solid #ddd; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; box-sizing: border-box; white-space: nowrap; font-size: 0.85em; }
@@ -284,28 +301,8 @@
             </div>
             
             <div class="form-group">
-                <label>בחר צבע עבור העובד (3 גוונים עיקריים):</label>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;" id="colorPaletteContainer">
-                    <div class="color-swatch" style="background-color: #ff7675;" onclick="selectColor('#ff7675', this)" title="אדום בהיר"></div>
-                    <div class="color-swatch" style="background-color: #d63031;" onclick="selectColor('#d63031', this)" title="אדום בינוני"></div>
-                    <div class="color-swatch" style="background-color: #c0392b;" onclick="selectColor('#c0392b', this)" title="אדום כהה"></div>
-                    
-                    <div class="color-swatch" style="background-color: #74b9ff;" onclick="selectColor('#74b9ff', this)" title="כחול בהיר"></div>
-                    <div class="color-swatch" style="background-color: #0984e3;" onclick="selectColor('#0984e3', this)" title="כחול בינוני"></div>
-                    <div class="color-swatch" style="background-color: #2980b9;" onclick="selectColor('#2980b9', this)" title="כחול כהה"></div>
-
-                    <div class="color-swatch" style="background-color: #55efc4;" onclick="selectColor('#55efc4', this)" title="ירוק בהיר"></div>
-                    <div class="color-swatch" style="background-color: #00b894;" onclick="selectColor('#00b894', this)" title="ירוק בינוני"></div>
-                    <div class="color-swatch" style="background-color: #27ae60;" onclick="selectColor('#27ae60', this)" title="ירוק כהה"></div>
-
-                    <div class="color-swatch" style="background-color: #a29bfe;" onclick="selectColor('#a29bfe', this)" title="סגול בהיר"></div>
-                    <div class="color-swatch" style="background-color: #6c5ce7;" onclick="selectColor('#6c5ce7', this)" title="סגול בינוני"></div>
-                    <div class="color-swatch" style="background-color: #8e44ad;" onclick="selectColor('#8e44ad', this)" title="סגול כהה"></div>
-
-                    <div class="color-swatch" style="background-color: #ffeaa7;" onclick="selectColor('#ffeaa7', this)" title="כתום בהיר"></div>
-                    <div class="color-swatch" style="background-color: #fab1a0;" onclick="selectColor('#fab1a0', this)" title="כתום בינוני"></div>
-                    <div class="color-swatch" style="background-color: #e67e22;" onclick="selectColor('#e67e22', this)" title="כתום כהה"></div>
-                </div>
+                <label>בחר צבע לעובד (מניפה רחבה - 36 צבעים):</label>
+                <div class="palette-grid" id="addColorPalette"></div>
                 <input type="hidden" id="empColorInput" value="#74b9ff">
             </div>
 
@@ -465,7 +462,9 @@
         <div class="modal-card">
             <h3>שינוי / אילוץ עובד במשמרת</h3>
             <div id="modalEmpList" class="modal-btn-list"></div>
-            <button style="margin-top: 12px; background-color: #7f8c8d;" onclick="closeModal()">ביטול</button>
+            <div class="modal-actions">
+                <button style="background-color: #7f8c8d;" onclick="closeModal()">ביטול</button>
+            </div>
         </div>
     </div>
 
@@ -493,12 +492,14 @@
                 <button type="button" class="quick-time-btn" onclick="setQuickTime('09:30','14:00')">09:30 - 14:00</button>
             </div>
 
-            <button onclick="saveTimeFromModal()" style="background-color: #27ae60;">שמור שעות</button>
-            <button onclick="closeTimeModal()" style="margin-top: 6px; background-color: #7f8c8d;">ביטול</button>
+            <div class="modal-actions">
+                <button onclick="saveTimeFromModal()" style="background-color: #27ae60;">שמור שעות</button>
+                <button onclick="closeTimeModal()" style="background-color: #7f8c8d;">ביטול</button>
+            </div>
         </div>
     </div>
 
-    <!-- מודאל עריכת עובד קיים (נפתח בחלון קופץ לנוחות מושלמת) -->
+    <!-- מודאל עריכת עובד קיים -->
     <div id="editEmployeeModal" class="modal-overlay">
         <div class="modal-card">
             <h3>עריכת פרטי עובד/ת</h3>
@@ -523,33 +524,15 @@
             </div>
 
             <div class="form-group" style="text-align: right;">
-                <label>בחר צבע:</label>
-                <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 5px;">
-                    <div class="color-swatch edit-swatch" style="background-color: #ff7675;" onclick="selectEditColor('#ff7675', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #d63031;" onclick="selectEditColor('#d63031', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #c0392b;" onclick="selectEditColor('#c0392b', this)"></div>
-                    
-                    <div class="color-swatch edit-swatch" style="background-color: #74b9ff;" onclick="selectEditColor('#74b9ff', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #0984e3;" onclick="selectEditColor('#0984e3', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #2980b9;" onclick="selectEditColor('#2980b9', this)"></div>
-
-                    <div class="color-swatch edit-swatch" style="background-color: #55efc4;" onclick="selectEditColor('#55efc4', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #00b894;" onclick="selectEditColor('#00b894', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #27ae60;" onclick="selectEditColor('#27ae60', this)"></div>
-
-                    <div class="color-swatch edit-swatch" style="background-color: #a29bfe;" onclick="selectEditColor('#a29bfe', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #6c5ce7;" onclick="selectEditColor('#6c5ce7', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #8e44ad;" onclick="selectEditColor('#8e44ad', this)"></div>
-
-                    <div class="color-swatch edit-swatch" style="background-color: #ffeaa7;" onclick="selectEditColor('#ffeaa7', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #fab1a0;" onclick="selectEditColor('#fab1a0', this)"></div>
-                    <div class="color-swatch edit-swatch" style="background-color: #e67e22;" onclick="selectEditColor('#e67e22', this)"></div>
-                </div>
+                <label>בחר צבע חדש:</label>
+                <div class="palette-grid" id="editColorPalette"></div>
                 <input type="hidden" id="editEmpColorInput" value="#74b9ff">
             </div>
 
-            <button onclick="saveEditedEmployee()" style="background-color: #27ae60; margin-top: 10px;">שמור שינויים</button>
-            <button onclick="closeEditModal()" style="margin-top: 6px; background-color: #7f8c8d;">ביטול</button>
+            <div class="modal-actions">
+                <button onclick="saveEditedEmployee()" style="background-color: #27ae60;">שמור שינויים</button>
+                <button onclick="closeEditModal()" style="background-color: #7f8c8d;">ביטול</button>
+            </div>
         </div>
     </div>
 
@@ -595,23 +578,49 @@
         let verifiedEmployeeName = null;
         let originalEditingName = null;
 
-        // בחירת צבע בטופס הוספה
-        window.selectColor = function(colorHex, element) {
+        // 36 צבעים שונים למניפה עשירה
+        const colorPaletteList = [
+            '#ff7675', '#d63031', '#c0392b', '#e84393', '#fd79a8', '#fab1a0',
+            '#e67e22', '#f39c12', '#f1c40f', '#ffeaa7', '#d35400', '#cd6133',
+            '#55efc4', '#00b894', '#27ae60', '#2ecc71', '#1abc9c', '#00cec9',
+            '#74b9ff', '#0984e3', '#2980b9', '#3498db', '#00cec9', '#74b9ff',
+            '#a29bfe', '#6c5ce7', '#8e44ad', '#9b59b6', '#e056fd', '#b2bec3',
+            '#2d3436', '#636e72', '#b2bec3', '#dfe6e9', '#485460', '#ff9f43'
+        ];
+
+        function buildColorPalettes() {
+            const addContainer = document.getElementById('addColorPalette');
+            const editContainer = document.getElementById('editColorPalette');
+            
+            let addHtml = '';
+            let editHtml = '';
+
+            colorPaletteList.forEach((hex, idx) => {
+                addHtml += `<div class="color-swatch" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
+                editHtml += `<div class="color-swatch edit-swatch" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
+            });
+
+            if(addColorPalette) addContainer.innerHTML = addHtml;
+            if(editColorPalette) editContainer.innerHTML = editHtml;
+        }
+
+        buildColorPalettes();
+
+        window.selectColorAdd = function(colorHex, element) {
             document.getElementById('empColorInput').value = colorHex;
-            document.querySelectorAll('#colorPaletteContainer .color-swatch').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
         };
 
-        // בחירת צבע במודאל עריכה
-        window.selectEditColor = function(colorHex, element) {
+        window.selectColorEdit = function(colorHex, element) {
             document.getElementById('editEmpColorInput').value = colorHex;
-            document.querySelectorAll('.edit-swatch').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
         };
 
         document.addEventListener("DOMContentLoaded", () => {
-            const firstSwatch = document.querySelector('#colorPaletteContainer .color-swatch');
-            if(firstSwatch) firstSwatch.classList.add('selected');
+            const firstAdd = document.querySelector('#addColorPalette .color-swatch');
+            if(firstAdd) firstAdd.classList.add('selected');
         });
 
         function getIsraelLastThreshold(targetDay) {
@@ -845,6 +854,7 @@
                 document.getElementById('managerView').classList.remove('hidden');
                 renderFullScheduleForManager();
             } else {
+                document.getElementById('selectionView').classList.add('hidden');
                 document.getElementById('selectionView').classList.remove('hidden');
             }
         };
@@ -882,7 +892,6 @@
             }
         }
 
-        // הוספת עובד חדש
         window.addEmployee = async function() {
             const name = document.getElementById('empName').value.trim();
             const pin = document.getElementById('empPin').value.trim();
@@ -902,19 +911,18 @@
             } catch(e) { alert("שגיאה בהוספת עובד."); }
         };
 
-        // פתיחת מודאל עריכת עובד
         window.openEditModal = function(name, pin, rank, color) {
             originalEditingName = name;
             document.getElementById('editEmpName').value = name;
             document.getElementById('editEmpPin').value = pin;
             document.getElementById('editEmpRank').value = rank;
-            document.getElementById('editEmpColorInput').value = color;
+            document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
-            // סימון הצבע הנכון במודאל
-            document.querySelectorAll('.edit-swatch').forEach(el => {
-                if(el.style.backgroundColor === hexToRgb(color) || el.style.backgroundColor === color || true) {
-                    // התאמת צבע פשוטה
-                    el.classList.remove('selected');
+            // סימון הצבע במודאל
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
+                el.classList.remove('selected');
+                if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
+                    el.classList.add('selected');
                 }
             });
 
@@ -925,7 +933,6 @@
             document.getElementById('editEmployeeModal').style.display = 'none';
         };
 
-        // שמירת השינויים מהמודאל
         window.saveEditedEmployee = async function() {
             const newName = document.getElementById('editEmpName').value.trim();
             const pin = document.getElementById('editEmpPin').value.trim();
@@ -952,10 +959,6 @@
                 alert("שגיאה בעדכון העובד.");
             }
         };
-
-        function hexToRgb(hex) {
-            return hex; // עזר לבדיקת צבעים
-        }
 
         window.deleteEmployee = async function(name) {
             if(confirm(`למחוק את ${name}?`)) {
