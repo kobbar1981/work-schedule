@@ -476,6 +476,10 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // הגדרה קבועה של מזהה העסק
+        const businessId = "yoko";
+        localStorage.setItem('businessId', 'yoko');
+
         const daysKeys = ['0', '1', '2', '3', '4', '5'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
         const colors = ["#e74c3c", "#3498db", "#2ecc71", "#9b59b6", "#e67e22", "#1abc9c", "#e84393", "#6c5ce7", "#d35400", "#2980b9"];
