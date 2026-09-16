@@ -478,7 +478,12 @@
 
         // הגדרה קבועה של מזהה העסק
         const businessId = "yoko";
-        localStorage.setItem('businessId', 'yoko');
+        localStorage.setItem('businessId', businessId);
+
+        // רפרנסים לקולקשנים בתוך המסמך yoko
+        const getEmpCollection = () => collection(db, "businesses", businessId, "employees");
+        const getAvailCollection = () => collection(db, "businesses", businessId, "availability");
+        const getSettingsDoc = (docName) => doc(db, "businesses", businessId, "settings", docName);
 
         const daysKeys = ['0', '1', '2', '3', '4', '5'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
@@ -504,7 +509,7 @@
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
 
-        // --- מנגנון תזמון מותאם לשעון ישראל (עובד מכל מקום בעולם) ---
+        // --- מנגנון תזמון מותאם לשעון ישראל ---
         function getIsraelLastThreshold(targetDay) {
             const nowMs = Date.now();
             const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
@@ -523,12 +528,10 @@
             return nowMs - diffMs;
         }
 
-        // חישוב יום שישי האחרון ב-07:00 בבוקר לפי שעון ישראל
         function getLastFriday7AM() {
             return getIsraelLastThreshold(5);
         }
 
-        // חישוב יום חמישי האחרון ב-07:00 בבוקר לפי שעון ישראל
         function getLastThursday7AM() {
             return getIsraelLastThreshold(4);
         }
@@ -539,7 +542,6 @@
             return publishedAt < lastFriday7AM;
         }
 
-        // --- פונקציות ליצירת התאריכים המעודכנים בסידור ---
         function getScheduleDates() {
             const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
             const dIsrael = new Date(strIsrael);
@@ -549,12 +551,10 @@
             
             let sunday = new Date(dIsrael);
             
-            // מעבר לתאריכי שבוע הבא החל מיום חמישי ב-07:00 בבוקר, שישי או שבת
             if ((dayOfWeek === 4 && hour >= 7) || dayOfWeek === 5 || dayOfWeek === 6) {
                 const daysUntilNextSunday = (7 - dayOfWeek) % 7 || 7;
                 sunday.setDate(dIsrael.getDate() + daysUntilNextSunday);
             } else {
-                // אחרת, מציגים את התאריכים של השבוע הנוכחי
                 sunday.setDate(dIsrael.getDate() - dayOfWeek);
             }
             
@@ -587,13 +587,11 @@
             }
         }
         
-        // מפעילים את העדכון של התאריכים ברגע שהדף נטען
         updateDatesInUI();
 
-        // שמירת הטיוטה של המנהל בענן
         async function saveDraftToFirestore() {
             try {
-                await setDoc(doc(db, "settings", "draft_schedule"), {
+                await setDoc(getSettingsDoc("draft_schedule"), {
                     schedule: currentSchedule,
                     slotTimes: customShiftTimes,
                     updatedAt: Date.now()
@@ -612,7 +610,7 @@
                         eStart: document.getElementById('eStart').value,
                         eEnd: document.getElementById('eEnd').value,
                     };
-                    await setDoc(doc(db, "settings", "published_schedule"), { 
+                    await setDoc(getSettingsDoc("published_schedule"), { 
                         schedule: currentSchedule,
                         times: currentTimes,
                         slotTimes: customShiftTimes,
@@ -623,7 +621,8 @@
         }
 
         function initRealtimeListeners() {
-            onSnapshot(collection(db, "employees"), (snapshot) => {
+            // מאזין לעובדים של yoko
+            onSnapshot(getEmpCollection(), (snapshot) => {
                 employees = [];
                 snapshot.forEach((d, idx) => {
                     let data = d.data();
@@ -640,7 +639,8 @@
                 }
             });
 
-            onSnapshot(collection(db, "availability"), (snapshot) => {
+            // מאזין לזמינויות של yoko
+            onSnapshot(getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
                 const lastThu7AM = getLastThursday7AM();
@@ -658,7 +658,8 @@
                 renderManagerNotes();
             });
 
-            onSnapshot(doc(db, "settings", "draft_schedule"), async (snap) => {
+            // מאזין לטיוטה של yoko
+            onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
                     const lastFriday7AM = getLastFriday7AM();
@@ -666,7 +667,7 @@
                         currentSchedule = {};
                         customShiftTimes = {};
                         try {
-                            await deleteDoc(doc(db, "settings", "draft_schedule"));
+                            await deleteDoc(getSettingsDoc("draft_schedule"));
                         } catch(e) { console.error(e); }
                     } else {
                         currentSchedule = data.schedule || {};
@@ -680,7 +681,8 @@
                 renderSummaryTable();
             });
 
-            onSnapshot(doc(db, "settings", "published_schedule"), async (scheduleSnap) => {
+            // מאזין לסידור המפורסם של yoko
+            onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
 
@@ -691,7 +693,7 @@
                         isPublished = false;
                         updatePublishBadge(false);
                         try {
-                            await deleteDoc(doc(db, "settings", "published_schedule"));
+                            await deleteDoc(getSettingsDoc("published_schedule"));
                         } catch(e) { console.error(e); }
                     } else {
                         publishedSchedule = data.schedule || {};
@@ -801,7 +803,7 @@
         window.checkManagerPassword = async function() {
             let currentPass = "1212";
             try {
-                const docSnap = await getDoc(doc(db, "settings", "manager_config"));
+                const docSnap = await getDoc(getSettingsDoc("manager_config"));
                 if (docSnap.exists() && docSnap.data().password) {
                     currentPass = docSnap.data().password;
                 }
@@ -819,7 +821,7 @@
             const newPass = document.getElementById('newManagerPass').value.trim();
             if (!newPass) { alert("אנא הכנס סיסמה חדשה!"); return; }
             try {
-                await setDoc(doc(db, "settings", "manager_config"), { password: newPass }, { merge: true });
+                await setDoc(getSettingsDoc("manager_config"), { password: newPass }, { merge: true });
                 alert("סיסמת המנהל עודכנה בהצלחה!");
                 document.getElementById('newManagerPass').value = '';
             } catch(e) { alert("אירעה שגיאה בעדכון הסיסמה."); }
@@ -849,7 +851,7 @@
             const newEmp = { id: Date.now(), name, pin, rank, color };
 
             try {
-                await setDoc(doc(db, "employees", name), newEmp);
+                await setDoc(doc(getEmpCollection(), name), newEmp);
                 document.getElementById('empName').value = '';
                 document.getElementById('empPin').value = '';
                 alert("העובד נוסף בהצלחה!");
@@ -863,21 +865,21 @@
                 return;
             }
             try {
-                await setDoc(doc(db, "employees", name), { pin: newPin }, { merge: true });
+                await setDoc(doc(getEmpCollection(), name), { pin: newPin }, { merge: true });
             } catch(e) { alert("אירעה שגיאה בעדכון הקוד."); }
         };
 
         window.updateEmployeeRank = async function(name, newRank) {
             try {
-                await setDoc(doc(db, "employees", name), { rank: parseInt(newRank) }, { merge: true });
+                await setDoc(doc(getEmpCollection(), name), { rank: parseInt(newRank) }, { merge: true });
             } catch(e){}
         };
 
         window.deleteEmployee = async function(name) {
             if(confirm(`למחוק את ${name}?`)) {
                 try {
-                    await deleteDoc(doc(db, "employees", name));
-                    await deleteDoc(doc(db, "availability", name));
+                    await deleteDoc(doc(getEmpCollection(), name));
+                    await deleteDoc(doc(getAvailCollection(), name));
                 } catch(e){}
             }
         };
@@ -953,7 +955,7 @@
                         day: 'numeric',
                         month: 'numeric'
                     });
-                    await setDoc(doc(db, "employees", selectedName), { 
+                    await setDoc(doc(getEmpCollection(), selectedName), { 
                         lastViewedAt: formattedTime 
                     }, { merge: true });
                 } catch(e) { console.error(e); }
@@ -1052,7 +1054,7 @@
             const note = document.getElementById('employeeNoteInput').value.trim();
 
             try {
-                await setDoc(doc(db, "availability", verifiedEmployeeName), {
+                await setDoc(doc(getAvailCollection(), verifiedEmployeeName), {
                     name: verifiedEmployeeName,
                     shifts: selectedShifts,
                     note: note,
@@ -1114,7 +1116,7 @@
 
             try {
                 await saveDraftToFirestore();
-                await setDoc(doc(db, "settings", "published_schedule"), { 
+                await setDoc(getSettingsDoc("published_schedule"), { 
                     schedule: currentSchedule,
                     times: currentTimes,
                     slotTimes: customShiftTimes,
@@ -1138,7 +1140,7 @@
             }
 
             try {
-                await deleteDoc(doc(db, "settings", "published_schedule"));
+                await deleteDoc(getSettingsDoc("published_schedule"));
                 alert("הפרסום בוטל בהצלחה! הסידור הוסר מצפיית העובדים, אך הטיוטה נשמרה במסך המנהל.");
             } catch(e) {
                 alert("שגיאה בביטול הפרסום.");
@@ -1371,10 +1373,10 @@
         window.resetScheduleOnly = async function() {
             if(!confirm("אזהרה: פעולה זו תמחק את כל זמינויות העובדים והסידור משרת הנתונים. האם אתה בטוח?")) return;
             try {
-                const availSnap = await getDocs(collection(db, "availability"));
-                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, "availability", d.id))));
-                await deleteDoc(doc(db, "settings", "draft_schedule"));
-                await deleteDoc(doc(db, "settings", "published_schedule"));
+                const availSnap = await getDocs(getAvailCollection());
+                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(getAvailCollection(), d.id))));
+                await deleteDoc(getSettingsDoc("draft_schedule"));
+                await deleteDoc(getSettingsDoc("published_schedule"));
                 currentSchedule = {};
                 customShiftTimes = {};
                 alert("הנתונים אופסו בהצלחה!");
