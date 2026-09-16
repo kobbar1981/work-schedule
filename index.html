@@ -476,14 +476,10 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // הגדרה קבועה של מזהה העסק
-        const businessId = "yoko";
-        localStorage.setItem('businessId', businessId);
-
-        // רפרנסים לקולקשנים בתוך המסמך yoko
-        const getEmpCollection = () => collection(db, "businesses", businessId, "employees");
-        const getAvailCollection = () => collection(db, "businesses", businessId, "availability");
-        const getSettingsDoc = (docName) => doc(db, "businesses", businessId, "settings", docName);
+        // רפרנסים לקולקשנים הראשיים (איפה שהנתונים שלך יושבים ב-Firebase)
+        const getEmpCollection = () => collection(db, "employees");
+        const getAvailCollection = () => collection(db, "availability");
+        const getSettingsDoc = (docName) => doc(db, "settings", docName);
 
         const daysKeys = ['0', '1', '2', '3', '4', '5'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
@@ -621,7 +617,6 @@
         }
 
         function initRealtimeListeners() {
-            // מאזין לעובדים של yoko
             onSnapshot(getEmpCollection(), (snapshot) => {
                 employees = [];
                 snapshot.forEach((d, idx) => {
@@ -639,7 +634,6 @@
                 }
             });
 
-            // מאזין לזמינויות של yoko
             onSnapshot(getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
@@ -658,7 +652,6 @@
                 renderManagerNotes();
             });
 
-            // מאזין לטיוטה של yoko
             onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
@@ -681,7 +674,6 @@
                 renderSummaryTable();
             });
 
-            // מאזין לסידור המפורסם של yoko
             onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
