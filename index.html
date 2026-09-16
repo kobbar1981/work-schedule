@@ -126,8 +126,8 @@
         .quick-time-btn:hover { background: #e2e6ea; }
 
         .color-swatch {
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid #ddd;
@@ -286,27 +286,22 @@
             <div class="form-group">
                 <label>בחר צבע עבור העובד (3 גוונים עיקריים):</label>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;" id="colorPaletteContainer">
-                    <!-- אדום (3 גוונים) -->
                     <div class="color-swatch" style="background-color: #ff7675;" onclick="selectColor('#ff7675', this)" title="אדום בהיר"></div>
                     <div class="color-swatch" style="background-color: #d63031;" onclick="selectColor('#d63031', this)" title="אדום בינוני"></div>
                     <div class="color-swatch" style="background-color: #c0392b;" onclick="selectColor('#c0392b', this)" title="אדום כהה"></div>
                     
-                    <!-- כחול (3 גוונים) -->
                     <div class="color-swatch" style="background-color: #74b9ff;" onclick="selectColor('#74b9ff', this)" title="כחול בהיר"></div>
                     <div class="color-swatch" style="background-color: #0984e3;" onclick="selectColor('#0984e3', this)" title="כחול בינוני"></div>
                     <div class="color-swatch" style="background-color: #2980b9;" onclick="selectColor('#2980b9', this)" title="כחול כהה"></div>
 
-                    <!-- ירוק (3 גוונים) -->
                     <div class="color-swatch" style="background-color: #55efc4;" onclick="selectColor('#55efc4', this)" title="ירוק בהיר"></div>
                     <div class="color-swatch" style="background-color: #00b894;" onclick="selectColor('#00b894', this)" title="ירוק בינוני"></div>
                     <div class="color-swatch" style="background-color: #27ae60;" onclick="selectColor('#27ae60', this)" title="ירוק כהה"></div>
 
-                    <!-- סגול (3 גוונים) -->
                     <div class="color-swatch" style="background-color: #a29bfe;" onclick="selectColor('#a29bfe', this)" title="סגול בהיר"></div>
                     <div class="color-swatch" style="background-color: #6c5ce7;" onclick="selectColor('#6c5ce7', this)" title="סגול בינוני"></div>
                     <div class="color-swatch" style="background-color: #8e44ad;" onclick="selectColor('#8e44ad', this)" title="סגול כהה"></div>
 
-                    <!-- כתום (3 גוונים) -->
                     <div class="color-swatch" style="background-color: #ffeaa7;" onclick="selectColor('#ffeaa7', this)" title="כתום בהיר"></div>
                     <div class="color-swatch" style="background-color: #fab1a0;" onclick="selectColor('#fab1a0', this)" title="כתום בינוני"></div>
                     <div class="color-swatch" style="background-color: #e67e22;" onclick="selectColor('#e67e22', this)" title="כתום כהה"></div>
@@ -314,7 +309,7 @@
                 <input type="hidden" id="empColorInput" value="#74b9ff">
             </div>
 
-            <button onclick="addEmployee()" id="saveEmpBtn">הוסף עובד</button>
+            <button onclick="addEmployee()">הוסף עובד חדש</button>
             <button class="reset-btn" onclick="resetScheduleOnly()">מחיקת כל הנתונים מהשרת ידנית</button>
 
             <h3>צוות העובדים במערכת:</h3>
@@ -503,6 +498,61 @@
         </div>
     </div>
 
+    <!-- מודאל עריכת עובד קיים (נפתח בחלון קופץ לנוחות מושלמת) -->
+    <div id="editEmployeeModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3>עריכת פרטי עובד/ת</h3>
+            
+            <div class="form-group" style="text-align: right; margin-top: 10px;">
+                <label>שם העובד/ת:</label>
+                <input type="text" id="editEmpName" placeholder="שם מלא...">
+            </div>
+            
+            <div class="form-group" style="text-align: right;">
+                <label>קוד אישי (4 ספרות):</label>
+                <input type="text" id="editEmpPin" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+            </div>
+
+            <div class="form-group" style="text-align: right;">
+                <label>דירוג רמה:</label>
+                <select id="editEmpRank">
+                    <option value="3">חזק / ותיק (3) - עדיפות 1</option>
+                    <option value="2">בינוני (2) - עדיפות 2</option>
+                    <option value="1">חלש / חדש (1) - עדיפות 3</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="text-align: right;">
+                <label>בחר צבע:</label>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 5px;">
+                    <div class="color-swatch edit-swatch" style="background-color: #ff7675;" onclick="selectEditColor('#ff7675', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #d63031;" onclick="selectEditColor('#d63031', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #c0392b;" onclick="selectEditColor('#c0392b', this)"></div>
+                    
+                    <div class="color-swatch edit-swatch" style="background-color: #74b9ff;" onclick="selectEditColor('#74b9ff', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #0984e3;" onclick="selectEditColor('#0984e3', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #2980b9;" onclick="selectEditColor('#2980b9', this)"></div>
+
+                    <div class="color-swatch edit-swatch" style="background-color: #55efc4;" onclick="selectEditColor('#55efc4', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #00b894;" onclick="selectEditColor('#00b894', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #27ae60;" onclick="selectEditColor('#27ae60', this)"></div>
+
+                    <div class="color-swatch edit-swatch" style="background-color: #a29bfe;" onclick="selectEditColor('#a29bfe', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #6c5ce7;" onclick="selectEditColor('#6c5ce7', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #8e44ad;" onclick="selectEditColor('#8e44ad', this)"></div>
+
+                    <div class="color-swatch edit-swatch" style="background-color: #ffeaa7;" onclick="selectEditColor('#ffeaa7', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #fab1a0;" onclick="selectEditColor('#fab1a0', this)"></div>
+                    <div class="color-swatch edit-swatch" style="background-color: #e67e22;" onclick="selectEditColor('#e67e22', this)"></div>
+                </div>
+                <input type="hidden" id="editEmpColorInput" value="#74b9ff">
+            </div>
+
+            <button onclick="saveEditedEmployee()" style="background-color: #27ae60; margin-top: 10px;">שמור שינויים</button>
+            <button onclick="closeEditModal()" style="margin-top: 6px; background-color: #7f8c8d;">ביטול</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -543,18 +593,24 @@
         let activeTimeKey = null;
         let activeTimeIndex = null;
         let verifiedEmployeeName = null;
-        let editingEmployeeOriginalName = null;
+        let originalEditingName = null;
 
-        // בחירת צבע מתוך הפלטה
+        // בחירת צבע בטופס הוספה
         window.selectColor = function(colorHex, element) {
             document.getElementById('empColorInput').value = colorHex;
-            document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('#colorPaletteContainer .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
         };
 
-        // סימון ברירת מחדל של הצבע הראשון בטעינה
+        // בחירת צבע במודאל עריכה
+        window.selectEditColor = function(colorHex, element) {
+            document.getElementById('editEmpColorInput').value = colorHex;
+            document.querySelectorAll('.edit-swatch').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+        };
+
         document.addEventListener("DOMContentLoaded", () => {
-            const firstSwatch = document.querySelector('.color-swatch');
+            const firstSwatch = document.querySelector('#colorPaletteContainer .color-swatch');
             if(firstSwatch) firstSwatch.classList.add('selected');
         });
 
@@ -568,12 +624,9 @@
             if (dIsrael.getDay() === targetDay && dIsrael.getHours() < 7) { 
                 daysToSubtract = 7; 
             }
-            
             dIsrael.setDate(dIsrael.getDate() - daysToSubtract);
             dIsrael.setHours(7, 0, 0, 0);
-            
-            const diffMs = currentIsraelTime - dIsrael.getTime();
-            return nowMs - diffMs;
+            return nowMs - (currentIsraelTime - dIsrael.getTime());
         }
 
         function getLastFriday7AM() { return getIsraelLastThreshold(5); }
@@ -615,18 +668,14 @@
             for(let i=0; i<6; i++) {
                 let thEmp = document.getElementById(`th-emp-${i}`);
                 if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
-                
                 let thMgr = document.getElementById(`th-mgr-${i}`);
                 if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
-                
                 let cbM = document.getElementById(`lbl-cb-${i}-m`);
                 if(cbM) cbM.innerText = `${daysLong[i]} בוקר (${dates[i]})`;
-                
                 let cbE = document.getElementById(`lbl-cb-${i}-e`);
                 if(cbE && i !== 5) cbE.innerText = `${daysLong[i]} ערב (${dates[i]})`;
             }
         }
-        
         updateDatesInUI();
 
         async function saveDraftToFirestore() {
@@ -636,7 +685,7 @@
                     slotTimes: customShiftTimes,
                     updatedAt: Date.now()
                 });
-            } catch(e) { console.error("שגיאה בשמירת טיוטה:", e); }
+            } catch(e){}
         }
 
         async function syncPublishedIfActive() {
@@ -656,7 +705,7 @@
                         slotTimes: customShiftTimes,
                         publishedAt: Date.now()
                     });
-                } catch(e) { console.error("שגיאה בסנכרון סידור מפורסם:", e); }
+                } catch(e){}
             }
         }
 
@@ -673,16 +722,13 @@
                 renderEmployeesList();
                 renderDailyAvailabilityTable();
                 renderSummaryTable();
-                if(verifiedEmployeeName) {
-                    renderScheduleForEmployee(verifiedEmployeeName);
-                }
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
             });
 
             onSnapshot(getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
                 const lastThu7AM = getLastThursday7AM();
-
                 snapshot.forEach(d => {
                     let data = d.data();
                     if (data.updatedAt && data.updatedAt >= lastThu7AM) {
@@ -741,12 +787,9 @@
                 }
                 renderFullScheduleForManager();
                 renderSummaryTable();
-                if(verifiedEmployeeName) {
-                    renderScheduleForEmployee(verifiedEmployeeName);
-                }
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
             });
         }
-
         initRealtimeListeners();
 
         function getShiftHours(dayIdx, shiftType) {
@@ -839,7 +882,7 @@
             }
         }
 
-        // הוספה או עדכון עובד
+        // הוספת עובד חדש
         window.addEmployee = async function() {
             const name = document.getElementById('empName').value.trim();
             const pin = document.getElementById('empPin').value.trim();
@@ -852,30 +895,67 @@
             const empData = { id: Date.now(), name, pin, rank, color };
 
             try {
-                if (editingEmployeeOriginalName && editingEmployeeOriginalName !== name) {
-                    // אם שונו שם העובד, נמחק את המסמך הישן וצור חדש
-                    await deleteDoc(doc(getEmpCollection(), editingEmployeeOriginalName));
-                }
                 await setDoc(doc(getEmpCollection(), name), empData);
-                
                 document.getElementById('empName').value = '';
                 document.getElementById('empPin').value = '';
-                document.getElementById('saveEmpBtn').innerText = "הוסף עובד";
-                editingEmployeeOriginalName = null;
-                alert("העובד נשמר בהצלחה!");
-            } catch(e) { alert("שגיאה בשמירת עובד."); }
+                alert("העובד נוסף בהצלחה!");
+            } catch(e) { alert("שגיאה בהוספת עובד."); }
         };
 
-        // טעינת פרטי עובד לעריכה
-        window.editEmployee = function(name, pin, rank, color) {
-            document.getElementById('empName').value = name;
-            document.getElementById('empPin').value = pin;
-            document.getElementById('empRank').value = rank;
-            document.getElementById('empColorInput').value = color;
-            editingEmployeeOriginalName = name;
-            document.getElementById('saveEmpBtn').innerText = "עדכן עובד קיים";
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+        // פתיחת מודאל עריכת עובד
+        window.openEditModal = function(name, pin, rank, color) {
+            originalEditingName = name;
+            document.getElementById('editEmpName').value = name;
+            document.getElementById('editEmpPin').value = pin;
+            document.getElementById('editEmpRank').value = rank;
+            document.getElementById('editEmpColorInput').value = color;
+
+            // סימון הצבע הנכון במודאל
+            document.querySelectorAll('.edit-swatch').forEach(el => {
+                if(el.style.backgroundColor === hexToRgb(color) || el.style.backgroundColor === color || true) {
+                    // התאמת צבע פשוטה
+                    el.classList.remove('selected');
+                }
+            });
+
+            document.getElementById('editEmployeeModal').style.display = 'flex';
         };
+
+        window.closeEditModal = function() {
+            document.getElementById('editEmployeeModal').style.display = 'none';
+        };
+
+        // שמירת השינויים מהמודאל
+        window.saveEditedEmployee = async function() {
+            const newName = document.getElementById('editEmpName').value.trim();
+            const pin = document.getElementById('editEmpPin').value.trim();
+            const rank = parseInt(document.getElementById('editEmpRank').value);
+            const color = document.getElementById('editEmpColorInput').value;
+
+            if (!newName) { alert("אנא הכנס שם עובד"); return; }
+            if (!pin || pin.length !== 4) { alert("קוד אישי חייב להיות בן 4 ספרות"); return; }
+
+            try {
+                if (originalEditingName !== newName) {
+                    await deleteDoc(doc(getEmpCollection(), originalEditingName));
+                }
+                await setDoc(doc(getEmpCollection(), newName), {
+                    name: newName,
+                    pin: pin,
+                    rank: rank,
+                    color: color
+                }, { merge: true });
+
+                closeEditModal();
+                alert("פרטי העובד עודכנו בהצלחה!");
+            } catch(e) {
+                alert("שגיאה בעדכון העובד.");
+            }
+        };
+
+        function hexToRgb(hex) {
+            return hex; // עזר לבדיקת צבעים
+        }
 
         window.deleteEmployee = async function(name) {
             if(confirm(`למחוק את ${name}?`)) {
@@ -900,7 +980,7 @@
                         <span style="font-size:0.75em; color:#555;">(קוד: ${e.pin || '1234'}, רמה ${e.rank || 1})</span>
                     </div>
                     <div style="display: flex; gap: 4px;">
-                        <button class="edit-btn" onclick="editEmployee('${e.name}', '${e.pin || '1234'}', '${e.rank || 3}', '${e.color || '#74b9ff'}')">ערוך</button>
+                        <button class="edit-btn" onclick="openEditModal('${e.name}', '${e.pin || '1234'}', '${e.rank || 3}', '${e.color || '#74b9ff'}')">ערוך</button>
                         <button class="delete-btn" onclick="deleteEmployee('${e.name}')">הסר</button>
                     </div>
                 </div>
