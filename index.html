@@ -165,8 +165,17 @@
         .status-draft { background-color: #ffeaa7; color: #d35400; }
         .status-published { background-color: #55efc4; color: #00b894; }
 
+        .restaurant-header-bar {
+            background: #e8f4fd;
+            border: 1px solid #b6d4fe;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
         .hidden { display: none !important; }
-        .print-only { display: none; }
+        .print-only { display: print; }
 
         @media print {
             body { background: white; margin: 0; padding: 0; }
@@ -183,7 +192,19 @@
 
     <h1>מערכת סידור עבודה חכם</h1>
 
+    <!-- מסך בחירת מסעדה וכניסה -->
     <div class="card" id="selectionView">
+        <div class="restaurant-header-bar">
+            <label style="font-size: 0.95em; color: #084298; margin-bottom: 6px;">בחר מסעדה / סניף פעיל:</label>
+            <select id="restaurantDropdown" onchange="changeActiveRestaurant(this.value)" style="background: white; font-weight: bold; margin-bottom: 8px;">
+                <!-- טוען דינמית -->
+            </select>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="newRestaurantName" placeholder="שם סניף / מסעדה חדשה..." style="margin-top:0;">
+                <button type="button" onclick="addNewRestaurant()" style="margin-top: 0; width: auto; background-color: #27ae60; padding: 0 12px;">הוסף</button>
+            </div>
+        </div>
+
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים (הגשת זמינות וצפייה בסידור)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל (ניהול ושיבוץ)</button>
@@ -191,6 +212,7 @@
 
     <!-- מסך כניסת עובד -->
     <div class="card hidden" id="employeeView">
+        <div id="employeeHeaderRestaurant" style="font-size: 0.85em; color: #666; text-align: center; margin-bottom: 8px; font-weight: bold;"></div>
         <h2>אזור עובד/ת</h2>
         
         <div class="form-group">
@@ -280,6 +302,7 @@
 
     <!-- מסך מנהל -->
     <div class="hidden" id="managerView">
+        <div id="managerHeaderRestaurant" style="font-size: 0.85em; color: #1877f2; text-align: center; margin-bottom: 8px; font-weight: bold;"></div>
         
         <div class="card">
             <h2>1. הוספת עובד/ת ודירוג</h2>
@@ -307,7 +330,7 @@
             </div>
 
             <button onclick="addEmployee()">הוסף עובד חדש</button>
-            <button class="reset-btn" onclick="resetScheduleOnly()">מחיקת כל הנתונים מהשרת ידנית</button>
+            <button class="reset-btn" onclick="resetScheduleOnly()">מחיקת כל הנתונים בסניף זה</button>
 
             <h3>צוות העובדים במערכת:</h3>
             <div id="empList"></div>
@@ -552,9 +575,12 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const getEmpCollection = () => collection(db, "employees");
-        const getAvailCollection = () => collection(db, "availability");
-        const getSettingsDoc = (docName) => doc(db, "settings", docName);
+        // ניהול סניפים/מסעדות
+        let currentRestaurantId = localStorage.getItem('active_restaurant') || 'מסעדה_מרכזית';
+
+        const getEmpCollection = () => collection(db, "restaurants", currentRestaurantId, "employees");
+        const getAvailCollection = () => collection(db, "restaurants", currentRestaurantId, "availability");
+        const getSettingsDoc = (docName) => doc(db, "restaurants", currentRestaurantId, "settings", docName);
 
         const daysKeys = ['0', '1', '2', '3', '4', '5'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
@@ -578,7 +604,6 @@
         let verifiedEmployeeName = null;
         let originalEditingName = null;
 
-        // 36 צבעים שונים למניפה עשירה
         const colorPaletteList = [
             '#ff7675', '#d63031', '#c0392b', '#e84393', '#fd79a8', '#fab1a0',
             '#e67e22', '#f39c12', '#f1c40f', '#ffeaa7', '#d35400', '#cd6133',
@@ -591,19 +616,19 @@
         function buildColorPalettes() {
             const addContainer = document.getElementById('addColorPalette');
             const editContainer = document.getElementById('editColorPalette');
+            if(!addColorPalette || !editColorPalette) return;
             
             let addHtml = '';
             let editHtml = '';
 
-            colorPaletteList.forEach((hex, idx) => {
+            colorPaletteList.forEach((hex) => {
                 addHtml += `<div class="color-swatch" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
                 editHtml += `<div class="color-swatch edit-swatch" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
             });
 
-            if(addColorPalette) addContainer.innerHTML = addHtml;
-            if(editColorPalette) editContainer.innerHTML = editHtml;
+            addColorPalette.innerHTML = addHtml;
+            editColorPalette.innerHTML = editHtml;
         }
-
         buildColorPalettes();
 
         window.selectColorAdd = function(colorHex, element) {
@@ -618,10 +643,158 @@
             element.classList.add('selected');
         };
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const firstAdd = document.querySelector('#addColorPalette .color-swatch');
-            if(firstAdd) firstAdd.classList.add('selected');
-        });
+        // ניהול רשימת מסעדות
+        async function loadRestaurantsDropdown() {
+            const dropdown = document.getElementById('restaurantDropdown');
+            if(!dropdown) return;
+            
+            try {
+                const docSnap = await getDoc(doc(db, "system_data", "restaurants_list"));
+                let list = ["מסעדה_מרכזית"];
+                if (docSnap.exists() && docSnap.data().list) {
+                    list = docSnap.data().list;
+                } else {
+                    await setDoc(doc(db, "system_data", "restaurants_list"), { list: ["מסעדה_מרכזית"] });
+                }
+
+                dropdown.innerHTML = list.map(r => `<option value="${r}" ${r === currentRestaurantId ? 'selected' : ''}>${r.replace(/_/g, ' ')}</option>`).join('');
+                updateRestaurantHeaderLabels();
+            } catch(e) {
+                dropdown.innerHTML = `<option value="${currentRestaurantId}">${currentRestaurantId.replace(/_/g, ' ')}</option>`;
+            }
+        }
+        loadRestaurantsDropdown();
+
+        window.addNewRestaurant = async function() {
+            const input = document.getElementById('newRestaurantName');
+            const name = input.value.trim();
+            if(!name) { alert("אנא הכנס שם מסעדה!"); return; }
+            const safeId = name.replace(/[^a-zA-Z0-9ㄱ-힣א-ת]/g, '_');
+
+            try {
+                const docRef = doc(db, "system_data", "restaurants_list");
+                const docSnap = await getDoc(docRef);
+                let list = docSnap.exists() ? (docSnap.data().list || []) : [];
+                if(!list.includes(safeId)) {
+                    list.push(safeId);
+                    await setDoc(docRef, { list });
+                }
+                input.value = '';
+                currentRestaurantId = safeId;
+                localStorage.setItem('active_restaurant', safeId);
+                await loadRestaurantsDropdown();
+                initRealtimeListeners();
+                alert(`המסעדה '${name}' נוספה והוגדרה כפעילה!`);
+            } catch(e) { alert("שגיאה בהוספת מסעדה."); }
+        };
+
+        window.changeActiveRestaurant = function(restId) {
+            currentRestaurantId = restId;
+            localStorage.setItem('active_restaurant', restId);
+            updateRestaurantHeaderLabels();
+            initRealtimeListeners();
+        };
+
+        function updateRestaurantHeaderLabels() {
+            const readableName = currentRestaurantId.replace(/_/g, ' ');
+            const empHeader = document.getElementById('employeeHeaderRestaurant');
+            const mgrHeader = document.getElementById('managerHeaderRestaurant');
+            if(empHeader) empHeader.innerText = `סניף / מסעדה פעילה: ${readableName}`;
+            if(mgrHeader) mgrHeader.innerText = `סניף / מסעדה פעילה: ${readableName}`;
+        }
+
+        let unsubscribeEmp = null;
+        let unsubscribeAvail = null;
+        let unsubscribeDraft = null;
+        let unsubscribePublished = null;
+
+        function initRealtimeListeners() {
+            if(unsubscribeEmp) unsubscribeEmp();
+            if(unsubscribeAvail) unsubscribeAvail();
+            if(unsubscribeDraft) unsubscribeDraft();
+            if(unsubscribePublished) unsubscribePublished();
+
+            unsubscribeEmp = onSnapshot(getEmpCollection(), (snapshot) => {
+                employees = [];
+                snapshot.forEach((d) => {
+                    let data = d.data();
+                    if(!data.name) data.name = d.id; 
+                    if(!data.pin) data.pin = "1234";
+                    if(!data.color) data.color = "#74b9ff";
+                    employees.push(data);
+                });
+                renderEmployeesList();
+                renderDailyAvailabilityTable();
+                renderSummaryTable();
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
+            });
+
+            unsubscribeAvail = onSnapshot(getAvailCollection(), (snapshot) => {
+                employeeAvailMap = {};
+                employeeNotesMap = {};
+                const lastThu7AM = getLastThursday7AM();
+                snapshot.forEach(d => {
+                    let data = d.data();
+                    if (data.updatedAt && data.updatedAt >= lastThu7AM) {
+                        let empName = data.name || d.id;
+                        employeeAvailMap[empName] = data.shifts || {};
+                        if(data.note) employeeNotesMap[empName] = data.note;
+                    }
+                });
+                renderDailyAvailabilityTable();
+                renderSummaryTable();
+                renderManagerNotes();
+            });
+
+            unsubscribeDraft = onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.updatedAt && data.updatedAt < getLastFriday7AM()) {
+                        currentSchedule = {};
+                        customShiftTimes = {};
+                        try { await deleteDoc(getSettingsDoc("draft_schedule")); } catch(e){}
+                    } else {
+                        currentSchedule = data.schedule || {};
+                        customShiftTimes = data.slotTimes || {};
+                    }
+                } else {
+                    currentSchedule = {};
+                    customShiftTimes = {};
+                }
+                renderFullScheduleForManager();
+                renderSummaryTable();
+            });
+
+            unsubscribePublished = onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
+                if (scheduleSnap.exists()) {
+                    const data = scheduleSnap.data();
+                    if (isScheduleExpired(data.publishedAt)) {
+                        publishedSchedule = {};
+                        publishedTimes = {};
+                        publishedCustomShiftTimes = {};
+                        isPublished = false;
+                        updatePublishBadge(false);
+                        try { await deleteDoc(getSettingsDoc("published_schedule")); } catch(e){}
+                    } else {
+                        publishedSchedule = data.schedule || {};
+                        publishedTimes = data.times || {};
+                        publishedCustomShiftTimes = data.slotTimes || {};
+                        isPublished = true;
+                        updatePublishBadge(true);
+                    }
+                } else {
+                    publishedSchedule = {};
+                    publishedTimes = {};
+                    publishedCustomShiftTimes = {};
+                    isPublished = false;
+                    updatePublishBadge(false);
+                }
+                renderFullScheduleForManager();
+                renderSummaryTable();
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
+            });
+        }
+        initRealtimeListeners();
 
         function getIsraelLastThreshold(targetDay) {
             const nowMs = Date.now();
@@ -718,89 +891,6 @@
             }
         }
 
-        function initRealtimeListeners() {
-            onSnapshot(getEmpCollection(), (snapshot) => {
-                employees = [];
-                snapshot.forEach((d, idx) => {
-                    let data = d.data();
-                    if(!data.name) data.name = d.id; 
-                    if(!data.pin) data.pin = "1234";
-                    if(!data.color) data.color = "#74b9ff";
-                    employees.push(data);
-                });
-                renderEmployeesList();
-                renderDailyAvailabilityTable();
-                renderSummaryTable();
-                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
-            });
-
-            onSnapshot(getAvailCollection(), (snapshot) => {
-                employeeAvailMap = {};
-                employeeNotesMap = {};
-                const lastThu7AM = getLastThursday7AM();
-                snapshot.forEach(d => {
-                    let data = d.data();
-                    if (data.updatedAt && data.updatedAt >= lastThu7AM) {
-                        let empName = data.name || d.id;
-                        employeeAvailMap[empName] = data.shifts || {};
-                        if(data.note) employeeNotesMap[empName] = data.note;
-                    }
-                });
-                renderDailyAvailabilityTable();
-                renderSummaryTable();
-                renderManagerNotes();
-            });
-
-            onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
-                if (snap.exists()) {
-                    const data = snap.data();
-                    if (data.updatedAt && data.updatedAt < getLastFriday7AM()) {
-                        currentSchedule = {};
-                        customShiftTimes = {};
-                        try { await deleteDoc(getSettingsDoc("draft_schedule")); } catch(e){}
-                    } else {
-                        currentSchedule = data.schedule || {};
-                        customShiftTimes = data.slotTimes || {};
-                    }
-                } else {
-                    currentSchedule = {};
-                    customShiftTimes = {};
-                }
-                renderFullScheduleForManager();
-                renderSummaryTable();
-            });
-
-            onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
-                if (scheduleSnap.exists()) {
-                    const data = scheduleSnap.data();
-                    if (isScheduleExpired(data.publishedAt)) {
-                        publishedSchedule = {};
-                        publishedTimes = {};
-                        publishedCustomShiftTimes = {};
-                        isPublished = false;
-                        updatePublishBadge(false);
-                        try { await deleteDoc(getSettingsDoc("published_schedule")); } catch(e){}
-                    } else {
-                        publishedSchedule = data.schedule || {};
-                        publishedTimes = data.times || {};
-                        publishedCustomShiftTimes = data.slotTimes || {};
-                        isPublished = true;
-                        updatePublishBadge(true);
-                    }
-                } else {
-                    publishedSchedule = {};
-                    publishedTimes = {};
-                    publishedCustomShiftTimes = {};
-                    isPublished = false;
-                    updatePublishBadge(false);
-                }
-                renderFullScheduleForManager();
-                renderSummaryTable();
-                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
-            });
-        }
-        initRealtimeListeners();
-
         function getShiftHours(dayIdx, shiftType) {
             if (shiftType === 'm') {
                 if (dayIdx === '5') {
@@ -854,8 +944,8 @@
                 document.getElementById('managerView').classList.remove('hidden');
                 renderFullScheduleForManager();
             } else {
-                document.getElementById('selectionView').classList.add('hidden');
                 document.getElementById('selectionView').classList.remove('hidden');
+                loadRestaurantsDropdown();
             }
         };
 
@@ -865,7 +955,7 @@
                 const docSnap = await getDoc(getSettingsDoc("manager_config"));
                 if (docSnap.exists() && docSnap.data().password) currentPass = docSnap.data().password;
             } catch(e){}
-            const pass = prompt("הכנס סיסמת מנהל:");
+            const pass = prompt("הכנס סיסמת מנהל לסניף זה:");
             if(pass === currentPass) switchView('manager');
             else if(pass !== null) alert("סיסמה שגויה!");
         };
@@ -918,7 +1008,6 @@
             document.getElementById('editEmpRank').value = rank;
             document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
-            // סימון הצבע במודאל
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
                 el.classList.remove('selected');
                 if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
@@ -973,7 +1062,7 @@
             const list = document.getElementById('empList');
             if (!list) return;
             if (employees.length === 0) {
-                list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>';
+                list.innerHTML = '<p style="color:#888;">אין עובדים בסניף זה.</p>';
                 return;
             }
             list.innerHTML = employees.map((e) => `
@@ -1109,7 +1198,7 @@
         };
 
         window.generateSchedule = async function() {
-            if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
+            if (employees.length === 0) { alert("אין עובדים בסניף זה!"); return; }
             let shiftCounts = {};
             employees.forEach(e => shiftCounts[e.name] = 0);
             currentSchedule = {};
@@ -1314,7 +1403,7 @@
             if (!tbody) return;
             
             if (employees.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">אין עובדים במערכת</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">אין עובדים בסניף זה</td></tr>';
                 return;
             }
 
@@ -1362,7 +1451,7 @@
         }
 
         window.resetScheduleOnly = async function() {
-            if(!confirm("אזהרה: פעולה זו תמחק את כל זמינויות העובדים והסידור משרת הנתונים. האם אתה בטוח?")) return;
+            if(!confirm("אזהרה: פעולה זו תמחק את כל זמינויות העובדים והסידור בסניף הנוכחי. האם אתה בטוח?")) return;
             try {
                 const availSnap = await getDocs(getAvailCollection());
                 await Promise.all(availSnap.docs.map(d => deleteDoc(doc(getAvailCollection(), d.id))));
@@ -1370,13 +1459,13 @@
                 await deleteDoc(getSettingsDoc("published_schedule"));
                 currentSchedule = {};
                 customShiftTimes = {};
-                alert("הנתונים אופסו בהצלחה!");
+                alert("הנתונים בסניף אופסו בהצלחה!");
             } catch(e){ alert("שגיאה באיפוס הנתונים."); }
         };
 
         window.sendScheduleToWhatsapp = function() {
             if (!isPublished) { alert("טרם פורסם סידור עבודה!"); return; }
-            let text = "סידור עבודה שבועי\n\n";
+            let text = `סידור עבודה שבועי - ${currentRestaurantId.replace(/_/g, ' ')}\n\n`;
             daysKeys.forEach(dIdx => {
                 text += `יום ${daysNames[dIdx]}\n`;
                 ['m', 'e'].forEach(shift => {
