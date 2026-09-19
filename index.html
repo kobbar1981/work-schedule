@@ -68,21 +68,21 @@
         }
         .compact-table th, 
         .compact-table td {
-            padding: 3px 1px !important;
-            font-size: 0.7em !important;
+            padding: 4px 2px !important;
+            font-size: 0.75em !important;
             word-break: break-word;
             overflow: hidden;
             text-overflow: ellipsis;
         }
         .compact-table .emp-tag {
-            font-size: 0.68em !important;
-            padding: 2px 1px !important;
-            margin-bottom: 2px !important;
+            font-size: 0.72em !important;
+            padding: 3px 4px !important;
+            margin-bottom: 3px !important;
             white-space: normal !important;
-            line-height: 1.1;
+            line-height: 1.2;
         }
 
-        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 3px; padding: 2px; }
+        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 4px; padding: 3px; }
         .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
         
         .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
@@ -97,23 +97,22 @@
         
         .time-badge-btn {
             display: inline-block;
-            font-size: 0.65em;
+            font-size: 0.7em;
             color: #2c3e50;
             background: #eef2f7;
             border: 1px dashed #b0bec5;
             border-radius: 3px;
-            padding: 1px 2px;
+            padding: 2px 4px;
             margin-top: 2px;
             cursor: pointer;
             direction: ltr;
             font-weight: bold;
-            transition: background 0.2s;
             max-width: 100%;
         }
         
         .time-badge-btn::before { content: "✏️ "; margin-right: 1px; }
         .time-badge-btn:hover { background: #dce4ec; border-color: #1877f2; }
-        .shift-time-text { font-size: 0.65em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr; word-break: break-all; }
+        .shift-time-text { font-size: 0.7em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr; word-break: break-all; }
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
         .edit-btn { background-color: #f39c12; width: auto; padding: 4px 8px; font-size: 0.8em; color: white; }
 
@@ -181,17 +180,9 @@
         .status-published { background-color: #55efc4; color: #00b894; }
 
         .hidden { display: none !important; }
-        .print-only { display: none; }
 
-        @media print {
-            body { background: white; margin: 0; padding: 0; }
-            .card:not(#scheduleCard) { display: none !important; }
-            .export-group, .empty-slot, .unavail-badge, h1, .status-badge, button:not(.time-badge-btn), .manager-login-btn { display: none !important; }
-            .card { box-shadow: none; border: none; padding: 0; }
-            .print-only { display: block !important; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 15px; }
-            .time-badge-btn { display: block !important; border: none !important; background: transparent !important; padding: 0 !important; color: #000 !important; font-size: 0.75em !important; font-weight: bold !important; }
-            .time-badge-btn::before { display: none !important; content: none !important; }
-        }
+        /* אזור נקי ומיועד ל-PDF בלבד */
+        #pdfExportContainer { display: none; background: white; padding: 20px; width: 297mm; box-sizing: border-box; direction: rtl; }
     </style>
 </head>
 <body>
@@ -425,7 +416,6 @@
                 <h2>לוח משמרות שבועי (מנהל)</h2>
                 <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
             </div>
-            <div class="print-only">סידור עבודה שבועי</div>
             
             <div class="table-wrapper">
                 <table class="schedule-table compact-table">
@@ -526,6 +516,48 @@
         </div>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
+    </div>
+
+    <!-- אלמנט נסתר נקי המיוצר במיוחד להפקת PDF רוחבי ונקי ממסגרות מיותרות -->
+    <div id="pdfExportContainer">
+        <h2 style="text-align:center; font-size: 22px; margin-bottom: 5px;">סידור עבודה שבועי</h2>
+        <div id="pdfSubtitleDates" style="text-align:center; font-size: 14px; color: #555; margin-bottom: 15px;"></div>
+        <table class="schedule-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+            <thead>
+                <tr id="pdf-th-row" style="background-color: #f5f6f7;">
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;">משמרת</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-0">א'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-1">ב'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-2">ג'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-3">ד'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-4">ה'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-5">ו'</th>
+                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-6">ש'</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">בוקר</td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-0-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-1-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-2-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-3-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-4-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-5-m"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-6-m"></td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">ערב</td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-0-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-1-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-2-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-3-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-4-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-5-e"></td>
+                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-6-e"></td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 
     <!-- מודאל החלפת עובד -->
@@ -1733,34 +1765,79 @@
         };
 
         window.exportToPDF = async function() {
-            const card = document.getElementById('scheduleCard');
             const btn = document.getElementById('pdfExportBtn');
             btn.disabled = true;
             btn.innerText = "מייצר PDF...";
+
+            const dates = getScheduleDates();
+            const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
+            
+            // עדכון התאריכים בכותרות הטבלה של ה-PDF הנסתר
+            for(let i=0; i<7; i++) {
+                let th = document.getElementById(`pdf-th-${i}`);
+                if(th) th.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+            }
+            document.getElementById('pdfSubtitleDates').innerText = `תאריכים: ${dates[0]} - ${dates[6]}`;
+
+            // מילוי נתוני המשמרות לתוך הטבלה הנסתרת המותאמת לרוחב
+            daysKeys.forEach(dIdx => {
+                ['m', 'e'].forEach(shiftType => {
+                    const key = `${dIdx}-${shiftType}`;
+                    const targetCell = document.getElementById(`pdf-cell-${key}`);
+                    if(!targetCell) return;
+
+                    if (activeShiftsConfig[key] === false) {
+                        targetCell.innerHTML = `<span style="color: #aaa; font-size: 0.75em;">לא פעילה</span>`;
+                        return;
+                    }
+
+                    const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+                    let html = '';
+                    let defaultTime = getShiftHours(dIdx, shiftType);
+
+                    assignedNames.forEach((empName, index) => {
+                        const emp = employees.find(e => e.name === empName);
+                        const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
+                        const slotTime = customShiftTimes[`${key}-${index}`] || defaultTime;
+
+                        html += `
+                            <div style="background: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; margin-bottom: 4px; text-align: center;">
+                                <div style="display: inline-block; background-color: ${esc(empColor)}; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8em; color: black; border: 1px solid rgba(0,0,0,0.1);">${esc(empName)}</div>
+                                <div style="font-size: 0.7em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr;">${esc(slotTime)}</div>
+                            </div>`;
+                    });
+                    targetCell.innerHTML = html || '<span style="color:#aaa; font-size:0.75em;">—</span>';
+                });
+            });
+
+            const exportContainer = document.getElementById('pdfExportContainer');
+            exportContainer.style.display = 'block';
+
             try {
-                const canvas = await html2canvas(card, { scale: 2, useCORS: true });
-                const imgData = canvas.toDataURL('image/png');
+                const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
                 const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
-                const pageHeight = 295;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                let heightLeft = imgHeight;
-                let position = 0;
-
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
+                const pdf = new jsPDF('l', 'mm', 'a4'); // A4 לרוחב מלא
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                
+                let imgWidth = pageWidth - 16;
+                let imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                if (imgHeight > pageHeight - 16) {
+                    imgHeight = pageHeight - 16;
+                    imgWidth = (canvas.width * imgHeight) / canvas.height;
                 }
+                
+                const x = (pageWidth - imgWidth) / 2;
+                const y = 8;
+
+                pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
                 pdf.save('work-schedule.pdf');
             } catch (err) {
                 alert("שגיאה בייצוא ל-PDF.");
             } finally {
+                exportContainer.style.display = 'none';
                 btn.disabled = false;
                 btn.innerText = "ייצא ל-PDF (הורדת קובץ)";
             }
