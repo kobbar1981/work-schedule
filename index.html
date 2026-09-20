@@ -15,6 +15,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <style>
+        /* רוחב קבוע לעמודות לוח המשמרות - אפשר לשנות כאן */
+        :root {
+            --col-day: 52px;    /* רוחב כל עמודת יום */
+            --col-label: 42px;  /* רוחב עמודת "משמרת" */
+        }
+
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 8px; background-color: #f0f2f5; color: #1c1e21; overflow-x: hidden; width: 100%; box-sizing: border-box; }
         h1, h2, h3, h4 { color: #050505; margin-top: 0; text-align: center; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
@@ -67,11 +73,15 @@
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; box-sizing: border-box; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* טבלה קומפקטית: העמודות מצטמצמות לפי התוכן, בלי רוחב מינימום קבוע */
+        /* טבלה קומפקטית: רוחב עמודות קבוע שלא משתנה לפי התוכן */
         .compact-table {
-            width: 100% !important;
-            table-layout: auto !important;
+            table-layout: fixed !important;
+            width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            min-width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            margin: 8px auto 0 auto;
         }
+        .compact-table th { width: var(--col-day); }
+        .compact-table th:first-child { width: var(--col-label); }
         .compact-table th, 
         .compact-table td {
             padding: 3px 1px !important;
