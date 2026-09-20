@@ -67,20 +67,19 @@
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; box-sizing: border-box; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
-        /* הגדרות טבלה קומפקטית */
+        /* טבלה קומפקטית: העמודות מצטמצמות לפי התוכן, בלי רוחב מינימום קבוע */
         .compact-table {
             width: 100% !important;
-            min-width: 800px !important; /* אילוץ גלילה אופקית במסכים קטנים */
-            table-layout: auto !important; /* חלוקה חכמה של המקום לפי תוכן */
+            table-layout: auto !important;
         }
         .compact-table th, 
         .compact-table td {
-            padding: 4px 2px !important;
+            padding: 3px 1px !important;
             font-size: 0.75em !important;
             overflow-wrap: break-word;
         }
 
-        /* צמצום ריווחים פנימיים למניעת מתיחה אנכית */
+        /* צמצום ריווחים פנימיים למניעת מתיחה אנכית ורוחבית */
         .compact-table .emp-tag {
             font-size: 0.7em !important;
             padding: 2px 3px !important;
@@ -88,6 +87,9 @@
             white-space: normal !important;
             line-height: 1.1;
         }
+        .compact-table .emp-container { padding: 1px; }
+        .compact-table .time-badge-btn { padding: 1px 2px; }
+        .compact-table .hours-2l.custom { padding: 0 2px; }
 
         .emp-container { 
             background: white; 
