@@ -54,35 +54,51 @@
         .reset-btn { background-color: #e67e22; margin-top: 10px; }
         .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
         
-        .table-wrapper { overflow-x: auto; width: 100%; max-width: 100%; box-sizing: border-box; }
+        /* פתרון רוחב וגלילה לטבלאות */
+        .table-wrapper { 
+            overflow-x: auto; 
+            width: 100%; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            box-sizing: border-box; 
+        }
         
         table { width: 100%; border-collapse: collapse; margin-top: 8px; box-sizing: border-box; }
         th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; box-sizing: border-box; }
         th { background-color: #f5f6f7; font-size: 0.85em; }
 
+        /* הגדרות טבלה קומפקטית */
         .compact-table {
             width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            table-layout: fixed !important;
+            min-width: 800px !important; /* אילוץ גלילה אופקית במסכים קטנים */
+            table-layout: auto !important; /* חלוקה חכמה של המקום לפי תוכן */
         }
         .compact-table th, 
         .compact-table td {
             padding: 4px 2px !important;
             font-size: 0.75em !important;
-            word-break: break-word;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .compact-table .emp-tag {
-            font-size: 0.72em !important;
-            padding: 3px 4px !important;
-            margin-bottom: 3px !important;
-            white-space: normal !important;
-            line-height: 1.2;
+            overflow-wrap: break-word;
         }
 
-        .emp-container { background: white; border: 1px solid #ddd; border-radius: 4px; display: block; box-sizing: border-box; margin-bottom: 4px; padding: 3px; }
+        /* צמצום ריווחים פנימיים למניעת מתיחה אנכית */
+        .compact-table .emp-tag {
+            font-size: 0.7em !important;
+            padding: 2px 3px !important;
+            margin-bottom: 2px !important;
+            white-space: normal !important;
+            line-height: 1.1;
+        }
+
+        .emp-container { 
+            background: white; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            display: block; 
+            box-sizing: border-box; 
+            margin-bottom: 2px; 
+            padding: 2px; 
+        }
+        
         .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
         
         .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
@@ -94,25 +110,55 @@
         }
 
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
-        
+
+        /* ===== הצגת שעות: שתי שורות (התחלה מעל סיום), בלי חיתוך ===== */
+        .hours-2l {
+            display: inline-block;
+            direction: ltr;
+            text-align: center;
+            white-space: nowrap;
+            font-weight: bold;
+            line-height: 1.2;
+            font-size: 0.9em;
+            color: #2c3e50;
+        }
+        .hours-2l .h-line { display: block; }
+        .hours-2l .h-end {
+            border-top: 1px solid rgba(0,0,0,0.35);
+            margin-top: 1px;
+            padding-top: 1px;
+        }
+        /* שעות שונות מברירת המחדל - מודגשות בצהוב */
+        .hours-2l.custom {
+            background: #fff3cd;
+            border: 1px solid #f0c36d;
+            border-radius: 3px;
+            padding: 1px 4px;
+            color: #7a4b00;
+        }
+
+        /* כפתור עדכון שעות לעובד (אצל המנהל) */
         .time-badge-btn {
             display: inline-block;
-            font-size: 0.7em;
+            width: auto;
+            margin: 2px 0 0 0;
+            padding: 2px 5px;
+            font-size: 1em;
+            line-height: 1.2;
             color: #2c3e50;
             background: #eef2f7;
             border: 1px dashed #b0bec5;
             border-radius: 3px;
-            padding: 2px 4px;
-            margin-top: 2px;
             cursor: pointer;
             direction: ltr;
             font-weight: bold;
             max-width: 100%;
         }
-        
-        .time-badge-btn::before { content: "✏️ "; margin-right: 1px; }
+        .time-badge-btn .hours-2l { color: inherit; }
+        .time-badge-btn.custom { background: #fff3cd; border: 1px solid #f0c36d; color: #7a4b00; }
         .time-badge-btn:hover { background: #dce4ec; border-color: #1877f2; }
-        .shift-time-text { font-size: 0.7em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr; word-break: break-all; }
+        .time-badge-btn.custom:hover { background: #ffecb3; }
+
         .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
         .edit-btn { background-color: #f39c12; width: auto; padding: 4px 8px; font-size: 0.8em; color: white; }
 
@@ -181,8 +227,11 @@
 
         .hidden { display: none !important; }
 
+        .schedule-note { font-size: 0.78em; color: #666; margin: 4px 0 0 0; text-align: right; }
+
         /* אזור נקי ומיועד ל-PDF בלבד */
-        #pdfExportContainer { display: none; background: white; padding: 20px; width: 297mm; box-sizing: border-box; direction: rtl; }
+        #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
+        #pdfExportContainer .hours-2l { font-size: 17px; }
     </style>
 </head>
 <body>
@@ -218,18 +267,19 @@
                 <div id="myShiftsSummary"></div>
                 
                 <h3 style="text-align: right; margin-top: 15px;">לוח משמרות שבועי מלא:</h3>
+                <p class="schedule-note">שעות שמסומנות בצהוב שונות מהשעות הרגילות של המשמרת.</p>
                 <div class="table-wrapper">
                     <table class="schedule-table compact-table">
                         <thead>
                             <tr>
-                                <th style="width: 12.5%;">משמרת</th>
-                                <th style="width: 12.5%;" id="th-emp-0">א'</th>
-                                <th style="width: 12.5%;" id="th-emp-1">ב'</th>
-                                <th style="width: 12.5%;" id="th-emp-2">ג'</th>
-                                <th style="width: 12.5%;" id="th-emp-3">ד'</th>
-                                <th style="width: 12.5%;" id="th-emp-4">ה'</th>
-                                <th style="width: 12.5%;" id="th-emp-5">ו'</th>
-                                <th style="width: 12.5%;" id="th-emp-6">ש'</th>
+                                <th>משמרת</th>
+                                <th id="th-emp-0">א'</th>
+                                <th id="th-emp-1">ב'</th>
+                                <th id="th-emp-2">ג'</th>
+                                <th id="th-emp-3">ד'</th>
+                                <th id="th-emp-4">ה'</th>
+                                <th id="th-emp-5">ו'</th>
+                                <th id="th-emp-6">ש'</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -332,7 +382,7 @@
             </div>
         </div>
 
-        <!-- 3. הגדרת שעות וכמות עובדים בטבלה מטריציונית חדשה ונקייה -->
+        <!-- 3. הגדרת שעות וכמות עובדים -->
         <div class="card">
             <h2>3. הגדרת שעות וכמות עובדים</h2>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">הגדר את שעות ההתחלה והסיום וכמות העובדים הנדרשת לכל משמרת במבנה טבלאי מהיר:</p>
@@ -416,19 +466,20 @@
                 <h2>לוח משמרות שבועי (מנהל)</h2>
                 <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
             </div>
+            <p class="schedule-note" style="margin-bottom: 6px;">לחיצה על השעות מתחת לשם עובד מאפשרת לשנות אותן. שעות שונות מברירת המחדל מסומנות בצהוב.</p>
             
             <div class="table-wrapper">
                 <table class="schedule-table compact-table">
                     <thead>
                         <tr>
-                            <th style="width: 12.5%;">משמרת</th>
-                            <th style="width: 12.5%;" id="th-mgr-0">א'</th>
-                            <th style="width: 12.5%;" id="th-mgr-1">ב'</th>
-                            <th style="width: 12.5%;" id="th-mgr-2">ג'</th>
-                            <th style="width: 12.5%;" id="th-mgr-3">ד'</th>
-                            <th style="width: 12.5%;" id="th-mgr-4">ה'</th>
-                            <th style="width: 12.5%;" id="th-mgr-5">ו'</th>
-                            <th style="width: 12.5%;" id="th-mgr-6">ש'</th>
+                            <th>משמרת</th>
+                            <th id="th-mgr-0">א'</th>
+                            <th id="th-mgr-1">ב'</th>
+                            <th id="th-mgr-2">ג'</th>
+                            <th id="th-mgr-3">ד'</th>
+                            <th id="th-mgr-4">ה'</th>
+                            <th id="th-mgr-5">ו'</th>
+                            <th id="th-mgr-6">ש'</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -519,42 +570,43 @@
     </div>
 
     <!-- אלמנט נסתר נקי המיוצר במיוחד להפקת PDF רוחבי ונקי ממסגרות מיותרות -->
+    <!-- כאן הושארו האחוזים עבור ה-PDF שכן הדפסה דורשת חלוקה מדויקת על הדף -->
     <div id="pdfExportContainer">
-        <h2 style="text-align:center; font-size: 22px; margin-bottom: 5px;">סידור עבודה שבועי</h2>
-        <div id="pdfSubtitleDates" style="text-align:center; font-size: 14px; color: #555; margin-bottom: 15px;"></div>
+        <h2 style="text-align:center; font-size: 32px; margin-bottom: 6px;">סידור עבודה שבועי</h2>
+        <div id="pdfSubtitleDates" style="text-align:center; font-size: 20px; color: #555; margin-bottom: 16px;"></div>
         <table class="schedule-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
             <thead>
                 <tr id="pdf-th-row" style="background-color: #f5f6f7;">
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;">משמרת</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-0">א'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-1">ב'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-2">ג'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-3">ד'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-4">ה'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-5">ו'</th>
-                    <th style="width: 12.5%; border: 1px solid #ddd; padding: 8px;" id="pdf-th-6">ש'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;">משמרת</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-0">א'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-1">ב'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-2">ג'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-3">ד'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-4">ה'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-5">ו'</th>
+                    <th style="width: 12.5%; border: 1px solid #999; padding: 10px; font-size: 20px;" id="pdf-th-6">ש'</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">בוקר</td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-0-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-1-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-2-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-3-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-4-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-5-m"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-6-m"></td>
+                    <td style="border: 1px solid #999; padding: 8px; font-weight: bold; font-size: 24px; text-align: center;">בוקר</td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-0-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-1-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-2-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-3-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-4-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-5-m"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-6-m"></td>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">ערב</td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-0-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-1-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-2-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-3-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-4-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-5-e"></td>
-                    <td style="border: 1px solid #ddd; padding: 6px; vertical-align: top;" id="pdf-cell-6-e"></td>
+                    <td style="border: 1px solid #999; padding: 8px; font-weight: bold; font-size: 24px; text-align: center;">ערב</td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-0-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-1-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-2-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-3-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-4-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-5-e"></td>
+                    <td style="border: 1px solid #999; padding: 6px; vertical-align: top;" id="pdf-cell-6-e"></td>
                 </tr>
             </tbody>
         </table>
@@ -666,6 +718,12 @@
 
         const daysKeys = ['0', '1', '2', '3', '4', '5', '6'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+        const TIME_INPUT_IDS = [
+            'mStart', 'mEnd', 'eStart', 'eEnd',
+            'friMStart', 'friMEnd', 'friEStart', 'friEEnd',
+            'satMStart', 'satMEnd', 'satEStart', 'satEEnd'
+        ];
         
         let employees = [];
         let employeeAvailMap = {};
@@ -849,6 +907,44 @@
         }
         updateDatesInUI();
 
+        /* ===== עזרי הצגת שעות (שתי שורות: התחלה מעל סיום) ===== */
+
+        function readTimesFromInputs() {
+            const t = {};
+            TIME_INPUT_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                t[id] = el ? el.value : '';
+            });
+            return t;
+        }
+
+        function hoursFromTimes(t, dayIdx, shiftType) {
+            t = t || {};
+            if (dayIdx === '5') {
+                return shiftType === 'm'
+                    ? `${t.friMStart || "09:30"} - ${t.friMEnd || "14:00"}`
+                    : `${t.friEStart || "15:00"} - ${t.friEEnd || "19:00"}`;
+            } else if (dayIdx === '6') {
+                return shiftType === 'm'
+                    ? `${t.satMStart || "10:00"} - ${t.satMEnd || "16:00"}`
+                    : `${t.satEStart || "18:30"} - ${t.satEEnd || "23:00"}`;
+            }
+            return shiftType === 'm'
+                ? `${t.mStart || "11:00"} - ${t.mEnd || "16:00"}`
+                : `${t.eStart || "16:00"} - ${t.eEnd || "21:00"}`;
+        }
+
+        function splitTimeRange(str) {
+            const parts = String(str || '').split('-').map(s => s.trim());
+            return parts.length === 2 ? parts : [String(str || ''), ''];
+        }
+
+        // שעות בשתי שורות: התחלה מעל סיום, בלי חיתוך
+        function hoursHtml(str, extraClass) {
+            const [s, e] = splitTimeRange(str);
+            return `<span class="hours-2l ${extraClass || ''}"><span class="h-line">${esc(s)}</span>${e ? `<span class="h-line h-end">${esc(e)}</span>` : ''}</span>`;
+        }
+
         window.saveActiveShiftsConfig = async function() {
             const checkboxes = document.querySelectorAll('#managerActiveShiftsContainer input[type="checkbox"]');
             activeShiftsConfig = {};
@@ -907,20 +1003,7 @@
         async function syncPublishedIfActive() {
             if (isPublished) {
                 try {
-                    const currentTimes = {
-                        mStart: document.getElementById('mStart').value,
-                        mEnd: document.getElementById('mEnd').value,
-                        friMStart: document.getElementById('friMStart').value,
-                        friMEnd: document.getElementById('friMEnd').value,
-                        friEStart: document.getElementById('friEStart').value,
-                        friEEnd: document.getElementById('friEEnd').value,
-                        eStart: document.getElementById('eStart').value,
-                        eEnd: document.getElementById('eEnd').value,
-                        satMStart: document.getElementById('satMStart').value,
-                        satMEnd: document.getElementById('satMEnd').value,
-                        satEStart: document.getElementById('satEStart').value,
-                        satEEnd: document.getElementById('satEEnd').value
-                    };
+                    const currentTimes = readTimesFromInputs();
                     await setDoc(getSettingsDoc("published_schedule"), { 
                         schedule: currentSchedule,
                         times: currentTimes,
@@ -1030,15 +1113,7 @@
         initRealtimeListeners();
 
         function getShiftHours(dayIdx, shiftType) {
-            if (dayIdx === '5') {
-                return shiftType === 'm' ? `${publishedTimes.friMStart || "09:30"} - ${publishedTimes.friMEnd || "14:00"}` : `${publishedTimes.friEStart || "15:00"} - ${publishedTimes.friEEnd || "19:00"}`;
-            } else if (dayIdx === '6') {
-                if (shiftType === 'm') return `${publishedTimes.satMStart || "10:00"} - ${publishedTimes.satMEnd || "16:00"}`;
-                return `${publishedTimes.satEStart || "18:30"} - ${publishedTimes.satEEnd || "23:00"}`;
-            } else {
-                if (shiftType === 'm') return `${publishedTimes.mStart || "11:00"} - ${publishedTimes.mEnd || "16:00"}`;
-                return `${publishedTimes.eStart || "16:00"} - ${publishedTimes.eEnd || "21:00"}`;
-            }
+            return hoursFromTimes(publishedTimes, dayIdx, shiftType);
         }
 
         window.openTimeModal = function(shiftKey, index, currentHoursStr, empName) {
@@ -1405,6 +1480,7 @@
                     if(!cell) return;
 
                     const assigned = publishedSchedule[key] || [];
+                    const defaultHours = getShiftHours(dIdx, shiftType);
                     let html = '';
 
                     assigned.forEach((name, index) => {
@@ -1412,16 +1488,19 @@
                         const empObj = employees.find(e => e.name === name);
                         const empColor = empObj ? empObj.color : '#74b9ff';
                         const isMe = (name === empName);
-                        const shiftHours = (publishedCustomShiftTimes[`${key}-${index}`]) ? publishedCustomShiftTimes[`${key}-${index}`] : getShiftHours(dIdx, shiftType);
+                        const customHours = publishedCustomShiftTimes[`${key}-${index}`];
+                        const shiftHours = customHours || defaultHours;
+                        const isCustom = !!customHours && customHours !== defaultHours;
 
                         if (isMe) myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'} ${esc(shiftHours)})`);
 
                         html += `
                             <div class="emp-container ${isMe ? 'my-shift-highlight' : ''}" style="cursor: default;">
                                 <span class="emp-tag" style="background-color: ${esc(empColor)}; cursor: default; pointer-events: none;">${esc(name)} ${isMe ? '⭐' : ''}</span>
-                                <div class="shift-time-text">${esc(shiftHours)}</div>
+                                <div style="margin-top: 2px;">${hoursHtml(shiftHours, isCustom ? 'custom' : '')}</div>
                             </div>`;
                     });
+
                     cell.innerHTML = html || '-';
                 });
             });
@@ -1497,20 +1576,7 @@
 
         window.publishSchedule = async function() {
             if (!currentSchedule || Object.keys(currentSchedule).length === 0) { alert("אין סידור עבודה להפצה!"); return; }
-            const currentTimes = {
-                mStart: document.getElementById('mStart').value,
-                mEnd: document.getElementById('mEnd').value,
-                friMStart: document.getElementById('friMStart').value,
-                friMEnd: document.getElementById('friMEnd').value,
-                friEStart: document.getElementById('friEStart').value,
-                friEEnd: document.getElementById('friEEnd').value,
-                eStart: document.getElementById('eStart').value,
-                eEnd: document.getElementById('eEnd').value,
-                satMStart: document.getElementById('satMStart').value,
-                satMEnd: document.getElementById('satMEnd').value,
-                satEStart: document.getElementById('satEStart').value,
-                satEEnd: document.getElementById('satEEnd').value
-            };
+            const currentTimes = readTimesFromInputs();
             try {
                 await saveDraftToFirestore();
                 await setDoc(getSettingsDoc("published_schedule"), { 
@@ -1533,29 +1599,11 @@
         };
 
         window.renderFullScheduleForManager = function() {
-            const mStart = document.getElementById('mStart')?.value || "11:00";
-            const mEnd = document.getElementById('mEnd')?.value || "16:00";
-            const friMStart = document.getElementById('friMStart')?.value || "09:30";
-            const friMEnd = document.getElementById('friMEnd')?.value || "14:00";
-            const friEStart = document.getElementById('friEStart')?.value || "15:00";
-            const friEEnd = document.getElementById('friEEnd')?.value || "19:00";
-            const eStart = document.getElementById('eStart')?.value || "16:00";
-            const eEnd = document.getElementById('eEnd')?.value || "21:00";
-            const satMStart = document.getElementById('satMStart')?.value || "10:00";
-            const satMEnd = document.getElementById('satMEnd')?.value || "16:00";
-            const satEStart = document.getElementById('satEStart')?.value || "18:30";
-            const satEEnd = document.getElementById('satEEnd')?.value || "23:00";
+            const t = readTimesFromInputs();
 
             daysKeys.forEach(dIdx => {
-                let currentMStart = mStart, currentMEnd = mEnd;
-                if (dIdx === '5') { currentMStart = friMStart; currentMEnd = friMEnd; }
-                if (dIdx === '6') { currentMStart = satMStart; currentMEnd = satMEnd; }
-                renderShiftCell(dIdx, 'm', `${currentMStart} - ${currentMEnd}`);
-                
-                let currentEStart = eStart, currentEEnd = eEnd;
-                if (dIdx === '5') { currentEStart = friEStart; currentEEnd = friEEnd; }
-                if (dIdx === '6') { currentEStart = satEStart; currentEEnd = satEEnd; }
-                renderShiftCell(dIdx, 'e', `${currentEStart} - ${currentEEnd}`);
+                renderShiftCell(dIdx, 'm', hoursFromTimes(t, dIdx, 'm'));
+                renderShiftCell(dIdx, 'e', hoursFromTimes(t, dIdx, 'e'));
             });
         };
 
@@ -1607,7 +1655,9 @@
                 const emp = employees.find(e => e.name === empName);
                 const isAvail = employeeAvailMap[empName]?.[key];
                 const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                const slotTime = customShiftTimes[`${key}-${index}`] || defaultTime;
+                const customTime = customShiftTimes[`${key}-${index}`];
+                const slotTime = customTime || defaultTime;
+                const isCustom = !!customTime && customTime !== defaultTime;
 
                 html += `
                     <div class="emp-container">
@@ -1616,10 +1666,10 @@
                         </span>
                         ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
                         <div>
-                            <button type="button" class="time-badge-btn"
+                            <button type="button" class="time-badge-btn ${isCustom ? 'custom' : ''}" title="שינוי שעות"
                                 data-key="${key}" data-index="${index}" data-time="${esc(slotTime)}" data-name="${esc(empName)}"
                                 onclick="openTimeModal(this.dataset.key, parseInt(this.dataset.index), this.dataset.time, this.dataset.name)">
-                                ${esc(slotTime)}
+                                ${hoursHtml(slotTime)}
                             </button>
                         </div>
                     </div>`;
@@ -1779,7 +1829,12 @@
             }
             document.getElementById('pdfSubtitleDates').innerText = `תאריכים: ${dates[0]} - ${dates[6]}`;
 
-            // מילוי נתוני המשמרות לתוך הטבלה הנסתרת המותאמת לרוחב
+            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
+            const inputTimes = readTimesFromInputs();
+            const pdfTimes = {};
+            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
+
+            // מילוי נתוני המשמרות לתוך הטבלה הנסתרת - בכל תא מוצגות שעות לכל עובד
             daysKeys.forEach(dIdx => {
                 ['m', 'e'].forEach(shiftType => {
                     const key = `${dIdx}-${shiftType}`;
@@ -1787,26 +1842,28 @@
                     if(!targetCell) return;
 
                     if (activeShiftsConfig[key] === false) {
-                        targetCell.innerHTML = `<span style="color: #aaa; font-size: 0.75em;">לא פעילה</span>`;
+                        targetCell.innerHTML = `<div style="color: #aaa; font-size: 16px; text-align: center;">לא פעילה</div>`;
                         return;
                     }
 
                     const assignedNames = (currentSchedule[key] || []).filter(Boolean);
                     let html = '';
-                    let defaultTime = getShiftHours(dIdx, shiftType);
+                    const defaultTime = hoursFromTimes(pdfTimes, dIdx, shiftType);
 
                     assignedNames.forEach((empName, index) => {
                         const emp = employees.find(e => e.name === empName);
                         const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                        const slotTime = customShiftTimes[`${key}-${index}`] || defaultTime;
+                        const customTime = customShiftTimes[`${key}-${index}`];
+                        const slotTime = customTime || defaultTime;
+                        const isCustom = !!customTime && customTime !== defaultTime;
 
                         html += `
-                            <div style="background: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px; margin-bottom: 4px; text-align: center;">
-                                <div style="display: inline-block; background-color: ${esc(empColor)}; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8em; color: black; border: 1px solid rgba(0,0,0,0.1);">${esc(empName)}</div>
-                                <div style="font-size: 0.7em; color: #444; font-weight: bold; margin-top: 2px; direction: ltr;">${esc(slotTime)}</div>
+                            <div style="background: white; border: 1px solid #bbb; border-radius: 6px; padding: 6px 4px; margin-bottom: 6px; text-align: center;">
+                                <div style="display: inline-block; background-color: ${esc(empColor)}; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 20px; color: black; border: 1px solid rgba(0,0,0,0.15);">${esc(empName)}</div>
+                                <div style="margin-top: 5px;">${hoursHtml(slotTime, isCustom ? 'custom' : '')}</div>
                             </div>`;
                     });
-                    targetCell.innerHTML = html || '<span style="color:#aaa; font-size:0.75em;">—</span>';
+                    targetCell.innerHTML = html || '<div style="color:#aaa; font-size:20px; text-align:center;">—</div>';
                 });
             });
 
