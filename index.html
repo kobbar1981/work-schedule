@@ -242,16 +242,50 @@
         /* אזור נקי ומיועד ל-PDF בלבד */
         #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
         #pdfExportContainer .hours-2l { font-size: 17px; }
+
+        /* תגית שם המסעדה הנוכחית */
+        .restaurant-tag { text-align: center; font-size: 0.8em; color: #555; margin-bottom: 6px; }
+
+        .biz-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+        .biz-item .biz-info { font-size: 0.85em; color: #333; }
+        .biz-item .biz-info b { font-size: 1.05em; color: #1877f2; }
     </style>
 </head>
 <body>
 
+    <div class="restaurant-tag" id="restaurantTag"></div>
     <h1>מערכת סידור עבודה חכם</h1>
 
-    <div class="card" id="selectionView">
+    <!-- מסך בחירת/הזנת שם העסק - מוצג רק כשאין עדיין עסק נבחר במכשיר -->
+    <div class="card hidden" id="businessSetupView">
+        <h2>ברוכים הבאים!</h2>
+        <p style="font-size: 0.9em; color: #555; text-align: center;">כדי להתחיל, הזן את שם העסק שלך. אם זו הפעם הראשונה - זה ייצור עסק חדש ונפרד לגמרי. אם כבר יש לך שם עסק (קיבלת מהמנהל שלך) - הזן אותו בדיוק כפי שקיבלת.</p>
+        <div class="form-group">
+            <label>שם העסק:</label>
+            <input type="text" id="businessNameInput" placeholder="למשל: pizza-place">
+        </div>
+        <button onclick="confirmBusinessSetup()" style="background-color: #27ae60;">כניסה למערכת</button>
+    </div>
+
+    <div class="card hidden" id="selectionView">
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים (הגשת זמינות וצפייה בסידור)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל (ניהול ושיבוץ)</button>
+        <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
+    </div>
+
+    <!-- מסך ניהול-על: רשימת כל העסקים המחוברים ומחיקה -->
+    <div class="hidden" id="superAdminView">
+        <div class="card">
+            <h2>ניהול-על: כל העסקים במערכת</h2>
+            <p style="font-size: 0.85em; color: #555; margin-top: 0;">רשימת כל העסקים שנוצרו אי-פעם על גבי אותו פרויקט Firebase. אפשר למחוק עסק לא פעיל - פעולה זו תמחק לצמיתות את כל העובדים, הזמינויות וההגדרות שלו.</p>
+            <div style="display:flex; gap:8px;">
+                <button onclick="loadSuperAdminList()" style="background-color:#3498db; flex:1;">רענן רשימה</button>
+                <button onclick="switchBusiness()" style="background-color:#8e44ad; flex:1;">עבור/צור עסק לפי שם</button>
+            </div>
+            <div id="superAdminList" style="margin-top: 12px;"></div>
+        </div>
+        <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
 
     <!-- מסך כניסת עובד -->
@@ -563,6 +597,15 @@
         </div>
 
         <div class="card">
+            <h2>שיתוף המערכת עם העובדים</h2>
+            <p style="font-size: 0.85em; color: #555; margin-top: 0;">שלח לעובדים את הקישור הבא כדי שיוכלו להגיש זמינות ולצפות בסידור של העסק שלך בלבד:</p>
+            <div class="form-group">
+                <input type="text" id="inviteLinkDisplay" readonly style="background:#f5f6f7; direction: ltr; text-align: left; font-size: 0.8em;">
+            </div>
+            <button onclick="copyInviteLink()" style="background-color: #25D366;">העתק קישור לעובדים</button>
+        </div>
+
+        <div class="card">
             <h2>הגדרות מנהל</h2>
             <div class="form-group">
                 <label>שינוי סיסמת מנהל (לפחות 4 תווים):</label>
@@ -718,9 +761,112 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const getEmpCollection = () => collection(db, "employees");
-        const getAvailCollection = () => collection(db, "availability");
-        const getSettingsDoc = (docName) => doc(db, "settings", docName);
+        // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
+        // מזהה העסק נקבע כך: קודם מפרמטר ?r= בכתובת (אם קיים, גם נשמר במכשיר לפעמים הבאות),
+        // אחרת ממה שנשמר במכשיר מפעם קודמת, ואחרת המשתמש מתבקש להזין/ליצור שם עסק.
+        // כל עסק מקבל קבוצת collections נפרדת לגמרי, כך שהנתונים לעולם לא מתערבבים.
+        function sanitizeRestaurantId(raw) {
+            const cleaned = String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            return cleaned || '';
+        }
+
+        let RESTAURANT_ID = '';
+
+        function getEmpCollection() { return collection(db, `${RESTAURANT_ID}_employees`); }
+        function getAvailCollection() { return collection(db, `${RESTAURANT_ID}_availability`); }
+        function getSettingsDoc(docName) { return doc(db, `${RESTAURANT_ID}_settings`, docName); }
+
+        // מרשם מרכזי של כל העסקים שנוצרו אי-פעם, לצורך מסך "ניהול-על"
+        const getRegistryDoc = (id) => doc(db, '_registry', id);
+        const getSuperAdminConfigDoc = () => doc(db, '_system', 'super_admin_config');
+        const SUPER_ADMIN_DEFAULT_PASSWORD = "9999";
+
+        async function touchRegistry() {
+            if (!RESTAURANT_ID) return;
+            try {
+                const ref = getRegistryDoc(RESTAURANT_ID);
+                const snap = await getDoc(ref);
+                const payload = { id: RESTAURANT_ID, lastSeenAt: Date.now() };
+                if (!snap.exists()) payload.createdAt = Date.now();
+                await setDoc(ref, payload, { merge: true });
+            } catch(e) {}
+        }
+
+        function updateRestaurantTag() {
+            const tagEl = document.getElementById('restaurantTag');
+            if (tagEl) tagEl.textContent = RESTAURANT_ID ? `עסק: ${RESTAURANT_ID}` : '';
+        }
+
+        function updateInviteLink() {
+            const el = document.getElementById('inviteLinkDisplay');
+            if (!el || !RESTAURANT_ID) return;
+            const url = new URL(window.location.href);
+            url.search = '';
+            url.searchParams.set('r', RESTAURANT_ID);
+            el.value = url.toString();
+        }
+
+        window.copyInviteLink = function() {
+            const el = document.getElementById('inviteLinkDisplay');
+            if (!el || !el.value) return;
+            el.select();
+            el.setSelectionRange(0, 99999);
+            const finish = (ok) => alert(ok ? "הקישור הועתק! אפשר לשלוח אותו לעובדים." : "לא הצלחנו להעתיק אוטומטית - העתק ידנית מהשדה.");
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(el.value).then(() => finish(true)).catch(() => {
+                    try { document.execCommand('copy'); finish(true); } catch(e) { finish(false); }
+                });
+            } else {
+                try { document.execCommand('copy'); finish(true); } catch(e) { finish(false); }
+            }
+        };
+
+        window.switchBusiness = function() {
+            document.getElementById('selectionView').classList.add('hidden');
+            document.getElementById('employeeView').classList.add('hidden');
+            document.getElementById('managerView').classList.add('hidden');
+            document.getElementById('businessSetupView').classList.remove('hidden');
+            const input = document.getElementById('businessNameInput');
+            if (input) input.value = RESTAURANT_ID || '';
+        };
+
+        window.confirmBusinessSetup = function() {
+            const raw = document.getElementById('businessNameInput').value;
+            const cleaned = sanitizeRestaurantId(raw);
+            if (!cleaned) { alert("אנא הזן שם עסק תקין (אותיות באנגלית, ספרות, מקף)."); return; }
+            try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
+            const url = new URL(window.location.href);
+            url.searchParams.set('r', cleaned);
+            window.location.href = url.toString();
+        };
+
+        function initRestaurantId() {
+            const fromUrl = sanitizeRestaurantId(new URLSearchParams(window.location.search).get('r'));
+            let fromStorage = '';
+            try { fromStorage = sanitizeRestaurantId(localStorage.getItem('work_schedule_restaurant_id')); } catch(e){}
+
+            if (fromUrl) {
+                RESTAURANT_ID = fromUrl;
+                try { localStorage.setItem('work_schedule_restaurant_id', fromUrl); } catch(e){}
+            } else if (fromStorage) {
+                RESTAURANT_ID = fromStorage;
+            } else {
+                RESTAURANT_ID = '';
+            }
+
+            updateRestaurantTag();
+
+            if (!RESTAURANT_ID) {
+                document.getElementById('businessSetupView').classList.remove('hidden');
+                document.getElementById('selectionView').classList.add('hidden');
+                return false;
+            } else {
+                document.getElementById('businessSetupView').classList.add('hidden');
+                document.getElementById('selectionView').classList.remove('hidden');
+                updateInviteLink();
+                return true;
+            }
+        }
 
         const LEGACY_DEFAULT_PASSWORD = "1212";
 
@@ -1118,7 +1264,10 @@
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
             });
         }
-        initRealtimeListeners();
+        if (initRestaurantId()) {
+            initRealtimeListeners();
+            touchRegistry();
+        }
 
         function getShiftHours(dayIdx, shiftType) {
             return hoursFromTimes(publishedTimes, dayIdx, shiftType);
@@ -1221,6 +1370,125 @@
                 alert("סיסמת המנהל עודכנה בהצלחה!");
                 document.getElementById('newManagerPass').value = '';
             } catch(e){ alert("שגיאה בעדכון הסיסמה."); }
+        };
+
+        window.checkSuperAdminPassword = async function() {
+            let cfg = null;
+            try {
+                const docSnap = await getDoc(getSuperAdminConfigDoc());
+                if (docSnap.exists()) cfg = docSnap.data();
+            } catch(e) {
+                alert("שגיאה בחיבור לשרת. נסה שוב.");
+                return;
+            }
+
+            const rawPass = prompt("הכנס סיסמת ניהול-על:");
+            if (rawPass === null) return;
+            const pass = rawPass.trim();
+
+            try {
+                let ok = false, mustSetNew = false;
+                if (cfg && cfg.passwordHash && cfg.salt) {
+                    ok = (await hashPassword(pass, cfg.salt)) === cfg.passwordHash;
+                } else {
+                    ok = (pass === SUPER_ADMIN_DEFAULT_PASSWORD);
+                    mustSetNew = ok;
+                }
+
+                if (!ok) { alert("סיסמה שגויה!"); return; }
+
+                if (mustSetNew) {
+                    const newRaw = prompt("זו כניסה ראשונה לניהול-על עם סיסמת ברירת המחדל.\nהגדר עכשיו סיסמת ניהול-על חדשה (לפחות 4 תווים):");
+                    const newPass = newRaw === null ? "" : newRaw.trim();
+                    if (newPass.length < 4 || newPass === SUPER_ADMIN_DEFAULT_PASSWORD) {
+                        alert("לא הוגדרה סיסמה תקינה, הכניסה בוטלה.");
+                        return;
+                    }
+                    const salt = generateSalt();
+                    const hash = await hashPassword(newPass, salt);
+                    await setDoc(getSuperAdminConfigDoc(), { passwordHash: hash, salt: salt });
+                    alert("סיסמת ניהול-העל נשמרה בהצלחה!");
+                }
+
+                document.getElementById('selectionView').classList.add('hidden');
+                document.getElementById('employeeView').classList.add('hidden');
+                document.getElementById('managerView').classList.add('hidden');
+                document.getElementById('superAdminView').classList.remove('hidden');
+                loadSuperAdminList();
+            } catch(e) { alert("שגיאה באימות הסיסמה."); }
+        };
+
+        window.loadSuperAdminList = async function() {
+            const container = document.getElementById('superAdminList');
+            if (!container) return;
+            container.innerHTML = '<p style="color:#888;">טוען רשימת עסקים...</p>';
+
+            try {
+                const snap = await getDocs(collection(db, '_registry'));
+                if (snap.empty) {
+                    container.innerHTML = '<p style="color:#888;">לא נמצאו עסקים רשומים עדיין. עסקים נרשמים אוטומטית בכניסה הראשונה שלהם למערכת.</p>';
+                    return;
+                }
+
+                const businesses = [];
+                snap.forEach(d => businesses.push(d.data()));
+                businesses.sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0));
+
+                const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('he-IL', { day:'numeric', month:'numeric', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+
+                let html = '';
+                for (const biz of businesses) {
+                    let empCount = 0;
+                    try {
+                        const empSnap = await getDocs(collection(db, `${biz.id}_employees`));
+                        empCount = empSnap.size;
+                    } catch(e) {}
+
+                    html += `
+                        <div class="biz-item">
+                            <div class="biz-info">
+                                <b>${esc(biz.id)}</b> ${biz.id === RESTAURANT_ID ? '⭐ (הנוכחי)' : ''}<br>
+                                עובדים: ${empCount} | נוצר: ${fmtDate(biz.createdAt)}<br>
+                                כניסה אחרונה: ${fmtDate(biz.lastSeenAt)}
+                            </div>
+                            <div style="display:flex; gap:6px;">
+                                <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="jumpToBusiness(this.dataset.id)">עבור לעסק</button>
+                                <button class="delete-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="deleteBusiness(this.dataset.id)">מחק עסק</button>
+                            </div>
+                        </div>`;
+                }
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<p style="color:red;">שגיאה בטעינת הרשימה.</p>';
+            }
+        };
+
+        window.jumpToBusiness = function(bizId) {
+            try { localStorage.setItem('work_schedule_restaurant_id', bizId); } catch(e){}
+            const url = new URL(window.location.href);
+            url.searchParams.set('r', bizId);
+            window.location.href = url.toString();
+        };
+
+        window.deleteBusiness = async function(bizId) {
+            if (!confirm(`למחוק לצמיתות את העסק "${bizId}"?\nפעולה זו תמחק את כל העובדים, הזמינויות וההגדרות שלו ולא ניתנת לביטול!`)) return;
+            if (!confirm(`אישור אחרון: למחוק את "${bizId}"?`)) return;
+
+            try {
+                const empSnap = await getDocs(collection(db, `${bizId}_employees`));
+                await Promise.all(empSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_employees`, d.id))));
+
+                const availSnap = await getDocs(collection(db, `${bizId}_availability`));
+                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_availability`, d.id))));
+
+                const settingsDocs = ["manager_config", "active_shifts_config", "draft_schedule", "published_schedule"];
+                await Promise.all(settingsDocs.map(name => deleteDoc(doc(db, `${bizId}_settings`, name))));
+
+                await deleteDoc(getRegistryDoc(bizId));
+
+                alert(`העסק "${bizId}" נמחק בהצלחה.`);
+                loadSuperAdminList();
+            } catch(e) { alert("שגיאה במחיקת העסק."); }
         };
 
         window.encryptAllLegacyPins = async function() {
