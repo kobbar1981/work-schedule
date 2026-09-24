@@ -862,7 +862,10 @@
                 try {
                     const snap = await getDoc(getRegistryDoc(candidate));
                     if (snap.exists() && snap.data().deleted) isDeleted = true;
-                } catch(e) {}
+                } catch(e) {
+                    alert("שגיאה בבדיקת העסק: " + (e.code || e.message));
+                    isDeleted = true; // חוסם כניסה כשהבדיקה נכשלת
+                }
 
                 if (isDeleted) {
                     try { localStorage.removeItem('work_schedule_restaurant_id'); } catch(e){}
@@ -885,6 +888,8 @@
             try { if (candidate) localStorage.setItem('work_schedule_restaurant_id', candidate); } catch(e){}
 
             updateRestaurantTag();
+            const tagEl = document.getElementById('restaurantTag');
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v3';
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
