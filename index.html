@@ -830,29 +830,53 @@
             if (input) input.value = RESTAURANT_ID || '';
         };
 
-        window.confirmBusinessSetup = function() {
+        window.confirmBusinessSetup = async function() {
             const raw = document.getElementById('businessNameInput').value;
             const cleaned = sanitizeRestaurantId(raw);
             if (!cleaned) { alert("אנא הזן שם עסק תקין (אותיות באנגלית, ספרות, מקף)."); return; }
+
+            try {
+                const snap = await getDoc(getRegistryDoc(cleaned));
+                if (snap.exists() && snap.data().deleted) {
+                    alert(`השם "${cleaned}" שייך לעסק שנמחק ולא ניתן ליצור אותו מחדש מכאן.\nאם זו טעות, פנה לניהול-העל לשחזור, או בחר שם אחר.`);
+                    return;
+                }
+            } catch(e) {}
+
             try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
             const url = new URL(window.location.href);
             url.searchParams.set('r', cleaned);
             window.location.href = url.toString();
         };
 
-        function initRestaurantId() {
+        async function initRestaurantId() {
             const fromUrl = sanitizeRestaurantId(new URLSearchParams(window.location.search).get('r'));
             let fromStorage = '';
             try { fromStorage = sanitizeRestaurantId(localStorage.getItem('work_schedule_restaurant_id')); } catch(e){}
 
-            if (fromUrl) {
-                RESTAURANT_ID = fromUrl;
-                try { localStorage.setItem('work_schedule_restaurant_id', fromUrl); } catch(e){}
-            } else if (fromStorage) {
-                RESTAURANT_ID = fromStorage;
-            } else {
-                RESTAURANT_ID = '';
+            const candidate = fromUrl || fromStorage || '';
+
+            if (candidate) {
+                // בדיקה אם העסק הזה סומן כמחוק - חוסם כניסה מחדש דרך קישור ישן
+                let isDeleted = false;
+                try {
+                    const snap = await getDoc(getRegistryDoc(candidate));
+                    if (snap.exists() && snap.data().deleted) isDeleted = true;
+                } catch(e) {}
+
+                if (isDeleted) {
+                    try { localStorage.removeItem('work_schedule_restaurant_id'); } catch(e){}
+                    RESTAURANT_ID = '';
+                    updateRestaurantTag();
+                    document.getElementById('businessSetupView').classList.remove('hidden');
+                    document.getElementById('selectionView').classList.add('hidden');
+                    alert(`העסק "${candidate}" הוסר מהמערכת. פנה למי שניהל את העסק לקבלת קישור מעודכן, או צור עסק חדש בשם אחר.`);
+                    return false;
+                }
             }
+
+            RESTAURANT_ID = candidate;
+            try { if (candidate) localStorage.setItem('work_schedule_restaurant_id', candidate); } catch(e){}
 
             updateRestaurantTag();
 
@@ -1264,10 +1288,12 @@
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
             });
         }
-        if (initRestaurantId()) {
-            initRealtimeListeners();
-            touchRegistry();
-        }
+        (async function boot() {
+            if (await initRestaurantId()) {
+                initRealtimeListeners();
+                touchRegistry();
+            }
+        })();
 
         function getShiftHours(dayIdx, shiftType) {
             return hoursFromTimes(publishedTimes, dayIdx, shiftType);
@@ -1432,12 +1458,16 @@
 
                 const businesses = [];
                 snap.forEach(d => businesses.push(d.data()));
-                businesses.sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0));
+                const activeBiz = businesses.filter(b => !b.deleted).sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0));
+                const deletedBiz = businesses.filter(b => b.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
 
                 const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('he-IL', { day:'numeric', month:'numeric', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 
                 let html = '';
-                for (const biz of businesses) {
+                if (activeBiz.length === 0) {
+                    html += '<p style="color:#888;">אין עסקים פעילים.</p>';
+                }
+                for (const biz of activeBiz) {
                     let empCount = 0;
                     try {
                         const empSnap = await getDocs(collection(db, `${biz.id}_employees`));
@@ -1457,6 +1487,24 @@
                             </div>
                         </div>`;
                 }
+
+                if (deletedBiz.length > 0) {
+                    html += `<h4 style="margin-top:16px; color:#888;">עסקים שנמחקו (${deletedBiz.length}):</h4>`;
+                    for (const biz of deletedBiz) {
+                        html += `
+                            <div class="biz-item" style="opacity:0.7; background:#f5f5f5;">
+                                <div class="biz-info">
+                                    <b>${esc(biz.id)}</b><br>
+                                    נמחק בתאריך: ${fmtDate(biz.deletedAt)}
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="restoreBusiness(this.dataset.id)">שחזר שם</button>
+                                    <button class="delete-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="purgeBusinessRecord(this.dataset.id)">הסר מהרשימה</button>
+                                </div>
+                            </div>`;
+                    }
+                }
+
                 container.innerHTML = html;
             } catch(e) {
                 container.innerHTML = '<p style="color:red;">שגיאה בטעינת הרשימה.</p>';
@@ -1484,11 +1532,29 @@
                 const settingsDocs = ["manager_config", "active_shifts_config", "draft_schedule", "published_schedule"];
                 await Promise.all(settingsDocs.map(name => deleteDoc(doc(db, `${bizId}_settings`, name))));
 
-                await deleteDoc(getRegistryDoc(bizId));
+                // לא מוחקים את רשומת המרשם עצמה - מסמנים כ"נמחק" כדי לחסום כניסה מחדש דרך קישור ישן
+                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: true, deletedAt: Date.now() }, { merge: true });
 
-                alert(`העסק "${bizId}" נמחק בהצלחה.`);
+                alert(`העסק "${bizId}" נמחק בהצלחה. קישורים ישנים לעסק זה לא יעבדו יותר.`);
                 loadSuperAdminList();
             } catch(e) { alert("שגיאה במחיקת העסק."); }
+        };
+
+        window.restoreBusiness = async function(bizId) {
+            if (!confirm(`לשחזר את השם "${bizId}" לשימוש? שים לב: הנתונים (עובדים/זמינויות) שנמחקו לא חוזרים - רק האפשרות ליצור/להיכנס לעסק בשם הזה מחדש.`)) return;
+            try {
+                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: false, deletedAt: null }, { merge: true });
+                alert(`השם "${bizId}" שוחזר לשימוש.`);
+                loadSuperAdminList();
+            } catch(e) { alert("שגיאה בשחזור."); }
+        };
+
+        window.purgeBusinessRecord = async function(bizId) {
+            if (!confirm(`להסיר סופית את "${bizId}" מרשימת העסקים שנמחקו? לאחר מכן אפשר יהיה ליצור עסק חדש בשם הזה.`)) return;
+            try {
+                await deleteDoc(getRegistryDoc(bizId));
+                loadSuperAdminList();
+            } catch(e) { alert("שגיאה."); }
         };
 
         window.encryptAllLegacyPins = async function() {
