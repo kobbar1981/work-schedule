@@ -259,12 +259,13 @@
     <!-- מסך בחירת/הזנת שם העסק - מוצג רק כשאין עדיין עסק נבחר במכשיר -->
     <div class="card hidden" id="businessSetupView">
         <h2>ברוכים הבאים!</h2>
-        <p style="font-size: 0.9em; color: #555; text-align: center;">כדי להתחיל, הזן את שם העסק שלך. אם זו הפעם הראשונה - זה ייצור עסק חדש ונפרד לגמרי. אם כבר יש לך שם עסק (קיבלת מהמנהל שלך) - הזן אותו בדיוק כפי שקיבלת.</p>
+        <p style="font-size: 0.9em; color: #555; text-align: center;">הזן את שם העסק בדיוק כפי שקיבלת מהמנהל שלך. יצירת עסק חדש אפשרית רק למנהל-על.</p>
         <div class="form-group">
             <label>שם העסק:</label>
             <input type="text" id="businessNameInput" placeholder="למשל: pizza-place">
         </div>
         <button onclick="confirmBusinessSetup()" style="background-color: #27ae60;">כניסה למערכת</button>
+        <button onclick="checkSuperAdminPassword()" style="background-color:#2c3e50; font-size:0.85em;">כניסת ניהול-על</button>
     </div>
 
     <div class="card hidden" id="selectionView">
@@ -771,6 +772,7 @@
         }
 
         let RESTAURANT_ID = '';
+        let superAdminVerified = false;
 
         function getEmpCollection() { return collection(db, `${RESTAURANT_ID}_employees`); }
         function getAvailCollection() { return collection(db, `${RESTAURANT_ID}_availability`); }
@@ -838,10 +840,17 @@
             try {
                 const snap = await getDoc(getRegistryDoc(cleaned));
                 if (snap.exists() && snap.data().deleted) {
-                    alert(`השם "${cleaned}" שייך לעסק שנמחק ולא ניתן ליצור אותו מחדש מכאן.\nאם זו טעות, פנה לניהול-העל לשחזור, או בחר שם אחר.`);
+                    alert(`השם "${cleaned}" שייך לעסק שנמחק. פנה לניהול-העל.`);
                     return;
                 }
-            } catch(e) {}
+                if (!snap.exists()) {
+                    if (!superAdminVerified) {
+                        alert("העסק לא קיים. רק מנהל-על יכול ליצור עסק חדש.");
+                        return;
+                    }
+                    await setDoc(getRegistryDoc(cleaned), { id: cleaned, createdAt: Date.now(), lastSeenAt: Date.now() });
+                }
+            } catch(e) { alert("שגיאה בבדיקת העסק."); return; }
 
             try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
             const url = new URL(window.location.href);
@@ -858,13 +867,14 @@
 
             if (candidate) {
                 // בדיקה אם העסק הזה סומן כמחוק - חוסם כניסה מחדש דרך קישור ישן
-                let isDeleted = false;
+                let isDeleted = false, blockedMsg = '';
                 try {
                     const snap = await getDoc(getRegistryDoc(candidate));
-                    if (snap.exists() && snap.data().deleted) isDeleted = true;
+                    if (!snap.exists()) { isDeleted = true; blockedMsg = `העסק "${candidate}" לא קיים במערכת.`; }
+                    else if (snap.data().deleted) { isDeleted = true; blockedMsg = `העסק "${candidate}" הוסר מהמערכת.`; }
                 } catch(e) {
                     alert("שגיאה בבדיקת העסק: " + (e.code || e.message));
-                    isDeleted = true; // חוסם כניסה כשהבדיקה נכשלת
+                    isDeleted = true; blockedMsg = 'שגיאה בבדיקת העסק.';
                 }
 
                 if (isDeleted) {
@@ -877,7 +887,7 @@
                     document.querySelector('h1').insertAdjacentHTML('afterend',
                         `<div class="card" id="deletedNoticeCard" style="text-align:center;">
                             <h2>העסק הוסר</h2>
-                            <p>העסק "${esc(candidate)}" הוסר מהמערכת. פנה למנהל לקבלת קישור מעודכן.</p>
+                            <p>${esc(blockedMsg)} פנה למנהל לקבלת קישור מעודכן.</p>
                             <button onclick="checkSuperAdminPassword()" style="background-color:#2c3e50; font-size:0.85em;">כניסת ניהול-על</button>
                         </div>`);
                     return false;
@@ -889,7 +899,7 @@
 
             updateRestaurantTag();
             const tagEl = document.getElementById('restaurantTag');
-            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v3';
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v4';
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
@@ -1452,6 +1462,8 @@
                 document.getElementById('managerView').classList.add('hidden');
                 const notice = document.getElementById('deletedNoticeCard');
                 if (notice) notice.remove();
+                superAdminVerified = true;
+                document.getElementById('businessSetupView').classList.add('hidden');
                 document.getElementById('superAdminView').classList.remove('hidden');
                 loadSuperAdminList();
             } catch(e) { alert("שגיאה באימות הסיסמה."); }
