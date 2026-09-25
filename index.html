@@ -949,7 +949,7 @@
         let activeSwapKey = null;
         let activeSwapIndex = null;
         let activeTimeKey = null;
-        let activeTimeIndex = null;
+        let activeTimeEmpName = null;
         let verifiedEmployeeName = null;
         let originalEditingName = null;
 
@@ -1320,9 +1320,9 @@
             return hoursFromTimes(publishedTimes, dayIdx, shiftType);
         }
 
-        window.openTimeModal = function(shiftKey, index, currentHoursStr, empName) {
+        window.openTimeModal = function(shiftKey, empName, currentHoursStr) {
             activeTimeKey = shiftKey;
-            activeTimeIndex = index;
+            activeTimeEmpName = empName;
             document.getElementById('timeModalTitle').innerText = `עדכון שעות עבור ${empName}`;
             let parts = currentHoursStr.split('-').map(s => s.trim());
             if(parts.length === 2) {
@@ -1342,7 +1342,7 @@
             const start = document.getElementById('modalStartTime').value;
             const end = document.getElementById('modalEndTime').value;
             if(!start || !end) { alert("אנא בחר שעות!"); return; }
-            customShiftTimes[`${activeTimeKey}-${activeTimeIndex}`] = `${start} - ${end}`;
+            customShiftTimes[`${activeTimeKey}-${activeTimeEmpName}`] = `${start} - ${end}`;
             closeTimeModal();
             await saveDraftToFirestore();
             await syncPublishedIfActive();
@@ -1855,7 +1855,7 @@
                         const empObj = employees.find(e => e.name === name);
                         const empColor = empObj ? empObj.color : '#74b9ff';
                         const isMe = (name === empName);
-                        const customHours = publishedCustomShiftTimes[`${key}-${index}`];
+                        const customHours = publishedCustomShiftTimes[`${key}-${name}`];
                         const shiftHours = customHours || defaultHours;
                         const isCustom = !!customHours && customHours !== defaultHours;
 
@@ -2022,7 +2022,7 @@
                 const emp = employees.find(e => e.name === empName);
                 const isAvail = employeeAvailMap[empName]?.[key];
                 const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                const customTime = customShiftTimes[`${key}-${index}`];
+                const customTime = customShiftTimes[`${key}-${empName}`];
                 const slotTime = customTime || defaultTime;
                 const isCustom = !!customTime && customTime !== defaultTime;
 
@@ -2034,8 +2034,8 @@
                         ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
                         <div>
                             <button type="button" class="time-badge-btn ${isCustom ? 'custom' : ''}" title="שינוי שעות"
-                                data-key="${key}" data-index="${index}" data-time="${esc(slotTime)}" data-name="${esc(empName)}"
-                                onclick="openTimeModal(this.dataset.key, parseInt(this.dataset.index), this.dataset.time, this.dataset.name)">
+                                data-key="${key}" data-time="${esc(slotTime)}" data-name="${esc(empName)}"
+                                onclick="openTimeModal(this.dataset.key, this.dataset.name, this.dataset.time)">
                                 ${hoursHtml(slotTime)}
                             </button>
                         </div>
@@ -2080,8 +2080,9 @@
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
 
             if (empName === null) {
+                const removedName = currentSchedule[activeSwapKey][activeSwapIndex];
                 currentSchedule[activeSwapKey].splice(activeSwapIndex, 1);
-                delete customShiftTimes[`${activeSwapKey}-${activeSwapIndex}`];
+                if (removedName) delete customShiftTimes[`${activeSwapKey}-${removedName}`];
             } else {
                 currentSchedule[activeSwapKey][activeSwapIndex] = empName;
             }
@@ -2220,7 +2221,7 @@
                     assignedNames.forEach((empName, index) => {
                         const emp = employees.find(e => e.name === empName);
                         const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                        const customTime = customShiftTimes[`${key}-${index}`];
+                        const customTime = customShiftTimes[`${key}-${empName}`];
                         const slotTime = customTime || defaultTime;
                         const isCustom = !!customTime && customTime !== defaultTime;
 
@@ -2286,7 +2287,7 @@
                         let defaultTime = getShiftHours(dIdx, shiftType);
                         text += `  • *${shiftName}:*\n`;
                         assignedNames.forEach((name, index) => {
-                            const timeStr = publishedCustomShiftTimes[`${key}-${index}`] || defaultTime;
+                            const timeStr = publishedCustomShiftTimes[`${key}-${name}`] || defaultTime;
                             text += `    - ${name} (${timeStr})\n`;
                         });
                     }
