@@ -232,3 +232,15 @@
     .biz-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
     .biz-item .biz-info { font-size: 0.85em; color: #333; }
     .biz-item .biz-info b { font-size: 1.05em; color: #1877f2; }
+
+    /* חלונות פנימיים */
+    #appToast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 1em; z-index: 100000; opacity: 0; pointer-events: none; transition: opacity 0.25s; max-width: 90%; text-align: center; direction: rtl; }
+    #appToast.show { opacity: 1; }
+    .app-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 99999; }
+    .app-dialog { background: #fff; border-radius: 14px; padding: 20px; width: 85%; max-width: 340px; direction: rtl; text-align: right; }
+    .app-dialog p { margin: 0 0 12px; font-size: 1.05em; white-space: pre-line; }
+    .app-dialog input { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
+    .app-dialog-actions { display: flex; gap: 8px; }
+    .app-dialog-actions button { flex: 1; margin: 0; }
+    .app-dialog-actions button.cancel { background-color: #7f8c8d; }
+

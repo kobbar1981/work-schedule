@@ -45,6 +45,61 @@
         } catch(e) {}
     }
 
+
+    // ===== חלונות פנימיים (במקום alert/confirm/prompt של הדפדפן) =====
+    let _toastTimer = null;
+    function notify(msg) {
+        let t = document.getElementById('appToast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'appToast';
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    function askDialog(msg, withInput) {
+        return new Promise(resolve => {
+            const ov = document.createElement('div');
+            ov.className = 'app-dialog-overlay';
+            const box = document.createElement('div');
+            box.className = 'app-dialog';
+            const p = document.createElement('p');
+            p.textContent = msg;
+            box.appendChild(p);
+            let inp = null;
+            if (withInput) {
+                inp = document.createElement('input');
+                inp.type = 'password';
+                box.appendChild(inp);
+            }
+            const row = document.createElement('div');
+            row.className = 'app-dialog-actions';
+            const ok = document.createElement('button');
+            ok.textContent = 'אישור';
+            const cancel = document.createElement('button');
+            cancel.textContent = 'ביטול';
+            cancel.className = 'cancel';
+            row.appendChild(ok);
+            row.appendChild(cancel);
+            box.appendChild(row);
+            ov.appendChild(box);
+            document.body.appendChild(ov);
+            const close = (val) => { ov.remove(); resolve(val); };
+            ok.onclick = () => close(withInput ? inp.value : true);
+            cancel.onclick = () => close(withInput ? null : false);
+            if (inp) {
+                inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok.click(); });
+                setTimeout(() => inp.focus(), 50);
+            }
+        });
+    }
+    const askText = (msg) => askDialog(msg, true);
+    const askConfirm = (msg) => askDialog(msg, false);
+
     function updateRestaurantTag() {
         const tagEl = document.getElementById('restaurantTag');
         if (tagEl) tagEl.textContent = RESTAURANT_ID ? `עסק: ${RESTAURANT_ID}` : '';
@@ -64,7 +119,7 @@
         if (!el || !el.value) return;
         el.select();
         el.setSelectionRange(0, 99999);
-        const finish = (ok) => alert(ok ? "הקישור הועתק! אפשר לשלוח אותו לעובדים." : "לא הצלחנו להעתיק אוטומטית - העתק ידנית מהשדה.");
+        const finish = (ok) => notify(ok ? "הקישור הועתק" : "העתק ידנית מהשדה");
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(el.value).then(() => finish(true)).catch(() => {
                 try { document.execCommand('copy'); finish(true); } catch(e) { finish(false); }
@@ -86,22 +141,22 @@
     window.confirmBusinessSetup = async function() {
         const raw = document.getElementById('businessNameInput').value;
         const cleaned = sanitizeRestaurantId(raw);
-        if (!cleaned) { alert("אנא הזן שם עסק תקין (אותיות באנגלית, ספרות, מקף)."); return; }
+        if (!cleaned) { notify("שם עסק לא תקין"); return; }
 
         try {
             const snap = await getDoc(getRegistryDoc(cleaned));
             if (snap.exists() && snap.data().deleted) {
-                alert(`השם "${cleaned}" שייך לעסק שנמחק. פנה לניהול-העל.`);
+                notify("העסק נמחק. פנה לניהול-על.");
                 return;
             }
             if (!snap.exists()) {
                 if (!superAdminVerified) {
-                    alert("העסק לא קיים. רק מנהל-על יכול ליצור עסק חדש.");
+                    notify("העסק לא קיים");
                     return;
                 }
                 await setDoc(getRegistryDoc(cleaned), { id: cleaned, createdAt: Date.now(), lastSeenAt: Date.now() });
             }
-        } catch(e) { alert("שגיאה בבדיקת העסק."); return; }
+        } catch(e) { notify("שגיאה בבדיקת העסק."); return; }
 
         try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
         const url = new URL(window.location.href);
@@ -124,7 +179,7 @@
                 if (!snap.exists()) { isDeleted = true; blockedMsg = `העסק "${candidate}" לא קיים במערכת.`; }
                 else if (snap.data().deleted) { isDeleted = true; blockedMsg = `העסק "${candidate}" הוסר מהמערכת.`; }
             } catch(e) {
-                alert("שגיאה בבדיקת העסק: " + (e.code || e.message));
+                notify("שגיאה בבדיקת העסק: " + (e.code || e.message));
                 isDeleted = true; blockedMsg = 'שגיאה בבדיקת העסק.';
             }
 
@@ -592,7 +647,7 @@
     window.saveTimeFromModal = async function() {
         const start = document.getElementById('modalStartTime').value;
         const end = document.getElementById('modalEndTime').value;
-        if(!start || !end) { alert("אנא בחר שעות!"); return; }
+        if(!start || !end) { notify("בחר שעות"); return; }
         customShiftTimes[`${activeTimeKey}-${activeTimeEmpName}`] = `${start} - ${end}`;
         closeTimeModal();
         await saveDraftToFirestore();
@@ -623,11 +678,11 @@
             const docSnap = await getDoc(getSettingsDoc("manager_config"));
             if (docSnap.exists()) cfg = docSnap.data();
         } catch(e) {
-            alert("שגיאה בחיבור לשרת. נסה שוב.");
+            notify("שגיאת חיבור");
             return;
         }
 
-        const rawPass = prompt("הכנס סיסמת מנהל:");
+        const rawPass = await askText("סיסמת מנהל");
         if (rawPass === null) return;
         const pass = rawPass.trim();
 
@@ -643,31 +698,31 @@
                 mustSetNew = ok;
             }
 
-            if (!ok) { alert("סיסמה שגויה!"); return; }
+            if (!ok) { notify("סיסמה שגויה"); return; }
 
             if (mustSetNew) {
-                const newRaw = prompt("זו כניסה ראשונה עם סיסמת ברירת המחדל.\nהגדר עכשיו סיסמת מנהל חדשה (לפחות 4 תווים):");
+                const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
                 const newPass = newRaw === null ? "" : newRaw.trim();
                 if (newPass.length < 4 || newPass === LEGACY_DEFAULT_PASSWORD) {
-                    alert("לא הוגדרה סיסמה תקינה, הכניסה בוטלה.");
+                    notify("סיסמה לא תקינה");
                     return;
                 }
                 await saveManagerPassword(newPass);
-                alert("סיסמת המנהל נשמרה בהצלחה!");
+                notify("הסיסמה נשמרה");
             }
             switchView('manager');
-        } catch(e) { alert("שגיאה באימות הסיסמה."); }
+        } catch(e) { notify("שגיאה באימות"); }
     };
 
     window.updateManagerPassword = async function() {
         const newPass = document.getElementById('newManagerPass').value.trim();
-        if (!newPass) { alert("אנא הכנס סיסמה חדשה!"); return; }
-        if (newPass.length < 4) { alert("הסיסמה חייבת להכיל לפחות 4 תווים."); return; }
+        if (!newPass) { notify("הכנס סיסמה"); return; }
+        if (newPass.length < 4) { notify("לפחות 4 תווים"); return; }
         try {
             await saveManagerPassword(newPass);
-            alert("סיסמת המנהל עודכנה בהצלחה!");
+            notify("הסיסמה עודכנה");
             document.getElementById('newManagerPass').value = '';
-        } catch(e){ alert("שגיאה בעדכון הסיסמה."); }
+        } catch(e){ notify("שגיאה בעדכון"); }
     };
 
     window.checkSuperAdminPassword = async function() {
@@ -676,11 +731,11 @@
             const docSnap = await getDoc(getSuperAdminConfigDoc());
             if (docSnap.exists()) cfg = docSnap.data();
         } catch(e) {
-            alert("שגיאה בחיבור לשרת. נסה שוב.");
+            notify("שגיאת חיבור");
             return;
         }
 
-        const rawPass = prompt("הכנס סיסמת ניהול-על:");
+        const rawPass = await askText("סיסמת ניהול-על");
         if (rawPass === null) return;
         const pass = rawPass.trim();
 
@@ -693,19 +748,19 @@
                 mustSetNew = ok;
             }
 
-            if (!ok) { alert("סיסמה שגויה!"); return; }
+            if (!ok) { notify("סיסמה שגויה"); return; }
 
             if (mustSetNew) {
-                const newRaw = prompt("זו כניסה ראשונה לניהול-על עם סיסמת ברירת המחדל.\nהגדר עכשיו סיסמת ניהול-על חדשה (לפחות 4 תווים):");
+                const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
                 const newPass = newRaw === null ? "" : newRaw.trim();
                 if (newPass.length < 4 || newPass === SUPER_ADMIN_DEFAULT_PASSWORD) {
-                    alert("לא הוגדרה סיסמה תקינה, הכניסה בוטלה.");
+                    notify("סיסמה לא תקינה");
                     return;
                 }
                 const salt = generateSalt();
                 const hash = await hashPassword(newPass, salt);
                 await setDoc(getSuperAdminConfigDoc(), { passwordHash: hash, salt: salt });
-                alert("סיסמת ניהול-העל נשמרה בהצלחה!");
+                notify("הסיסמה נשמרה");
             }
 
             document.getElementById('selectionView').classList.add('hidden');
@@ -717,7 +772,7 @@
             document.getElementById('businessSetupView').classList.add('hidden');
             document.getElementById('superAdminView').classList.remove('hidden');
             loadSuperAdminList();
-        } catch(e) { alert("שגיאה באימות הסיסמה."); }
+        } catch(e) { notify("שגיאה באימות"); }
     };
 
     window.loadSuperAdminList = async function() {
@@ -795,8 +850,8 @@
     };
 
     window.deleteBusiness = async function(bizId) {
-        if (!confirm(`למחוק לצמיתות את העסק "${bizId}"?\nפעולה זו תמחק את כל העובדים, הזמינויות וההגדרות שלו ולא ניתנת לביטול!`)) return;
-        if (!confirm(`אישור אחרון: למחוק את "${bizId}"?`)) return;
+        if (!await askConfirm(`למחוק לצמיתות את "${bizId}"?`)) return;
+        if (!await askConfirm(`בטוח? למחוק את "${bizId}"`)) return;
 
         try {
             const empSnap = await getDocs(collection(db, `${bizId}_employees`));
@@ -811,39 +866,39 @@
             // לא מוחקים את רשומת המרשם עצמה - מסמנים כ"נמחק" כדי לחסום כניסה מחדש דרך קישור ישן
             await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: true, deletedAt: Date.now() }, { merge: true });
 
-            alert(`העסק "${bizId}" נמחק בהצלחה. קישורים ישנים לעסק זה לא יעבדו יותר.`);
+            notify("העסק נמחק");
             loadSuperAdminList();
-        } catch(e) { alert("שגיאה במחיקת העסק."); }
+        } catch(e) { notify("שגיאה במחיקה"); }
     };
 
     window.restoreBusiness = async function(bizId) {
-        if (!confirm(`לשחזר את השם "${bizId}" לשימוש? שים לב: הנתונים (עובדים/זמינויות) שנמחקו לא חוזרים - רק האפשרות ליצור/להיכנס לעסק בשם הזה מחדש.`)) return;
+        if (!await askConfirm(`לשחזר את "${bizId}"? הנתונים שנמחקו לא יחזרו.`)) return;
         try {
             await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: false, deletedAt: null }, { merge: true });
-            alert(`השם "${bizId}" שוחזר לשימוש.`);
+            notify("שוחזר");
             loadSuperAdminList();
-        } catch(e) { alert("שגיאה בשחזור."); }
+        } catch(e) { notify("שגיאה בשחזור."); }
     };
 
     window.purgeBusinessRecord = async function(bizId) {
-        if (!confirm(`להסיר סופית את "${bizId}" מרשימת העסקים שנמחקו? לאחר מכן אפשר יהיה ליצור עסק חדש בשם הזה.`)) return;
+        if (!await askConfirm(`להסיר את "${bizId}" מהרשימה?`)) return;
         try {
             await deleteDoc(getRegistryDoc(bizId));
             loadSuperAdminList();
-        } catch(e) { alert("שגיאה."); }
+        } catch(e) { notify("שגיאה."); }
     };
 
     window.encryptAllLegacyPins = async function() {
         const legacy = employees.filter(e => e.pin && !e.pinHash);
-        if (legacy.length === 0) { alert("כל הקודים האישיים כבר מוצפנים."); return; }
-        if (!confirm(`להצפין ${legacy.length} קודים אישיים?`)) return;
+        if (legacy.length === 0) { notify("הכול כבר מוצפן"); return; }
+        if (!await askConfirm(`להצפין ${legacy.length} קודים?`)) return;
         try {
             for (const e of legacy) {
                 const fields = await makeMergePinFields(e.pin);
                 await setDoc(doc(getEmpCollection(), e.name), fields, { merge: true });
             }
-            alert("הקודים האישיים הוצפנו בהצלחה!");
-        } catch(err) { alert("שגיאה בהצפנת הקודים. נסה שוב."); }
+            notify("הקודים הוצפנו");
+        } catch(err) { notify("שגיאה בהצפנה"); }
     };
 
     function updatePublishBadge(published) {
@@ -864,11 +919,11 @@
         const rank = parseInt(document.getElementById('empRank').value);
         const color = document.getElementById('empColorInput').value;
 
-        if (!name) { alert("אנא הכנס שם עובד"); return; }
-        if (name.includes('/')) { alert("השם לא יכול להכיל את התו /"); return; }
-        if (!/^\d{4}$/.test(pin)) { alert("אנא הכנס קוד אישי בן 4 ספרות"); return; }
+        if (!name) { notify("הכנס שם עובד"); return; }
+        if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
+        if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
         if (employees.some(e => e.name === name)) {
-            alert("כבר קיים עובד בשם הזה. בחר שם אחר."); return;
+            notify("השם כבר קיים"); return;
         }
         
         try {
@@ -878,8 +933,8 @@
             await setDoc(doc(getEmpCollection(), name), empData);
             document.getElementById('empName').value = '';
             document.getElementById('empPin').value = '';
-            alert("העובד נוסף בהצלחה!");
-        } catch(e) { alert("שגיאה בהוספת עובד."); }
+            notify("העובד נוסף");
+        } catch(e) { notify("שגיאה בהוספה"); }
     };
 
     window.openEditModal = function(name, pin, rank, color) {
@@ -945,20 +1000,20 @@
         const rank = parseInt(document.getElementById('editEmpRank').value);
         const color = document.getElementById('editEmpColorInput').value;
 
-        if (!newName) { alert("אנא הכנס שם עובד"); return; }
-        if (newName.includes('/')) { alert("השם לא יכול להכיל את התו /"); return; }
-        if (pinRaw && !/^\d{4}$/.test(pinRaw)) { alert("קוד אישי חייב להיות בן 4 ספרות"); return; }
+        if (!newName) { notify("הכנס שם עובד"); return; }
+        if (newName.includes('/')) { notify("השם לא יכול להכיל /"); return; }
+        if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
 
         const oldEmp = employees.find(e => e.name === originalEditingName);
-        if (!oldEmp) { alert("העובד לא נמצא (ייתכן שנמחק)."); closeEditModal(); return; }
+        if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
 
         const renamed = (originalEditingName !== newName);
         if (renamed && employees.some(e => e.name === newName)) {
-            alert("כבר קיים עובד אחר בשם הזה."); return;
+            notify("השם כבר קיים"); return;
         }
 
         const hasExistingCode = !!(oldEmp.pinHash || oldEmp.pin);
-        if (!pinRaw && !hasExistingCode) { alert("אנא הכנס קוד אישי בן 4 ספרות"); return; }
+        if (!pinRaw && !hasExistingCode) { notify("קוד אישי: 4 ספרות"); return; }
 
         try {
             const updated = { ...oldEmp, name: newName, rank: rank, color: color };
@@ -974,12 +1029,12 @@
                 await deleteDoc(doc(getEmpCollection(), originalEditingName));
             }
             closeEditModal();
-            alert("פרטי העובד עודכנו בהצלחה!");
-        } catch(e) { alert("שגיאה בעדכון העובד."); }
+            notify("עודכן");
+        } catch(e) { notify("שגיאה בעדכון"); }
     };
 
     window.deleteEmployee = async function(name) {
-        if(confirm(`למחוק את ${name}?`)) {
+        if(await askConfirm(`למחוק את ${name}?`)) {
             try {
                 await deleteDoc(doc(getEmpCollection(), name));
                 await deleteDoc(doc(getAvailCollection(), name));
@@ -1033,10 +1088,10 @@
     window.verifyEmployeePin = async function() {
         const selectedName = document.getElementById('employeeNameDropdown').value;
         const inputPin = document.getElementById('employeePinInput').value.trim();
-        if (!selectedName || !inputPin) { alert("אנא בחר שם והכנס קוד אישי!"); return; }
+        if (!selectedName || !inputPin) { notify("בחר שם והכנס קוד"); return; }
 
         const emp = employees.find(e => e.name === selectedName);
-        if (!emp) { alert("העובד לא נמצא."); return; }
+        if (!emp) { notify("העובד לא נמצא."); return; }
 
         let ok = false, needsMigration = false;
         try {
@@ -1046,9 +1101,9 @@
                 ok = (inputPin === String(emp.pin));
                 needsMigration = ok;
             } else {
-                alert("לא הוגדר קוד אישי לעובד זה. פנה למנהל."); return;
+                notify("לא הוגדר קוד. פנה למנהל."); return;
             }
-        } catch(e) { alert("שגיאה באימות הקוד."); return; }
+        } catch(e) { notify("שגיאה באימות"); return; }
 
         if (ok) {
             verifiedEmployeeName = selectedName;
@@ -1072,7 +1127,7 @@
             document.getElementById('employeeNoteInput').value = existingNote;
             renderScheduleForEmployee(selectedName);
         } else {
-            alert("קוד אישי שגוי!");
+            notify("קוד שגוי");
             document.getElementById('employeeFormArea').classList.add('hidden');
         }
     };
@@ -1144,13 +1199,13 @@
                 note: note,
                 updatedAt: Date.now()
             });
-            alert("הזמינות עודכנה בהצלחה!");
+            notify("הזמינות עודכנה");
             switchView('selection');
-        } catch(e){ alert("שגיאה בשמירת הזמינות."); }
+        } catch(e){ notify("שגיאה בשמירה"); }
     };
 
     window.generateSchedule = async function() {
-        if (employees.length === 0) { alert("אין עובדים במערכת!"); return; }
+        if (employees.length === 0) { notify("אין עובדים"); return; }
         let shiftCounts = {};
         employees.forEach(e => shiftCounts[e.name] = 0);
         currentSchedule = {};
@@ -1189,11 +1244,11 @@
         renderFullScheduleForManager();
         renderSummaryTable();
         renderManagerNotes();
-        alert("הסידור נוצר ונשמר כטיוטה בענן!");
+        notify("הטיוטה נשמרה");
     };
 
     window.publishSchedule = async function() {
-        if (!currentSchedule || Object.keys(currentSchedule).length === 0) { alert("אין סידור עבודה להפצה!"); return; }
+        if (!currentSchedule || Object.keys(currentSchedule).length === 0) { notify("אין סידור לפרסום"); return; }
         const currentTimes = readTimesFromInputs();
         try {
             await saveDraftToFirestore();
@@ -1203,17 +1258,17 @@
                 slotTimes: customShiftTimes,
                 publishedAt: Date.now()
             });
-            alert("הסידור פורסם בהצלחה לעובדים!");
-        } catch(e){ alert("שגיאה בפרסום הסידור."); }
+            notify("הסידור פורסם");
+        } catch(e){ notify("שגיאה בפרסום"); }
     };
 
     window.unpublishSchedule = async function() {
-        if (!isPublished) { alert("הסידור אינו מפורסם."); return; }
-        if (!confirm("לבטל את פרסום הסידור?")) return;
+        if (!isPublished) { notify("הסידור לא מפורסם"); return; }
+        if (!await askConfirm("לבטל פרסום?")) return;
         try {
             await deleteDoc(getSettingsDoc("published_schedule"));
-            alert("הפרסום בוטל בהצלחה!");
-        } catch(e){ alert("שגיאה בביטול הפרסום."); }
+            notify("הפרסום בוטל");
+        } catch(e){ notify("שגיאה בביטול"); }
     };
 
     window.renderFullScheduleForManager = function() {
@@ -1420,7 +1475,7 @@
     }
 
     window.resetScheduleOnly = async function() {
-        if(!confirm("אזהרה: פעולה זו תמחק את כל זמינויות העובדים והסידור משרת הנתונים. האם אתה בטוח?")) return;
+        if(!await askConfirm("למחוק את כל הזמינויות והסידור?")) return;
         try {
             const availSnap = await getDocs(getAvailCollection());
             await Promise.all(availSnap.docs.map(d => deleteDoc(doc(getAvailCollection(), d.id))));
@@ -1429,8 +1484,8 @@
             currentSchedule = {}; customShiftTimes = {};
             renderFullScheduleForManager();
             renderSummaryTable();
-            alert("הנתונים אופסו בהצלחה.");
-        } catch(e){ alert("שגיאה באיפוס הנתונים."); }
+            notify("הנתונים נמחקו");
+        } catch(e){ notify("שגיאה במחיקה"); }
     };
 
     window.exportToPDF = async function() {
@@ -1511,11 +1566,11 @@
             pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
             pdf.save('work-schedule.pdf');
         } catch (err) {
-            alert("שגיאה בייצוא ל-PDF.");
+            notify("שגיאה בייצוא");
         } finally {
             exportContainer.style.display = 'none';
             btn.disabled = false;
-            btn.innerText = "ייצא ל-PDF (הורדת קובץ)";
+            btn.innerText = "ייצא ל-PDF";
         }
     };
 
@@ -1548,3 +1603,9 @@
         const encoded = encodeURIComponent(text);
         window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
     };
+
+
+// רישום service worker (מאפשר התקנה כאפליקציה)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
