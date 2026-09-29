@@ -1,0 +1,234 @@
+    /* רוחב קבוע לעמודות לוח המשמרות - אפשר לשנות כאן */
+    :root {
+        --col-day: 52px;    /* רוחב כל עמודת יום */
+        --col-label: 42px;  /* רוחב עמודת "משמרת" */
+    }
+
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 8px; background-color: #f0f2f5; color: #1c1e21; overflow-x: hidden; width: 100%; box-sizing: border-box; }
+    h1, h2, h3, h4 { color: #050505; margin-top: 0; text-align: center; }
+    .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+    .form-group { margin-bottom: 10px; max-width: 100%; }
+    label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85em; }
+    
+    input:not([type="checkbox"]), select, textarea, button { 
+        padding: 9px; 
+        font-size: 14px; 
+        border: 1px solid #ccd0d5; 
+        border-radius: 6px; 
+        width: 100%; 
+        box-sizing: border-box; 
+        font-family: inherit; 
+    }
+
+    input[type="checkbox"] {
+        width: 18px !important;
+        height: 18px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex-shrink: 0;
+        cursor: pointer;
+    }
+
+    button { background-color: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; box-sizing: border-box; }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .auto-btn { font-size: 0.9em; padding: 10px; }
+    .manager-login-btn { background-color: #5f6368; margin-top: 10px; }
+    
+    .export-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .export-btn { flex: 1; min-width: 120px; font-size: 0.9em; font-weight: bold; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 0; }
+    .whatsapp-btn { background-color: #25D366; color: white; }
+    .pdf-btn { background-color: #e74c3c; color: white; }
+
+    .reset-btn { background-color: #e67e22; margin-top: 10px; }
+    .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
+    
+    /* פתרון רוחב וגלילה לטבלאות */
+    .table-wrapper { 
+        overflow-x: auto; 
+        width: 100%; 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        box-sizing: border-box; 
+    }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; box-sizing: border-box; }
+    th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; box-sizing: border-box; }
+    th { background-color: #f5f6f7; font-size: 0.85em; }
+
+    /* טבלה קומפקטית: רוחב עמודות קבוע שלא משתנה לפי התוכן */
+    .compact-table {
+        table-layout: fixed !important;
+        width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+        min-width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+        margin: 8px auto 0 auto;
+    }
+    .compact-table th { width: var(--col-day); }
+    .compact-table th:first-child { width: var(--col-label); }
+    .compact-table th, 
+    .compact-table td {
+        padding: 3px 1px !important;
+        font-size: 0.75em !important;
+        overflow-wrap: break-word;
+    }
+
+    /* צמצום ריווחים פנימיים למניעת מתיחה אנכית ורוחבית */
+    .compact-table .emp-tag {
+        font-size: 0.7em !important;
+        padding: 2px 3px !important;
+        margin-bottom: 2px !important;
+        white-space: normal !important;
+        line-height: 1.1;
+    }
+    .compact-table .emp-container { padding: 1px; }
+    .compact-table .time-badge-btn { padding: 1px 2px; }
+    .compact-table .hours-2l.custom { padding: 0 2px; }
+
+    .emp-container { 
+        background: white; 
+        border: 1px solid #ddd; 
+        border-radius: 4px; 
+        display: block; 
+        box-sizing: border-box; 
+        margin-bottom: 2px; 
+        padding: 2px; 
+    }
+    
+    .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
+    
+    .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+    
+    .my-shift-highlight {
+        border: 2px solid #f1c40f !important;
+        box-shadow: 0 0 6px rgba(241, 196, 15, 0.8) !important;
+        background-color: #fffde7 !important;
+    }
+
+    .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
+
+    /* ===== הצגת שעות: שתי שורות (התחלה מעל סיום), בלי חיתוך ===== */
+    .hours-2l {
+        display: inline-block;
+        direction: ltr;
+        text-align: center;
+        white-space: nowrap;
+        font-weight: bold;
+        line-height: 1.2;
+        font-size: 0.9em;
+        color: #2c3e50;
+    }
+    .hours-2l .h-line { display: block; }
+    .hours-2l .h-end {
+        border-top: 1px solid rgba(0,0,0,0.35);
+        margin-top: 1px;
+        padding-top: 1px;
+    }
+    /* שעות שונות מברירת המחדל - מודגשות בצהוב */
+    .hours-2l.custom {
+        background: #fff3cd;
+        border: 1px solid #f0c36d;
+        border-radius: 3px;
+        padding: 1px 4px;
+        color: #7a4b00;
+    }
+
+    /* כפתור עדכון שעות לעובד (אצל המנהל) */
+    .time-badge-btn {
+        display: inline-block;
+        width: auto;
+        margin: 2px 0 0 0;
+        padding: 2px 5px;
+        font-size: 1em;
+        line-height: 1.2;
+        color: #2c3e50;
+        background: #eef2f7;
+        border: 1px dashed #b0bec5;
+        border-radius: 3px;
+        cursor: pointer;
+        direction: ltr;
+        font-weight: bold;
+        max-width: 100%;
+    }
+    .time-badge-btn .hours-2l { color: inherit; }
+    .time-badge-btn.custom { background: #fff3cd; border: 1px solid #f0c36d; color: #7a4b00; }
+    .time-badge-btn:hover { background: #dce4ec; border-color: #1877f2; }
+    .time-badge-btn.custom:hover { background: #ffecb3; }
+
+    .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
+    .edit-btn { background-color: #f39c12; width: auto; padding: 4px 8px; font-size: 0.8em; color: white; }
+
+    .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; padding: 8px 3px; }
+    .summary-table td { font-size: 0.8em; padding: 6px 3px; }
+    .stat-num { font-weight: bold; font-size: 0.95em; }
+    
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; }
+    .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
+    .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
+    
+    .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
+    .quick-time-btn:hover { background: #e2e6ea; }
+
+    .palette-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        max-height: 160px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+    .color-swatch {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid #ccc;
+        margin: auto;
+        transition: transform 0.1s, border-color 0.1s;
+    }
+    .color-swatch.selected {
+        border-color: #000;
+        transform: scale(1.2);
+        box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    }
+
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions button { margin-top: 0; flex: 1; }
+
+    .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; width: 100%; box-sizing: border-box; }
+    .shift-checkboxes label { background: #f8f9fa; padding: 8px 6px; border: 1px solid #ddd; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; box-sizing: border-box; font-size: 0.82em; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    
+    .shift-checkboxes label.disabled-shift {
+        background: #e9ecef !important;
+        color: #6c757d !important;
+        border-color: #dee2e6 !important;
+        cursor: not-allowed !important;
+        opacity: 0.7;
+    }
+    .shift-checkboxes label.disabled-shift input {
+        cursor: not-allowed !important;
+    }
+
+    .my-shifts-box { background: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; padding: 10px; margin-bottom: 12px; box-sizing: border-box; }
+
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; margin-bottom: 8px; }
+    .status-draft { background-color: #ffeaa7; color: #d35400; }
+    .status-published { background-color: #55efc4; color: #00b894; }
+
+    .hidden { display: none !important; }
+
+    /* אזור נקי ומיועד ל-PDF בלבד */
+    #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
+    #pdfExportContainer .hours-2l { font-size: 17px; }
+
+    /* תגית שם המסעדה הנוכחית */
+    .restaurant-tag { text-align: center; font-size: 0.8em; color: #555; margin-bottom: 6px; }
+
+    .biz-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+    .biz-item .biz-info { font-size: 0.85em; color: #333; }
+    .biz-item .biz-info b { font-size: 1.05em; color: #1877f2; }
