@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>מערכת סידור עבודה חכם</title>
-    
+
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="סידור עבודה">
@@ -13,11 +13,254 @@
     <!-- ספריות ליצירת קובץ PDF להורדה -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="icon-192.png">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="style.css">
+
+    <style>
+        /* רוחב קבוע לעמודות לוח המשמרות - אפשר לשנות כאן */
+        :root {
+            --col-day: 52px;    /* רוחב כל עמודת יום */
+            --col-label: 42px;  /* רוחב עמודת "משמרת" */
+        }
+
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 8px; background-color: #f0f2f5; color: #1c1e21; overflow-x: hidden; width: 100%; box-sizing: border-box; }
+        h1, h2, h3, h4 { color: #050505; margin-top: 0; text-align: center; }
+        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+        .form-group { margin-bottom: 10px; max-width: 100%; }
+        label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85em; }
+
+        input:not([type="checkbox"]), select, textarea, button {
+            padding: 9px;
+            font-size: 14px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        input[type="checkbox"] {
+            width: 18px !important;
+            height: 18px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        button { background-color: #1877f2; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; box-sizing: border-box; }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.6; cursor: wait; }
+        .auto-btn { font-size: 0.9em; padding: 10px; }
+        .manager-login-btn { background-color: #5f6368; margin-top: 10px; }
+
+        .export-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .export-btn { flex: 1; min-width: 120px; font-size: 0.9em; font-weight: bold; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 0; }
+        .whatsapp-btn { background-color: #25D366; color: white; }
+        .pdf-btn { background-color: #e74c3c; color: white; }
+
+        .reset-btn { background-color: #e67e22; margin-top: 10px; }
+        .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
+
+        /* פתרון רוחב וגלילה לטבלאות */
+        .table-wrapper {
+            overflow-x: auto;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; box-sizing: border-box; }
+        th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: center; vertical-align: middle; box-sizing: border-box; }
+        th { background-color: #f5f6f7; font-size: 0.85em; }
+
+        /* טבלה קומפקטית: רוחב עמודות קבוע שלא משתנה לפי התוכן */
+        .compact-table {
+            table-layout: fixed !important;
+            width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            min-width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            margin: 8px auto 0 auto;
+        }
+        .compact-table th { width: var(--col-day); }
+        .compact-table th:first-child { width: var(--col-label); }
+        .compact-table th,
+        .compact-table td {
+            padding: 3px 1px !important;
+            font-size: 0.75em !important;
+            overflow-wrap: break-word;
+        }
+
+        /* צמצום ריווחים פנימיים למניעת מתיחה אנכית ורוחבית */
+        .compact-table .emp-tag {
+            font-size: 0.7em !important;
+            padding: 2px 3px !important;
+            margin-bottom: 2px !important;
+            white-space: normal !important;
+            line-height: 1.1;
+        }
+        .compact-table .emp-container { padding: 1px; }
+        .compact-table .time-badge-btn { padding: 1px 2px; }
+        .compact-table .hours-2l.custom { padding: 0 2px; }
+
+        .emp-container {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: block;
+            box-sizing: border-box;
+            margin-bottom: 2px;
+            padding: 2px;
+        }
+
+        .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
+
+        .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
+
+        .my-shift-highlight {
+            border: 2px solid #f1c40f !important;
+            box-shadow: 0 0 6px rgba(241, 196, 15, 0.8) !important;
+            background-color: #fffde7 !important;
+        }
+
+        .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
+
+        /* ===== הצגת שעות: שתי שורות (התחלה מעל סיום), בלי חיתוך ===== */
+        .hours-2l {
+            display: inline-block;
+            direction: ltr;
+            text-align: center;
+            white-space: nowrap;
+            font-weight: bold;
+            line-height: 1.2;
+            font-size: 0.9em;
+            color: #2c3e50;
+        }
+        .hours-2l .h-line { display: block; }
+        .hours-2l .h-end {
+            border-top: 1px solid rgba(0,0,0,0.35);
+            margin-top: 1px;
+            padding-top: 1px;
+        }
+        /* שעות שונות מברירת המחדל - מודגשות בצהוב */
+        .hours-2l.custom {
+            background: #fff3cd;
+            border: 1px solid #f0c36d;
+            border-radius: 3px;
+            padding: 1px 4px;
+            color: #7a4b00;
+        }
+
+        /* כפתור עדכון שעות לעובד (אצל המנהל) */
+        .time-badge-btn {
+            display: inline-block;
+            width: auto;
+            margin: 2px 0 0 0;
+            padding: 2px 5px;
+            font-size: 1em;
+            line-height: 1.2;
+            color: #2c3e50;
+            background: #eef2f7;
+            border: 1px dashed #b0bec5;
+            border-radius: 3px;
+            cursor: pointer;
+            direction: ltr;
+            font-weight: bold;
+            max-width: 100%;
+        }
+        .time-badge-btn .hours-2l { color: inherit; }
+        .time-badge-btn.custom { background: #fff3cd; border: 1px solid #f0c36d; color: #7a4b00; }
+        .time-badge-btn:hover { background: #dce4ec; border-color: #1877f2; }
+        .time-badge-btn.custom:hover { background: #ffecb3; }
+
+        .delete-btn { background-color: #ff4d4d; width: auto; padding: 4px 8px; font-size: 0.8em; }
+        .edit-btn { background-color: #f39c12; width: auto; padding: 4px 8px; font-size: 0.8em; color: white; }
+
+        .summary-table th { background-color: #34495e; color: white; font-size: 0.8em; padding: 8px 3px; }
+        .summary-table td { font-size: 0.8em; padding: 6px 3px; }
+        .stat-num { font-weight: bold; font-size: 0.95em; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; }
+        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
+        .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
+
+        .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
+        .quick-time-btn:hover { background: #e2e6ea; }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+            margin-top: 6px;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            max-height: 160px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+        .color-swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #ccc;
+            margin: auto;
+            transition: transform 0.1s, border-color 0.1s;
+        }
+        .color-swatch.selected {
+            border-color: #000;
+            transform: scale(1.2);
+            box-shadow: 0 0 6px rgba(0,0,0,0.5);
+        }
+
+        .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .modal-actions button { margin-top: 0; flex: 1; }
+
+        .shift-checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; text-align: right; width: 100%; box-sizing: border-box; }
+        .shift-checkboxes label { background: #f8f9fa; padding: 8px 6px; border: 1px solid #ddd; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; box-sizing: border-box; font-size: 0.82em; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .shift-checkboxes label.disabled-shift {
+            background: #e9ecef !important;
+            color: #6c757d !important;
+            border-color: #dee2e6 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7;
+        }
+        .shift-checkboxes label.disabled-shift input {
+            cursor: not-allowed !important;
+        }
+
+        .my-shifts-box { background: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; padding: 10px; margin-bottom: 12px; box-sizing: border-box; }
+
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; margin-bottom: 8px; }
+        .status-draft { background-color: #ffeaa7; color: #d35400; }
+        .status-published { background-color: #55efc4; color: #00b894; }
+
+        .hidden { display: none !important; }
+
+        /* אזור נקי ומיועד ל-PDF בלבד */
+        #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
+        #pdfExportContainer .hours-2l { font-size: 17px; }
+
+        /* תגית שם המסעדה הנוכחית */
+        .restaurant-tag { text-align: center; font-size: 0.8em; color: #555; margin-bottom: 6px; }
+
+        .biz-item { display: flex; justify-content: space-between; align-items: center; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+        .biz-item .biz-info { font-size: 0.85em; color: #333; }
+        .biz-item .biz-info b { font-size: 1.05em; color: #1877f2; }
+
+        /* חלונות פנימיים */
+        #appToast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 1em; z-index: 100000; opacity: 0; pointer-events: none; transition: opacity 0.25s; max-width: 90%; text-align: center; direction: rtl; }
+        #appToast.show { opacity: 1; }
+        .app-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 99999; }
+        .app-dialog { background: #fff; border-radius: 14px; padding: 20px; width: 85%; max-width: 340px; direction: rtl; text-align: right; }
+        .app-dialog p { margin: 0 0 12px; font-size: 1.05em; white-space: pre-line; }
+        .app-dialog input { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
+        .app-dialog-actions { display: flex; gap: 8px; }
+        .app-dialog-actions button { flex: 1; margin: 0; }
+        .app-dialog-actions button.cancel { background-color: #7f8c8d; }
+    </style>
 </head>
 <body>
 
@@ -60,7 +303,7 @@
     <!-- מסך כניסת עובד -->
     <div class="card hidden" id="employeeView">
         <h2>אזור עובד/ת</h2>
-        
+
         <div class="form-group">
             <label>1. בחר את שמך מהרשימה:</label>
             <select id="employeeNameDropdown" onchange="resetPinStep()">
@@ -75,10 +318,10 @@
         </div>
 
         <div id="employeeFormArea" class="hidden">
-            
+
             <div id="employeeScheduleSection" style="margin-top: 15px;">
                 <div id="myShiftsSummary"></div>
-                
+
                 <h3 style="text-align: right; margin-top: 15px;">לוח משמרות שבועי מלא:</h3>
                 <div class="table-wrapper">
                     <table class="schedule-table compact-table">
@@ -139,7 +382,7 @@
 
     <!-- מסך מנהל -->
     <div class="hidden" id="managerView">
-        
+
         <div class="card">
             <h2>1. הוספת עובד/ת ודירוג</h2>
             <div class="form-group">
@@ -158,7 +401,7 @@
                     <option value="1">חלש (1)</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label>צבע:</label>
                 <div class="palette-grid" id="addColorPalette"></div>
@@ -197,7 +440,7 @@
         <!-- 3. שעות וכמות עובדים -->
         <div class="card">
             <h2>3. שעות וכמות עובדים</h2>
-            
+
             <div class="table-wrapper">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
                     <thead>
@@ -277,7 +520,7 @@
                 <h2>לוח משמרות שבועי (מנהל)</h2>
                 <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
             </div>
-            
+
             <div class="table-wrapper">
                 <table class="schedule-table compact-table">
                     <thead>
@@ -445,7 +688,7 @@
     <div id="timeModal" class="modal-overlay">
         <div class="modal-card">
             <h3 id="timeModalTitle">עדכון שעות</h3>
-            
+
             <div style="display: flex; gap: 10px; justify-content: center; margin: 15px 0;">
                 <div style="flex: 1;">
                     <label style="font-size:0.8em; margin-bottom: 2px;">שעת הגעה:</label>
@@ -479,12 +722,12 @@
     <div id="editEmployeeModal" class="modal-overlay">
         <div class="modal-card">
             <h3>עריכת עובד/ת</h3>
-            
+
             <div class="form-group" style="text-align: right; margin-top: 10px;">
                 <label>שם העובד/ת:</label>
                 <input type="text" id="editEmpName" placeholder="שם מלא">
             </div>
-            
+
             <div class="form-group" style="text-align: right;">
                 <label>קוד אישי חדש (ריק = ללא שינוי):</label>
                 <input type="text" id="editEmpPin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="4 ספרות">
@@ -512,6 +755,2140 @@
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyASfsSMXS62ehM1kVSjOpudOEUGUh37BYI",
+            authDomain: "work-schedule-17c39.firebaseapp.com",
+            projectId: "work-schedule-17c39",
+            storageBucket: "work-schedule-17c39.firebasestorage.app",
+            messagingSenderId: "708640197618",
+            appId: "1:708640197618:web:c3731ecf7c7ef80fd3396b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // מפתח VAPID: Firebase Console > Project settings > Cloud Messaging > Web Push certificates
+        const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
+        const MANAGER = '__manager__';
+
+        // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
+        function sanitizeRestaurantId(raw) {
+            const cleaned = String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            return cleaned || '';
+        }
+
+        let RESTAURANT_ID = '';
+        let superAdminVerified = false;
+
+        function getEmpCollection() { return collection(db, `${RESTAURANT_ID}_employees`); }
+        function getAvailCollection() { return collection(db, `${RESTAURANT_ID}_availability`); }
+        function getSettingsDoc(docName) { return doc(db, `${RESTAURANT_ID}_settings`, docName); }
+        function getAbsCollection() { return collection(db, `${RESTAURANT_ID}_absences`); }
+        function getSwapsCollection() { return collection(db, `${RESTAURANT_ID}_swaps`); }
+
+        // מרשם מרכזי של כל העסקים שנוצרו אי-פעם, לצורך מסך "ניהול-על"
+        const getRegistryDoc = (id) => doc(db, '_registry', id);
+        const getSuperAdminConfigDoc = () => doc(db, '_system', 'super_admin_config');
+        const SUPER_ADMIN_DEFAULT_PASSWORD = "9999";
+
+        async function touchRegistry() {
+            if (!RESTAURANT_ID) return;
+            try {
+                const ref = getRegistryDoc(RESTAURANT_ID);
+                const snap = await getDoc(ref);
+                const payload = { id: RESTAURANT_ID, lastSeenAt: Date.now() };
+                if (!snap.exists()) payload.createdAt = Date.now();
+                await setDoc(ref, payload, { merge: true });
+            } catch(e) {}
+        }
+
+
+        // ===== חלונות פנימיים (במקום alert/confirm/prompt של הדפדפן) =====
+        let _toastTimer = null;
+        function notify(msg) {
+            let t = document.getElementById('appToast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'appToast';
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+        }
+
+        function askDialog(msg, withInput) {
+            return new Promise(resolve => {
+                const ov = document.createElement('div');
+                ov.className = 'app-dialog-overlay';
+                const box = document.createElement('div');
+                box.className = 'app-dialog';
+                const p = document.createElement('p');
+                p.textContent = msg;
+                box.appendChild(p);
+                let inp = null;
+                if (withInput) {
+                    inp = document.createElement('input');
+                    inp.type = 'password';
+                    box.appendChild(inp);
+                }
+                const row = document.createElement('div');
+                row.className = 'app-dialog-actions';
+                const ok = document.createElement('button');
+                ok.textContent = 'אישור';
+                const cancel = document.createElement('button');
+                cancel.textContent = 'ביטול';
+                cancel.className = 'cancel';
+                row.appendChild(ok);
+                row.appendChild(cancel);
+                box.appendChild(row);
+                ov.appendChild(box);
+                document.body.appendChild(ov);
+                const close = (val) => { ov.remove(); resolve(val); };
+                ok.onclick = () => close(withInput ? inp.value : true);
+                cancel.onclick = () => close(withInput ? null : false);
+                if (inp) {
+                    inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok.click(); });
+                    setTimeout(() => inp.focus(), 50);
+                }
+            });
+        }
+        const askText = (msg) => askDialog(msg, true);
+        const askConfirm = (msg) => askDialog(msg, false);
+
+        function updateRestaurantTag() {
+            const tagEl = document.getElementById('restaurantTag');
+            if (tagEl) tagEl.textContent = RESTAURANT_ID ? `עסק: ${RESTAURANT_ID}` : '';
+        }
+
+        // כתובת ציבורית קבועה - כדי שהקישור לעובדים יעבוד גם מתוך אפליקציית ה-APK
+        const PUBLIC_BASE_URL = 'https://kobbar1981.github.io/work-schedule/';
+
+        function updateInviteLink() {
+            const el = document.getElementById('inviteLinkDisplay');
+            if (!el || !RESTAURANT_ID) return;
+            el.value = PUBLIC_BASE_URL + '?r=' + encodeURIComponent(RESTAURANT_ID);
+        }
+
+        window.copyInviteLink = function() {
+            const el = document.getElementById('inviteLinkDisplay');
+            if (!el || !el.value) return;
+            el.select();
+            el.setSelectionRange(0, 99999);
+            const finish = (ok) => notify(ok ? "הקישור הועתק" : "העתק ידנית מהשדה");
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(el.value).then(() => finish(true)).catch(() => {
+                    try { document.execCommand('copy'); finish(true); } catch(e) { finish(false); }
+                });
+            } else {
+                try { document.execCommand('copy'); finish(true); } catch(e) { finish(false); }
+            }
+        };
+
+        window.switchBusiness = function() {
+            document.getElementById('selectionView').classList.add('hidden');
+            document.getElementById('employeeView').classList.add('hidden');
+            document.getElementById('managerView').classList.add('hidden');
+            document.getElementById('businessSetupView').classList.remove('hidden');
+            const input = document.getElementById('businessNameInput');
+            if (input) input.value = RESTAURANT_ID || '';
+        };
+
+        window.confirmBusinessSetup = async function() {
+            const raw = document.getElementById('businessNameInput').value;
+            const cleaned = sanitizeRestaurantId(raw);
+            if (!cleaned) { notify("שם עסק לא תקין"); return; }
+
+            try {
+                const snap = await getDoc(getRegistryDoc(cleaned));
+                if (snap.exists() && snap.data().deleted) {
+                    notify("העסק נמחק. פנה לניהול-על.");
+                    return;
+                }
+                if (!snap.exists()) {
+                    if (!superAdminVerified) {
+                        notify("העסק לא קיים");
+                        return;
+                    }
+                    await setDoc(getRegistryDoc(cleaned), { id: cleaned, createdAt: Date.now(), lastSeenAt: Date.now() });
+                }
+            } catch(e) { notify("שגיאה בבדיקת העסק."); return; }
+
+            try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
+            const url = new URL(window.location.href);
+            url.searchParams.set('r', cleaned);
+            window.location.href = url.toString();
+        };
+
+        async function initRestaurantId() {
+            const fromUrl = sanitizeRestaurantId(new URLSearchParams(window.location.search).get('r'));
+            let fromStorage = '';
+            try { fromStorage = sanitizeRestaurantId(localStorage.getItem('work_schedule_restaurant_id')); } catch(e){}
+
+            const candidate = fromUrl || fromStorage || '';
+
+            if (candidate) {
+                // בדיקה אם העסק הזה סומן כמחוק - חוסם כניסה מחדש דרך קישור ישן
+                let isDeleted = false, blockedMsg = '';
+                try {
+                    const snap = await getDoc(getRegistryDoc(candidate));
+                    if (!snap.exists()) { isDeleted = true; blockedMsg = `העסק "${candidate}" לא קיים במערכת.`; }
+                    else if (snap.data().deleted) { isDeleted = true; blockedMsg = `העסק "${candidate}" הוסר מהמערכת.`; }
+                } catch(e) {
+                    notify("שגיאה בבדיקת העסק: " + (e.code || e.message));
+                    isDeleted = true; blockedMsg = 'שגיאה בבדיקת העסק.';
+                }
+
+                if (isDeleted) {
+                    try { localStorage.removeItem('work_schedule_restaurant_id'); } catch(e){}
+                    RESTAURANT_ID = '';
+                    updateRestaurantTag();
+                    document.getElementById('businessSetupView').classList.add('hidden');
+                    document.getElementById('selectionView').classList.add('hidden');
+
+                    document.querySelector('h1').insertAdjacentHTML('afterend',
+                        `<div class="card" id="deletedNoticeCard" style="text-align:center;">
+                            <h2>העסק הוסר</h2>
+                            <p>${esc(blockedMsg)} פנה למנהל לקבלת קישור מעודכן.</p>
+                            <button onclick="checkSuperAdminPassword()" style="background-color:#2c3e50; font-size:0.85em;">כניסת ניהול-על</button>
+                        </div>`);
+                    return false;
+                }
+            }
+
+            RESTAURANT_ID = candidate;
+            try { if (candidate) localStorage.setItem('work_schedule_restaurant_id', candidate); } catch(e){}
+
+            updateRestaurantTag();
+            const tagEl = document.getElementById('restaurantTag');
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v5';
+
+            if (!RESTAURANT_ID) {
+                document.getElementById('businessSetupView').classList.remove('hidden');
+                document.getElementById('selectionView').classList.add('hidden');
+                return false;
+            } else {
+                document.getElementById('businessSetupView').classList.add('hidden');
+                document.getElementById('selectionView').classList.remove('hidden');
+                updateInviteLink();
+                return true;
+            }
+        }
+
+        const LEGACY_DEFAULT_PASSWORD = "1212";
+
+        const daysKeys = ['0', '1', '2', '3', '4', '5', '6'];
+        const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+        const TIME_INPUT_IDS = [
+            'mStart', 'mEnd', 'eStart', 'eEnd',
+            'friMStart', 'friMEnd', 'friEStart', 'friEEnd',
+            'satMStart', 'satMEnd', 'satEStart', 'satEEnd'
+        ];
+
+        let employees = [];
+        let employeeAvailMap = {};
+        let employeeNotesMap = {};
+
+        let currentSchedule = {};
+        let customShiftTimes = {};
+
+        let publishedSchedule = {};
+        let publishedTimes = {};
+        let publishedCustomShiftTimes = {};
+        let isPublished = false;
+
+        let activeShiftsConfig = {
+            '0-m': true, '0-e': true,
+            '1-m': true, '1-e': true,
+            '2-m': true, '2-e': true,
+            '3-m': true, '3-e': true,
+            '4-m': true, '4-e': true,
+            '5-m': true, '5-e': false,
+            '6-m': false, '6-e': false
+        };
+
+        let activeSwapKey = null;
+        let activeSwapIndex = null;
+        let activeTimeKey = null;
+        let activeTimeEmpName = null;
+        let verifiedEmployeeName = null;
+        let originalEditingName = null;
+
+        function esc(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function bytesToHex(buf) {
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function hexToBytes(hex) {
+            const out = new Uint8Array(hex.length / 2);
+            for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+            return out;
+        }
+
+        function generateSalt() {
+            const arr = new Uint8Array(16);
+            crypto.getRandomValues(arr);
+            return bytesToHex(arr);
+        }
+
+        async function hashPassword(pass, saltHex) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveBits"]);
+            const bits = await crypto.subtle.deriveBits(
+                { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 150000, hash: "SHA-256" },
+                keyMaterial,
+                256
+            );
+            return bytesToHex(bits);
+        }
+
+        async function saveManagerPassword(newPass) {
+            const salt = generateSalt();
+            const hash = await hashPassword(newPass, salt);
+            await setDoc(getSettingsDoc("manager_config"), {
+                passwordHash: hash,
+                salt: salt,
+                password: deleteField()
+            }, { merge: true });
+        }
+
+        async function makeMergePinFields(pin) {
+            const salt = generateSalt();
+            const hash = await hashPassword(String(pin), salt);
+            return { pinHash: hash, pinSalt: salt, pin: deleteField() };
+        }
+
+        const colorPaletteList = [
+            '#ff7675', '#d63031', '#c0392b', '#e84393', '#fd79a8', '#fab1a0',
+            '#e67e22', '#f39c12', '#f1c40f', '#ffeaa7', '#d35400', '#cd6133',
+            '#55efc4', '#00b894', '#27ae60', '#2ecc71', '#1abc9c', '#00cec9',
+            '#74b9ff', '#0984e3', '#2980b9', '#3498db', '#81ecec', '#18dcff',
+            '#a29bfe', '#6c5ce7', '#8e44ad', '#9b59b6', '#e056fd', '#b2bec3',
+            '#2d3436', '#636e72', '#badc58', '#dfe6e9', '#485460', '#ff9f43'
+        ];
+
+        function buildColorPalettes() {
+            const addContainer = document.getElementById('addColorPalette');
+            const editContainer = document.getElementById('editColorPalette');
+            let addHtml = '', editHtml = '';
+            colorPaletteList.forEach((hex) => {
+                addHtml += `<div class="color-swatch" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
+                editHtml += `<div class="color-swatch edit-swatch" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
+            });
+            if (addContainer) addContainer.innerHTML = addHtml;
+            if (editContainer) editContainer.innerHTML = editHtml;
+        }
+
+        buildColorPalettes();
+
+        (function markDefaultAddSwatch() {
+            const defaultColor = (document.getElementById('empColorInput').value || '').toLowerCase();
+            document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => {
+                if (el.getAttribute('data-hex').toLowerCase() === defaultColor) el.classList.add('selected');
+            });
+        })();
+
+        window.selectColorAdd = function(colorHex, element) {
+            document.getElementById('empColorInput').value = colorHex;
+            document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+        };
+
+        window.selectColorEdit = function(colorHex, element) {
+            document.getElementById('editEmpColorInput').value = colorHex;
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+        };
+
+        function getIsraelLastThreshold(targetDay) {
+            const nowMs = Date.now();
+            const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
+            const dIsrael = new Date(strIsrael);
+            const currentIsraelTime = dIsrael.getTime();
+
+            let daysToSubtract = (dIsrael.getDay() - targetDay + 7) % 7;
+            if (dIsrael.getDay() === targetDay && dIsrael.getHours() < 7) {
+                daysToSubtract = 7;
+            }
+            dIsrael.setDate(dIsrael.getDate() - daysToSubtract);
+            dIsrael.setHours(7, 0, 0, 0);
+            return nowMs - (currentIsraelTime - dIsrael.getTime());
+        }
+
+        function getLastFriday7AM() { return getIsraelLastThreshold(5); }
+        function getLastThursday7AM() { return getIsraelLastThreshold(4); }
+
+        function isScheduleExpired(publishedAt) {
+            if (!publishedAt) return false;
+            return publishedAt < getLastFriday7AM();
+        }
+
+        function getScheduleDates() {
+            const strIsrael = new Date().toLocaleString("en-US", {timeZone: "Asia/Jerusalem"});
+            const dIsrael = new Date(strIsrael);
+            const dayOfWeek = dIsrael.getDay();
+            const hour = dIsrael.getHours();
+
+            let sunday = new Date(dIsrael);
+            if ((dayOfWeek === 4 && hour >= 7) || dayOfWeek === 5 || dayOfWeek === 6) {
+                const daysUntilNextSunday = (7 - dayOfWeek) % 7 || 7;
+                sunday.setDate(dIsrael.getDate() + daysUntilNextSunday);
+            } else {
+                sunday.setDate(dIsrael.getDate() - dayOfWeek);
+            }
+
+            const dates = [];
+            for(let i=0; i<7; i++) {
+                let d = new Date(sunday);
+                d.setDate(sunday.getDate() + i);
+                dates.push(`${d.getDate()}/${d.getMonth()+1}`);
+            }
+            return dates;
+        }
+
+        function updateDatesInUI() {
+            const dates = getScheduleDates();
+            const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
+
+            for(let i=0; i<7; i++) {
+                let thEmp = document.getElementById(`th-emp-${i}`);
+                if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+                let thMgr = document.getElementById(`th-mgr-${i}`);
+                if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+            }
+        }
+        updateDatesInUI();
+
+        /* ===== עזרי הצגת שעות (שתי שורות: התחלה מעל סיום) ===== */
+
+        function readTimesFromInputs() {
+            const t = {};
+            TIME_INPUT_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                t[id] = el ? el.value : '';
+            });
+            return t;
+        }
+
+        function hoursFromTimes(t, dayIdx, shiftType) {
+            t = t || {};
+            if (dayIdx === '5') {
+                return shiftType === 'm'
+                    ? `${t.friMStart || "09:30"} - ${t.friMEnd || "14:00"}`
+                    : `${t.friEStart || "15:00"} - ${t.friEEnd || "19:00"}`;
+            } else if (dayIdx === '6') {
+                return shiftType === 'm'
+                    ? `${t.satMStart || "10:00"} - ${t.satMEnd || "16:00"}`
+                    : `${t.satEStart || "18:30"} - ${t.satEEnd || "23:00"}`;
+            }
+            return shiftType === 'm'
+                ? `${t.mStart || "11:00"} - ${t.mEnd || "16:00"}`
+                : `${t.eStart || "16:00"} - ${t.eEnd || "21:00"}`;
+        }
+
+        function splitTimeRange(str) {
+            const parts = String(str || '').split('-').map(s => s.trim());
+            return parts.length === 2 ? parts : [String(str || ''), ''];
+        }
+
+        // שעות בשתי שורות: התחלה מעל סיום, בלי חיתוך
+        function hoursHtml(str, extraClass) {
+            const [s, e] = splitTimeRange(str);
+            return `<span class="hours-2l ${extraClass || ''}"><span class="h-line">${esc(s)}</span>${e ? `<span class="h-line h-end">${esc(e)}</span>` : ''}</span>`;
+        }
+
+        window.saveActiveShiftsConfig = async function() {
+            const checkboxes = document.querySelectorAll('#managerActiveShiftsContainer input[type="checkbox"]');
+            activeShiftsConfig = {};
+            checkboxes.forEach(cb => {
+                activeShiftsConfig[cb.value] = cb.checked;
+            });
+            try {
+                await setDoc(getSettingsDoc("active_shifts_config"), { activeShifts: activeShiftsConfig });
+            } catch(e) {}
+        };
+
+        function renderEmployeeShiftCheckboxes() {
+            const container = document.getElementById('shiftsCheckboxContainer');
+            if(!container) return;
+            const dates = getScheduleDates();
+
+            const shiftLabels = [
+                {key: '0-m', label: `ראשון בוקר (${dates[0]})`},
+                {key: '0-e', label: `ראשון ערב (${dates[0]})`},
+                {key: '1-m', label: `שני בוקר (${dates[1]})`},
+                {key: '1-e', label: `שני ערב (${dates[1]})`},
+                {key: '2-m', label: `שלישי בוקר (${dates[2]})`},
+                {key: '2-e', label: `שלישי ערב (${dates[2]})`},
+                {key: '3-m', label: `רביעי בוקר (${dates[3]})`},
+                {key: '3-e', label: `רביעי ערב (${dates[3]})`},
+                {key: '4-m', label: `חמישי בוקר (${dates[4]})`},
+                {key: '4-e', label: `חמישי ערב (${dates[4]})`},
+                {key: '5-m', label: `שישי בוקר (${dates[5]})`},
+                {key: '5-e', label: `שישי ערב (${dates[5]})`},
+                {key: '6-m', label: `שבת בוקר (${dates[6]})`},
+                {key: '6-e', label: `שבת ערב/מוצ"ש (${dates[6]})`}
+            ];
+
+            let html = '';
+            shiftLabels.forEach(item => {
+                const isActive = activeShiftsConfig[item.key] !== false;
+                if (isActive) {
+                    html += `<label><input type="checkbox" value="${item.key}"> <span>${item.label}</span></label>`;
+                } else {
+                    html += `<label class="disabled-shift"><input type="checkbox" value="${item.key}" disabled> <span>${item.label} (סגורה)</span></label>`;
+                }
+            });
+            container.innerHTML = html;
+            applyAbsencesToCheckboxes();
+        }
+
+        async function saveDraftToFirestore() {
+            try {
+                await setDoc(getSettingsDoc("draft_schedule"), {
+                    schedule: currentSchedule,
+                    slotTimes: customShiftTimes,
+                    updatedAt: Date.now()
+                });
+            } catch(e){}
+        }
+
+        async function syncPublishedIfActive() {
+            if (isPublished) {
+                try {
+                    const currentTimes = readTimesFromInputs();
+                    await setDoc(getSettingsDoc("published_schedule"), {
+                        schedule: currentSchedule,
+                        times: currentTimes,
+                        slotTimes: customShiftTimes,
+                        publishedAt: Date.now()
+                    });
+                } catch(e){}
+            }
+        }
+
+        /* =====================================================================
+           תוספות: היעדרויות מראש, החלפות משמרות, התראות (באנרים + push)
+           ===================================================================== */
+
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        const fmtDM = (d) => `${d.getDate()}/${d.getMonth() + 1}`;
+        const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+        const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+        const $id = (id) => document.getElementById(id);
+        const notifGranted = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
+
+        let absMap = {};
+        let swaps = [];
+        let myNotifs = [];
+        let unsubNotifs = null;
+        let managerScreenActive = false;
+
+        function israelNow() { return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })); }
+
+        // ראשון של השבוע שמוצג כרגע (אותה לוגיקה כמו getScheduleDates, אבל עם תאריך מלא)
+        function currentWeekSunday() {
+            const d = israelNow();
+            const dow = d.getDay(), h = d.getHours();
+            const s = new Date(d);
+            s.setHours(0, 0, 0, 0);
+            if ((dow === 4 && h >= 7) || dow === 5 || dow === 6) s.setDate(d.getDate() + ((7 - dow) % 7 || 7));
+            else s.setDate(d.getDate() - dow);
+            return s;
+        }
+        const weekDatesFull = (sun) => [0, 1, 2, 3, 4, 5, 6].map(i => addDays(sun, i));
+        const shiftLabelText = (key) => { const [d, t] = key.split('-'); return `${daysNames[d]} ${t === 'm' ? 'בוקר' : 'ערב'}`; };
+
+        /* ----- התראות: מסמך ב-_notifs, ה-Cloud Function שולח ממנו push ----- */
+        async function pushNotif(to, type, text, fixedId) {
+            const data = { rid: RESTAURANT_ID, to, type, text, read: false, createdAt: Date.now() };
+            try {
+                const ref = fixedId ? doc(db, '_notifs', fixedId) : doc(collection(db, '_notifs'));
+                await setDoc(ref, data);
+            } catch (e) { console.error(e); }
+        }
+
+        function subscribeNotifs(name) {
+            if (unsubNotifs) { unsubNotifs(); unsubNotifs = null; }
+            myNotifs = [];
+            if (!name || !RESTAURANT_ID) return;
+            const q = query(collection(db, '_notifs'), where('rid', '==', RESTAURANT_ID), where('to', '==', name));
+            unsubNotifs = onSnapshot(q, (snap) => {
+                myNotifs = [];
+                snap.forEach(d => myNotifs.push({ id: d.id, ...d.data() }));
+                renderEmployeeExtras();
+            });
+        }
+
+        window.wsReadNotif = async function (id) {
+            try { await setDoc(doc(db, '_notifs', id), { read: true }, { merge: true }); } catch (e) {}
+        };
+
+        /* ----- היעדרויות ----- */
+        const isAbsent = (name, dateStr) => (absMap[name] || []).some(r => r.from <= dateStr && dateStr <= r.to);
+
+        async function saveAbsRanges(name, ranges) {
+            const today = ymd(israelNow());
+            const clean = ranges.filter(r => r.to >= today);
+            await setDoc(doc(getAbsCollection(), name), { name, ranges: clean, updatedAt: Date.now() });
+        }
+
+        function overlapInfo() {
+            const known = new Set(employees.map(e => e.name));
+            const names = Object.keys(absMap).filter(n => known.has(n));
+            const res = [];
+            let sun = currentWeekSunday();
+            for (let w = 0; w < 8; w++) {
+                const days = weekDatesFull(sun);
+                const who = {};
+                names.forEach(n => days.forEach((d, i) => { if (isAbsent(n, ymd(d))) (who[n] = who[n] || []).push(i); }));
+                const present = Object.keys(who);
+                if (present.length) {
+                    const sameDay = [];
+                    days.forEach((_, i) => { if (present.filter(n => who[n].includes(i)).length >= 2) sameDay.push(i); });
+                    res.push({ sun: new Date(sun), days, who, names: present, multi: present.length >= 2, sameDay });
+                }
+                sun = addDays(sun, 7);
+            }
+            return res;
+        }
+
+        function describeWeek(w) {
+            const parts = w.names.map(n => {
+                const ix = w.who[n];
+                return `${n} (${fmtDM(w.days[ix[0]])}${ix.length > 1 ? '–' + fmtDM(w.days[ix[ix.length - 1]]) : ''})`;
+            });
+            let t = `שבוע ${fmtDM(w.sun)}: ${parts.join(', ')}`;
+            if (w.sameDay.length) t += ` | חפיפה ביום: ${w.sameDay.map(i => daysNames[i]).join(', ')}`;
+            return t;
+        }
+
+        async function afterAbsenceChange(name) {
+            // 1) הסרת זמינות קיימת בימי ההיעדרות של השבוע הנוכחי
+            try {
+                const ref = doc(getAvailCollection(), name);
+                const snap = await getDoc(ref);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const shifts = { ...(data.shifts || {}) };
+                    const days = weekDatesFull(currentWeekSunday());
+                    let changed = false;
+                    Object.keys(shifts).forEach(k => {
+                        if (shifts[k] && isAbsent(name, ymd(days[parseInt(k)]))) { delete shifts[k]; changed = true; }
+                    });
+                    if (changed) await setDoc(ref, { ...data, shifts });
+                }
+            } catch (e) { console.error(e); }
+            // 2) התראה למנהל על חפיפה (מזהה קבוע = בלי כפילויות)
+            overlapInfo().filter(w => w.multi && w.names.includes(name)).forEach(w => {
+                const id = 'ov_' + encodeURIComponent(`${RESTAURANT_ID}_${ymd(w.sun)}_${[...w.names].sort().join('_')}`);
+                pushNotif(MANAGER, 'overlap', '⚠️ ' + describeWeek(w), id);
+            });
+        }
+
+        window.wsAddAbsence = async function () {
+            const name = verifiedEmployeeName;
+            if (!name) return;
+            const from = $id('wsAbsFrom').value;
+            const to = $id('wsAbsTo').value || from;
+            const reason = $id('wsAbsReason').value.trim();
+            if (!from) { notify("בחר תאריך התחלה"); return; }
+            if (to < from) { notify("תאריך הסיום לפני ההתחלה"); return; }
+            if (to < ymd(israelNow())) { notify("התאריכים כבר עברו"); return; }
+            try {
+                await saveAbsRanges(name, [...(absMap[name] || []), { from, to, reason }]);
+                ['wsAbsFrom', 'wsAbsTo', 'wsAbsReason'].forEach(id => { const e = $id(id); if (e) e.value = ''; });
+                notify("ההיעדרות נשמרה");
+                await afterAbsenceChange(name);
+            } catch (e) { notify("שגיאה בשמירה"); }
+        };
+
+        window.wsDelAbsence = async function (i) {
+            const name = verifiedEmployeeName;
+            if (!name) return;
+            const ranges = (absMap[name] || []).filter((_, idx) => idx !== i);
+            try { await saveAbsRanges(name, ranges); notify("נמחק"); } catch (e) { notify("שגיאה"); }
+        };
+
+        // סוגר בטופס הזמינות את המשמרות שנופלות בהיעדרות
+        function applyAbsencesToCheckboxes() {
+            const name = verifiedEmployeeName;
+            const cont = $id('shiftsCheckboxContainer');
+            if (!name || !cont) return;
+            const days = weekDatesFull(currentWeekSunday());
+            cont.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                const d = parseInt(cb.value);
+                if (isNaN(d) || !isAbsent(name, ymd(days[d]))) return;
+                cb.checked = false;
+                cb.disabled = true;
+                const label = cb.closest('label');
+                if (label && !label.dataset.vac) {
+                    label.dataset.vac = '1';
+                    label.classList.add('disabled-shift');
+                    const span = label.querySelector('span');
+                    if (span) span.textContent += ' (חופשה)';
+                }
+            });
+        }
+
+        // בונה מחדש את תיבות הזמינות תוך שמירת הסימונים (כשהיעדרות משתנה בזמן אמת)
+        function refreshAvailabilityCheckboxes() {
+            if (!verifiedEmployeeName) return;
+            const checked = {};
+            document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => { if (cb.checked && !cb.disabled) checked[cb.value] = true; });
+            renderEmployeeShiftCheckboxes();
+            document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => { cb.checked = !!checked[cb.value]; });
+            applyAbsencesToCheckboxes();
+        }
+
+        /* ----- החלפות משמרות ----- */
+        const SWAP_STATUS = {
+            pending_peer: (s) => `ממתין לאישור ${s.to}`,
+            pending_manager: () => 'ממתין לאישור מנהל',
+            approved: () => 'אושרה ✔',
+            rejected_peer: () => 'נדחתה ע"י העובד',
+            rejected_manager: () => 'נדחתה ע"י המנהל',
+            expired: () => 'פגה'
+        };
+
+        window.wsRequestSwap = async function () {
+            const me = verifiedEmployeeName;
+            const key = $id('wsSwapShift') && $id('wsSwapShift').value;
+            const to = $id('wsSwapTo') && $id('wsSwapTo').value;
+            if (!me || !key || !to) { notify("בחר משמרת ועובד"); return; }
+            if ((publishedSchedule[key] || []).includes(to)) { notify(`${to} כבר משובץ במשמרת הזו`); return; }
+            const sun = currentWeekSunday();
+            const shiftDay = weekDatesFull(sun)[parseInt(key.split('-')[0])];
+            if (isAbsent(to, ymd(shiftDay))) { notify(`${to} בהיעדרות ביום הזה`); return; }
+            const wk = ymd(sun);
+            if (swaps.some(s => s.from === me && s.key === key && s.week === wk && (s.status === 'pending_peer' || s.status === 'pending_manager'))) {
+                notify("כבר יש בקשה פתוחה למשמרת הזו"); return;
+            }
+            try {
+                await setDoc(doc(getSwapsCollection()), { from: me, to, key, week: wk, status: 'pending_peer', createdAt: Date.now() });
+                await pushNotif(to, 'swap_request', `${me} מבקש/ת שתחליף/י אותו/ה ב${shiftLabelText(key)} (${fmtDM(shiftDay)})`);
+                notify("הבקשה נשלחה");
+            } catch (e) { notify("שגיאה בשליחה"); }
+        };
+
+        window.wsPeerAnswer = async function (id, ok) {
+            const sw = swaps.find(s => s.id === id);
+            if (!sw) return;
+            try {
+                if (ok) {
+                    await setDoc(doc(getSwapsCollection(), id), { status: 'pending_manager', updatedAt: Date.now() }, { merge: true });
+                    await pushNotif(MANAGER, 'swap_manager', `בקשת החלפה לאישור: ${sw.from} → ${sw.to}, ${shiftLabelText(sw.key)}`);
+                    await pushNotif(sw.from, 'swap_result', `${sw.to} אישר/ה את ההחלפה. ממתין לאישור מנהל.`);
+                } else {
+                    await setDoc(doc(getSwapsCollection(), id), { status: 'rejected_peer', updatedAt: Date.now() }, { merge: true });
+                    await pushNotif(sw.from, 'swap_result', `${sw.to} דחה/תה את בקשת ההחלפה ב${shiftLabelText(sw.key)}`);
+                }
+            } catch (e) { notify("שגיאה"); }
+        };
+
+        // מחליף את העובד גם בטיוטה וגם בסידור המפורסם
+        async function applySwapToSchedules(sw) {
+            const pub = await getDoc(getSettingsDoc('published_schedule'));
+            if (!pub.exists() || !((pub.data().schedule || {})[sw.key] || []).includes(sw.from)) return false;
+            for (const nm of ['draft_schedule', 'published_schedule']) {
+                const ref = getSettingsDoc(nm);
+                const snap = await getDoc(ref);
+                if (!snap.exists()) continue;
+                const d = snap.data();
+                const sch = { ...(d.schedule || {}) };
+                const list = [...(sch[sw.key] || [])];
+                const i = list.indexOf(sw.from);
+                if (i < 0) continue;
+                if (list.includes(sw.to)) list.splice(i, 1); else list[i] = sw.to;
+                sch[sw.key] = list;
+                const slot = { ...(d.slotTimes || {}) };
+                const k = `${sw.key}-${sw.from}`;
+                if (slot[k]) { slot[`${sw.key}-${sw.to}`] = slot[k]; delete slot[k]; }
+                await setDoc(ref, { ...d, schedule: sch, slotTimes: slot });
+            }
+            return true;
+        }
+
+        window.wsManagerAnswer = async function (id, ok) {
+            const sw = swaps.find(s => s.id === id);
+            if (!sw) return;
+            try {
+                if (ok) {
+                    if (sw.week !== ymd(currentWeekSunday())) {
+                        await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
+                        notify("הבקשה פגה (שבוע אחר)"); return;
+                    }
+                    const done = await applySwapToSchedules(sw);
+                    if (!done) {
+                        await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
+                        notify("המשמרת השתנתה, הבקשה פגה"); return;
+                    }
+                    await setDoc(doc(getSwapsCollection(), id), { status: 'approved', updatedAt: Date.now() }, { merge: true });
+                    const txt = `ההחלפה ב${shiftLabelText(sw.key)} אושרה: ${sw.to} במקום ${sw.from}`;
+                    await pushNotif(sw.from, 'swap_result', txt);
+                    await pushNotif(sw.to, 'swap_result', txt);
+                    notify("ההחלפה אושרה והסידור עודכן");
+                } else {
+                    await setDoc(doc(getSwapsCollection(), id), { status: 'rejected_manager', updatedAt: Date.now() }, { merge: true });
+                    const txt = `בקשת ההחלפה ב${shiftLabelText(sw.key)} נדחתה ע"י המנהל`;
+                    await pushNotif(sw.from, 'swap_result', txt);
+                    await pushNotif(sw.to, 'swap_result', txt);
+                    notify("הבקשה נדחתה");
+                }
+            } catch (e) { notify("שגיאה"); }
+        };
+
+        /* ----- Push ----- */
+        async function registerPush(role, silent) {
+            try {
+                if (!role) return;
+                if (VAPID_KEY.startsWith('PUT_')) { if (!silent) notify("חסר מפתח VAPID"); return; }
+                if (!(await isSupported())) { if (!silent) notify("הדפדפן לא תומך בהתראות"); return; }
+                if (!silent) {
+                    const perm = await Notification.requestPermission();
+                    if (perm !== 'granted') { notify("ההתראות נחסמו"); return; }
+                }
+                // scope נפרד כדי לא להתנגש עם sw.js
+                const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: 'firebase-cloud-messaging-push-scope' });
+                const token = await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+                if (!token) return;
+                await setDoc(doc(db, '_tokens', token), { rid: RESTAURANT_ID, name: role, token, updatedAt: Date.now() });
+                if (!silent) { notify("התראות הופעלו"); renderEmployeeExtras(); renderManagerExtras(); }
+            } catch (e) {
+                console.error(e);
+                if (!silent) {
+                    // אבחון: בדיקת הגעה לשרתי Firebase + הצגת פרטי השגיאה המלאים
+                    const hosts = ['firebaseinstallations.googleapis.com', 'fcmregistrations.googleapis.com', 'fcm.googleapis.com'];
+                    const results = [];
+                    for (const h of hosts) {
+                        try {
+                            await fetch('https://' + h + '/', { mode: 'no-cors', cache: 'no-store' });
+                            results.push('✔ ' + h);
+                        } catch (err) { results.push('✖ נחסם: ' + h); }
+                    }
+                    const info = [
+                        'קוד: ' + (e && e.code ? e.code : '—'),
+                        'הודעה: ' + (e && e.message ? e.message : String(e)),
+                        '',
+                        'בדיקת חיבור:',
+                        ...results,
+                        '',
+                        'דפדפן: ' + navigator.userAgent.slice(0, 120)
+                    ].join('\n');
+                    askConfirm(info);
+                }
+            }
+        }
+        window.wsPushEmployee = () => registerPush(verifiedEmployeeName, false);
+        window.wsPushManager = () => registerPush(MANAGER, false);
+
+        /* ----- תצוגה ----- */
+        function injectExtraStyles() {
+            if ($id('wsStyles')) return;
+            const css = `
+            .ws-card{background:#fff;border-radius:10px;padding:12px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.1);box-sizing:border-box}
+            .ws-card h3{margin:0 0 8px}
+            .ws-row{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #eee;font-size:.85em;flex-wrap:wrap}
+            .ws-note{font-size:.8em;color:#666;margin:2px 0}
+            .ws-alert{background:#fdecea;border:2px solid #d63031;color:#b71c1c;border-radius:10px;padding:10px;margin:12px 0;font-size:.9em;line-height:1.6}
+            .ws-info{background:#e3f2fd;border:1px solid #2196f3;color:#0d47a1;border-radius:8px;padding:8px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.88em}
+            .ws-mini{width:auto;padding:4px 10px;font-size:.8em;margin:0 2px}`;
+            const el = document.createElement('style');
+            el.id = 'wsStyles';
+            el.textContent = css;
+            document.head.appendChild(el);
+        }
+
+        // שומר ערכי שדות בזמן בנייה מחדש של האזור (כדי שלא יימחק מה שהמשתמש מקליד)
+        function keepRender(box, html) {
+            const keep = {};
+            box.querySelectorAll('[data-keep]').forEach(e => keep[e.id] = e.value);
+            box.innerHTML = html;
+            Object.keys(keep).forEach(id => { const e = $id(id); if (e) e.value = keep[id]; });
+        }
+
+        function renderEmployeeExtras() {
+            injectExtraStyles();
+            let box = $id('wsEmpBox');
+            if (!box) {
+                const anchor = $id('employeeScheduleSection');
+                if (!anchor) return;
+                box = document.createElement('div');
+                box.id = 'wsEmpBox';
+                anchor.insertAdjacentElement('afterend', box);
+            }
+            const me = verifiedEmployeeName;
+            if (!me) { box.innerHTML = ''; return; }
+            const wk = ymd(currentWeekSunday());
+            let h = '';
+
+            // באנרים של התראות שלא נקראו (עד שבוע אחורה)
+            const weekAgo = Date.now() - 7 * 86400000;
+            myNotifs.filter(n => !n.read && n.createdAt > weekAgo).sort((a, b) => b.createdAt - a.createdAt).forEach(n => {
+                h += `<div class="ws-info"><span>🔔 ${esc(n.text)}</span><button class="ws-mini" data-id="${esc(n.id)}" onclick="wsReadNotif(this.dataset.id)">קראתי</button></div>`;
+            });
+
+            if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
+
+            // בקשות החלפה אליי
+            const incoming = swaps.filter(s => s.to === me && s.status === 'pending_peer' && s.week === wk);
+            if (incoming.length) {
+                h += `<div class="ws-card"><h3>בקשות החלפה אליך</h3>`;
+                incoming.forEach(s => {
+                    h += `<div class="ws-row"><span>${esc(s.from)} מבקש/ת שתחליף/י אותו/ה ב${esc(shiftLabelText(s.key))}</span>
+                        <span><button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,true)">אשר</button>
+                        <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,false)">דחה</button></span></div>`;
+                });
+                h += `</div>`;
+            }
+
+            // בקשת החלפה שלי
+            h += `<div class="ws-card"><h3>בקשת החלפת משמרת</h3>`;
+            const myKeys = isPublished
+                ? Object.keys(publishedSchedule).filter(k => (publishedSchedule[k] || []).includes(me)).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b))
+                : [];
+            if (!isPublished) h += `<p class="ws-note">אפשר לבקש החלפה אחרי שהסידור מפורסם.</p>`;
+            else if (!myKeys.length) h += `<p class="ws-note">אין לך משמרות השבוע.</p>`;
+            else {
+                const others = employees.filter(e => e.name !== me);
+                h += `<label>המשמרת שלי:</label><select id="wsSwapShift" data-keep>${myKeys.map(k => `<option value="${esc(k)}">${esc(shiftLabelText(k))}</option>`).join('')}</select>
+                      <label style="margin-top:6px;">מי יחליף אותי:</label><select id="wsSwapTo" data-keep>${others.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('')}</select>
+                      <button onclick="wsRequestSwap()" style="background-color:#e67e22;">שלח בקשה</button>`;
+            }
+            const mine = swaps.filter(s => s.from === me && s.week === wk).slice(0, 6);
+            if (mine.length) {
+                h += `<h4 style="text-align:right;margin:10px 0 4px;">הבקשות שלי:</h4>`;
+                mine.forEach(s => { h += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))} ← ${esc(s.to)}</span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span></div>`; });
+            }
+            h += `</div>`;
+
+            // היעדרויות מראש
+            const today = ymd(israelNow());
+            const ranges = absMap[me] || [];
+            h += `<div class="ws-card"><h3>חופשה / היעדרות מראש</h3>
+                <p class="ws-note">המשמרות בטווח ייסגרו אוטומטית בכל שבוע.</p>
+                <label>מתאריך:</label><input type="date" id="wsAbsFrom" min="${today}" data-keep>
+                <label style="margin-top:6px;">עד תאריך:</label><input type="date" id="wsAbsTo" min="${today}" data-keep>
+                <label style="margin-top:6px;">סיבה (לא חובה):</label><input type="text" id="wsAbsReason" data-keep>
+                <button onclick="wsAddAbsence()" style="background-color:#27ae60;">הוסף היעדרות</button>`;
+            ranges.forEach((r, i) => {
+                if (r.to < today) return;
+                h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.from)))} – ${esc(fmtDM(parseYmd(r.to)))} ${r.reason ? '(' + esc(r.reason) + ')' : ''}</span>
+                    <button class="ws-mini" style="background:#c0392b" onclick="wsDelAbsence(${i})">✖</button></div>`;
+            });
+            h += `</div>`;
+
+            keepRender(box, h);
+        }
+
+        function renderManagerExtras() {
+            injectExtraStyles();
+            const mv = $id('managerView');
+            if (!mv) return;
+            let box = $id('wsMgrBox');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'wsMgrBox';
+                mv.prepend(box);
+            }
+            const info = overlapInfo();
+            let h = '';
+
+            // באנר אדום: 2 עובדים או יותר בהיעדרות באותו שבוע
+            const multi = info.filter(w => w.multi);
+            if (multi.length) {
+                h += `<div class="ws-alert"><b>⚠️ היעדרויות חופפות:</b>${multi.map(w => `<div>${esc(describeWeek(w))}</div>`).join('')}</div>`;
+            }
+
+            // בקשות החלפה לאישור
+            const pending = swaps.filter(s => s.status === 'pending_manager');
+            if (pending.length) {
+                h += `<div class="ws-card"><h3>בקשות החלפה לאישור (${pending.length})</h3>`;
+                pending.forEach(s => {
+                    const expired = s.week !== ymd(currentWeekSunday());
+                    h += `<div class="ws-row"><span>${esc(s.from)} ← ${esc(s.to)}: ${esc(shiftLabelText(s.key))} ${expired ? '<span class="ws-note">(שבוע אחר)</span>' : ''}</span>
+                        <span><button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,true)">אשר</button>
+                        <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,false)">דחה</button></span></div>`;
+                });
+                h += `</div>`;
+            }
+
+            // היעדרויות קרובות
+            h += `<div class="ws-card"><h3>היעדרויות קרובות</h3>`;
+            h += info.length ? info.map(w => `<div class="ws-row"><span>${esc(describeWeek(w))}</span></div>`).join('') : `<p class="ws-note">אין היעדרויות רשומות.</p>`;
+            h += `</div>`;
+
+            if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
+
+            keepRender(box, h);
+        }
+
+        function onEmployeeLoggedIn(name) {
+            subscribeNotifs(name);
+            if (notifGranted()) registerPush(name, true);
+            renderEmployeeExtras();
+            applyAbsencesToCheckboxes();
+        }
+
+        function onManagerEntered() {
+            managerScreenActive = true;
+            if (notifGranted()) registerPush(MANAGER, true);
+            renderManagerExtras();
+        }
+
+        /* ===================== סוף התוספות ===================== */
+
+        function initRealtimeListeners() {
+            onSnapshot(getEmpCollection(), (snapshot) => {
+                employees = [];
+                snapshot.forEach((d) => {
+                    let data = d.data();
+                    if(!data.name) data.name = d.id;
+                    if(!data.color) data.color = "#74b9ff";
+                    employees.push(data);
+                });
+                renderEmployeesList();
+                renderDailyAvailabilityTable();
+                renderSummaryTable();
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
+                renderEmployeeExtras();
+                renderManagerExtras();
+            });
+
+            onSnapshot(getAvailCollection(), (snapshot) => {
+                employeeAvailMap = {};
+                employeeNotesMap = {};
+                const lastThu7AM = getLastThursday7AM();
+                snapshot.forEach(d => {
+                    let data = d.data();
+                    if (data.updatedAt && data.updatedAt >= lastThu7AM) {
+                        let empName = data.name || d.id;
+                        employeeAvailMap[empName] = data.shifts || {};
+                        if(data.note) employeeNotesMap[empName] = data.note;
+                    }
+                });
+                renderDailyAvailabilityTable();
+                renderSummaryTable();
+                renderManagerNotes();
+            });
+
+            onSnapshot(getAbsCollection(), (snap) => {
+                absMap = {};
+                snap.forEach(d => { const x = d.data(); absMap[x.name || d.id] = x.ranges || []; });
+                refreshAvailabilityCheckboxes();
+                renderEmployeeExtras();
+                renderManagerExtras();
+            });
+
+            onSnapshot(getSwapsCollection(), (snap) => {
+                swaps = [];
+                snap.forEach(d => swaps.push({ id: d.id, ...d.data() }));
+                swaps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                renderEmployeeExtras();
+                renderManagerExtras();
+            });
+
+            onSnapshot(getSettingsDoc("active_shifts_config"), (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.activeShifts) {
+                        activeShiftsConfig = data.activeShifts;
+                        const checkboxes = document.querySelectorAll('#managerActiveShiftsContainer input[type="checkbox"]');
+                        checkboxes.forEach(cb => {
+                            if (activeShiftsConfig[cb.value] !== undefined) {
+                                cb.checked = activeShiftsConfig[cb.value];
+                            }
+                        });
+                    }
+                }
+                renderEmployeeShiftCheckboxes();
+            });
+
+            onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.updatedAt && data.updatedAt < getLastFriday7AM()) {
+                        currentSchedule = {};
+                        customShiftTimes = {};
+                        try { await deleteDoc(getSettingsDoc("draft_schedule")); } catch(e){}
+                    } else {
+                        currentSchedule = data.schedule || {};
+                        customShiftTimes = data.slotTimes || {};
+                    }
+                } else {
+                    currentSchedule = {};
+                    customShiftTimes = {};
+                }
+                renderFullScheduleForManager();
+                renderSummaryTable();
+            });
+
+            onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
+                if (scheduleSnap.exists()) {
+                    const data = scheduleSnap.data();
+                    if (isScheduleExpired(data.publishedAt)) {
+                        publishedSchedule = {};
+                        publishedTimes = {};
+                        publishedCustomShiftTimes = {};
+                        isPublished = false;
+                        updatePublishBadge(false);
+                        try { await deleteDoc(getSettingsDoc("published_schedule")); } catch(e){}
+                    } else {
+                        publishedSchedule = data.schedule || {};
+                        publishedTimes = data.times || {};
+                        publishedCustomShiftTimes = data.slotTimes || {};
+                        isPublished = true;
+                        updatePublishBadge(true);
+                    }
+                } else {
+                    publishedSchedule = {};
+                    publishedTimes = {};
+                    publishedCustomShiftTimes = {};
+                    isPublished = false;
+                    updatePublishBadge(false);
+                }
+                renderFullScheduleForManager();
+                renderSummaryTable();
+                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
+                renderEmployeeExtras();
+            });
+
+            // הודעות push כשהאפליקציה פתוחה
+            isSupported().then(ok => {
+                if (ok) onMessage(getMessaging(app), (p) => notify((p.notification && p.notification.body) || 'התראה חדשה'));
+            }).catch(() => {});
+        }
+        (async function boot() {
+            if (await initRestaurantId()) {
+                initRealtimeListeners();
+                touchRegistry();
+            }
+        })();
+
+        function getShiftHours(dayIdx, shiftType) {
+            return hoursFromTimes(publishedTimes, dayIdx, shiftType);
+        }
+
+        window.openTimeModal = function(shiftKey, empName, currentHoursStr) {
+            activeTimeKey = shiftKey;
+            activeTimeEmpName = empName;
+            document.getElementById('timeModalTitle').innerText = `עדכון שעות עבור ${empName}`;
+            let parts = currentHoursStr.split('-').map(s => s.trim());
+            if(parts.length === 2) {
+                document.getElementById('modalStartTime').value = parts[0];
+                document.getElementById('modalEndTime').value = parts[1];
+            }
+            document.getElementById('timeModal').style.display = 'flex';
+        };
+
+        window.closeTimeModal = function() { document.getElementById('timeModal').style.display = 'none'; };
+        window.setQuickTime = function(start, end) {
+            document.getElementById('modalStartTime').value = start;
+            document.getElementById('modalEndTime').value = end;
+        };
+
+        window.saveTimeFromModal = async function() {
+            const start = document.getElementById('modalStartTime').value;
+            const end = document.getElementById('modalEndTime').value;
+            if(!start || !end) { notify("בחר שעות"); return; }
+            customShiftTimes[`${activeTimeKey}-${activeTimeEmpName}`] = `${start} - ${end}`;
+            closeTimeModal();
+            await saveDraftToFirestore();
+            await syncPublishedIfActive();
+            renderFullScheduleForManager();
+        };
+
+        window.switchView = function(viewName) {
+            document.getElementById('selectionView').classList.add('hidden');
+            document.getElementById('employeeView').classList.add('hidden');
+            document.getElementById('managerView').classList.add('hidden');
+            managerScreenActive = false;
+
+            if(viewName === 'employee') {
+                document.getElementById('employeeView').classList.remove('hidden');
+                loadEmployeesForEmployeeView();
+            } else if(viewName === 'manager') {
+                document.getElementById('managerView').classList.remove('hidden');
+                renderFullScheduleForManager();
+                onManagerEntered();
+            } else if(viewName === 'selection') {
+                document.getElementById('superAdminView').classList.add('hidden');
+                document.getElementById('selectionView').classList.remove('hidden');
+            } else {
+                document.getElementById('selectionView').classList.remove('hidden');
+            }
+        };
+
+        window.checkManagerPassword = async function() {
+            let cfg = null;
+            try {
+                const docSnap = await getDoc(getSettingsDoc("manager_config"));
+                if (docSnap.exists()) cfg = docSnap.data();
+            } catch(e) {
+                notify("שגיאת חיבור");
+                return;
+            }
+
+            const rawPass = await askText("סיסמת מנהל");
+            if (rawPass === null) return;
+            const pass = rawPass.trim();
+
+            try {
+                let ok = false, mustSetNew = false;
+                if (cfg && cfg.passwordHash && cfg.salt) {
+                    ok = (await hashPassword(pass, cfg.salt)) === cfg.passwordHash;
+                } else if (cfg && cfg.password) {
+                    ok = (pass === String(cfg.password));
+                    if (ok) await saveManagerPassword(pass);
+                } else {
+                    ok = (pass === LEGACY_DEFAULT_PASSWORD);
+                    mustSetNew = ok;
+                }
+
+                if (!ok) { notify("סיסמה שגויה"); return; }
+
+                if (mustSetNew) {
+                    const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
+                    const newPass = newRaw === null ? "" : newRaw.trim();
+                    if (newPass.length < 4 || newPass === LEGACY_DEFAULT_PASSWORD) {
+                        notify("סיסמה לא תקינה");
+                        return;
+                    }
+                    await saveManagerPassword(newPass);
+                    notify("הסיסמה נשמרה");
+                }
+                switchView('manager');
+            } catch(e) { notify("שגיאה באימות"); }
+        };
+
+        window.updateManagerPassword = async function() {
+            const newPass = document.getElementById('newManagerPass').value.trim();
+            if (!newPass) { notify("הכנס סיסמה"); return; }
+            if (newPass.length < 4) { notify("לפחות 4 תווים"); return; }
+            try {
+                await saveManagerPassword(newPass);
+                notify("הסיסמה עודכנה");
+                document.getElementById('newManagerPass').value = '';
+            } catch(e){ notify("שגיאה בעדכון"); }
+        };
+
+        window.checkSuperAdminPassword = async function() {
+            let cfg = null;
+            try {
+                const docSnap = await getDoc(getSuperAdminConfigDoc());
+                if (docSnap.exists()) cfg = docSnap.data();
+            } catch(e) {
+                notify("שגיאת חיבור");
+                return;
+            }
+
+            const rawPass = await askText("סיסמת ניהול-על");
+            if (rawPass === null) return;
+            const pass = rawPass.trim();
+
+            try {
+                let ok = false, mustSetNew = false;
+                if (cfg && cfg.passwordHash && cfg.salt) {
+                    ok = (await hashPassword(pass, cfg.salt)) === cfg.passwordHash;
+                } else {
+                    ok = (pass === SUPER_ADMIN_DEFAULT_PASSWORD);
+                    mustSetNew = ok;
+                }
+
+                if (!ok) { notify("סיסמה שגויה"); return; }
+
+                if (mustSetNew) {
+                    const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
+                    const newPass = newRaw === null ? "" : newRaw.trim();
+                    if (newPass.length < 4 || newPass === SUPER_ADMIN_DEFAULT_PASSWORD) {
+                        notify("סיסמה לא תקינה");
+                        return;
+                    }
+                    const salt = generateSalt();
+                    const hash = await hashPassword(newPass, salt);
+                    await setDoc(getSuperAdminConfigDoc(), { passwordHash: hash, salt: salt });
+                    notify("הסיסמה נשמרה");
+                }
+
+                document.getElementById('selectionView').classList.add('hidden');
+                document.getElementById('employeeView').classList.add('hidden');
+                document.getElementById('managerView').classList.add('hidden');
+                const notice = document.getElementById('deletedNoticeCard');
+                if (notice) notice.remove();
+                superAdminVerified = true;
+                document.getElementById('businessSetupView').classList.add('hidden');
+                document.getElementById('superAdminView').classList.remove('hidden');
+                loadSuperAdminList();
+            } catch(e) { notify("שגיאה באימות"); }
+        };
+
+        window.loadSuperAdminList = async function() {
+            const container = document.getElementById('superAdminList');
+            if (!container) return;
+            container.innerHTML = '<p style="color:#888;">טוען רשימת עסקים...</p>';
+
+            try {
+                const snap = await getDocs(collection(db, '_registry'));
+                if (snap.empty) {
+                    container.innerHTML = '<p style="color:#888;">לא נמצאו עסקים רשומים עדיין. עסקים נרשמים אוטומטית בכניסה הראשונה שלהם למערכת.</p>';
+                    return;
+                }
+
+                const businesses = [];
+                snap.forEach(d => businesses.push(d.data()));
+                const activeBiz = businesses.filter(b => !b.deleted).sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0));
+                const deletedBiz = businesses.filter(b => b.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+
+                const fmtDate = (ms) => ms ? new Date(ms).toLocaleString('he-IL', { day:'numeric', month:'numeric', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+
+                let html = '';
+                if (activeBiz.length === 0) {
+                    html += '<p style="color:#888;">אין עסקים פעילים.</p>';
+                }
+                for (const biz of activeBiz) {
+                    let empCount = 0;
+                    try {
+                        const empSnap = await getDocs(collection(db, `${biz.id}_employees`));
+                        empCount = empSnap.size;
+                    } catch(e) {}
+
+                    html += `
+                        <div class="biz-item">
+                            <div class="biz-info">
+                                <b>${esc(biz.id)}</b> ${biz.id === RESTAURANT_ID ? '⭐ (הנוכחי)' : ''}<br>
+                                עובדים: ${empCount} | נוצר: ${fmtDate(biz.createdAt)}<br>
+                                כניסה אחרונה: ${fmtDate(biz.lastSeenAt)}
+                            </div>
+                            <div style="display:flex; gap:6px;">
+                                <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="jumpToBusiness(this.dataset.id)">עבור לעסק</button>
+                                <button class="delete-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="deleteBusiness(this.dataset.id)">מחק עסק</button>
+                            </div>
+                        </div>`;
+                }
+
+                if (deletedBiz.length > 0) {
+                    html += `<h4 style="margin-top:16px; color:#888;">עסקים שנמחקו (${deletedBiz.length}):</h4>`;
+                    for (const biz of deletedBiz) {
+                        html += `
+                            <div class="biz-item" style="opacity:0.7; background:#f5f5f5;">
+                                <div class="biz-info">
+                                    <b>${esc(biz.id)}</b><br>
+                                    נמחק בתאריך: ${fmtDate(biz.deletedAt)}
+                                </div>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="restoreBusiness(this.dataset.id)">שחזר שם</button>
+                                    <button class="delete-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="purgeBusinessRecord(this.dataset.id)">הסר מהרשימה</button>
+                                </div>
+                            </div>`;
+                    }
+                }
+
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<p style="color:red;">שגיאה בטעינת הרשימה.</p>';
+            }
+        };
+
+        window.jumpToBusiness = function(bizId) {
+            try { localStorage.setItem('work_schedule_restaurant_id', bizId); } catch(e){}
+            const url = new URL(window.location.href);
+            url.searchParams.set('r', bizId);
+            window.location.href = url.toString();
+        };
+
+        window.deleteBusiness = async function(bizId) {
+            if (!await askConfirm(`למחוק לצמיתות את "${bizId}"?`)) return;
+            if (!await askConfirm(`בטוח? למחוק את "${bizId}"`)) return;
+
+            try {
+                const empSnap = await getDocs(collection(db, `${bizId}_employees`));
+                await Promise.all(empSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_employees`, d.id))));
+
+                const availSnap = await getDocs(collection(db, `${bizId}_availability`));
+                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_availability`, d.id))));
+
+                const absSnap = await getDocs(collection(db, `${bizId}_absences`));
+                await Promise.all(absSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_absences`, d.id))));
+
+                const swapSnap = await getDocs(collection(db, `${bizId}_swaps`));
+                await Promise.all(swapSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_swaps`, d.id))));
+
+                const settingsDocs = ["manager_config", "active_shifts_config", "draft_schedule", "published_schedule"];
+                await Promise.all(settingsDocs.map(name => deleteDoc(doc(db, `${bizId}_settings`, name))));
+
+                // לא מוחקים את רשומת המרשם עצמה - מסמנים כ"נמחק" כדי לחסום כניסה מחדש דרך קישור ישן
+                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: true, deletedAt: Date.now() }, { merge: true });
+
+                notify("העסק נמחק");
+                loadSuperAdminList();
+            } catch(e) { notify("שגיאה במחיקה"); }
+        };
+
+        window.restoreBusiness = async function(bizId) {
+            if (!await askConfirm(`לשחזר את "${bizId}"? הנתונים שנמחקו לא יחזרו.`)) return;
+            try {
+                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: false, deletedAt: null }, { merge: true });
+                notify("שוחזר");
+                loadSuperAdminList();
+            } catch(e) { notify("שגיאה בשחזור."); }
+        };
+
+        window.purgeBusinessRecord = async function(bizId) {
+            if (!await askConfirm(`להסיר את "${bizId}" מהרשימה?`)) return;
+            try {
+                await deleteDoc(getRegistryDoc(bizId));
+                loadSuperAdminList();
+            } catch(e) { notify("שגיאה."); }
+        };
+
+        window.encryptAllLegacyPins = async function() {
+            const legacy = employees.filter(e => e.pin && !e.pinHash);
+            if (legacy.length === 0) { notify("הכול כבר מוצפן"); return; }
+            if (!await askConfirm(`להצפין ${legacy.length} קודים?`)) return;
+            try {
+                for (const e of legacy) {
+                    const fields = await makeMergePinFields(e.pin);
+                    await setDoc(doc(getEmpCollection(), e.name), fields, { merge: true });
+                }
+                notify("הקודים הוצפנו");
+            } catch(err) { notify("שגיאה בהצפנה"); }
+        };
+
+        function updatePublishBadge(published) {
+            const badge = document.getElementById('publishStatusBadge');
+            if(!badge) return;
+            if(published) {
+                badge.innerText = "פורסם לעובדים";
+                badge.className = "status-badge status-published";
+            } else {
+                badge.innerText = "טיוטה (טרם פורסם)";
+                badge.className = "status-badge status-draft";
+            }
+        }
+
+        window.addEmployee = async function() {
+            const name = document.getElementById('empName').value.trim();
+            const pin = document.getElementById('empPin').value.trim();
+            const rank = parseInt(document.getElementById('empRank').value);
+            const color = document.getElementById('empColorInput').value;
+
+            if (!name) { notify("הכנס שם עובד"); return; }
+            if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
+            if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
+            if (employees.some(e => e.name === name)) {
+                notify("השם כבר קיים"); return;
+            }
+
+            try {
+                const salt = generateSalt();
+                const pinHash = await hashPassword(pin, salt);
+                const empData = { id: Date.now(), name, pinHash, pinSalt: salt, rank, color };
+                await setDoc(doc(getEmpCollection(), name), empData);
+                document.getElementById('empName').value = '';
+                document.getElementById('empPin').value = '';
+                notify("העובד נוסף");
+            } catch(e) { notify("שגיאה בהוספה"); }
+        };
+
+        window.openEditModal = function(name, pin, rank, color) {
+            originalEditingName = name;
+            document.getElementById('editEmpName').value = name;
+            document.getElementById('editEmpPin').value = pin || '';
+            document.getElementById('editEmpRank').value = rank;
+            document.getElementById('editEmpColorInput').value = color || '#74b9ff';
+
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
+                el.classList.remove('selected');
+                if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
+                    el.classList.add('selected');
+                }
+            });
+            document.getElementById('editEmployeeModal').style.display = 'flex';
+        };
+
+        window.closeEditModal = function() {
+            document.getElementById('editEmployeeModal').style.display = 'none';
+        };
+
+        async function renameEmployeeReferences(oldName, newName) {
+            try {
+                const oldRef = doc(getAvailCollection(), oldName);
+                const snap = await getDoc(oldRef);
+                if (snap.exists()) {
+                    await setDoc(doc(getAvailCollection(), newName), { ...snap.data(), name: newName });
+                    await deleteDoc(oldRef);
+                }
+            } catch(e){}
+
+            try {
+                const oldAbs = doc(getAbsCollection(), oldName);
+                const snap = await getDoc(oldAbs);
+                if (snap.exists()) {
+                    await setDoc(doc(getAbsCollection(), newName), { ...snap.data(), name: newName });
+                    await deleteDoc(oldAbs);
+                }
+            } catch(e){}
+
+            const swapNames = (sched) => {
+                const out = {};
+                Object.keys(sched || {}).forEach(k => {
+                    out[k] = (sched[k] || []).map(n => n === oldName ? newName : n);
+                });
+                return out;
+            };
+
+            try {
+                const draftRef = getSettingsDoc("draft_schedule");
+                const snap = await getDoc(draftRef);
+                if (snap.exists()) {
+                    const d = snap.data();
+                    await setDoc(draftRef, { ...d, schedule: swapNames(d.schedule) });
+                }
+            } catch(e){}
+
+            try {
+                const pubRef = getSettingsDoc("published_schedule");
+                const snap = await getDoc(pubRef);
+                if (snap.exists()) {
+                    const d = snap.data();
+                    await setDoc(pubRef, { ...d, schedule: swapNames(d.schedule) });
+                }
+            } catch(e){}
+        }
+
+        window.saveEditedEmployee = async function() {
+            const newName = document.getElementById('editEmpName').value.trim();
+            const pinRaw = document.getElementById('editEmpPin').value.trim();
+            const rank = parseInt(document.getElementById('editEmpRank').value);
+            const color = document.getElementById('editEmpColorInput').value;
+
+            if (!newName) { notify("הכנס שם עובד"); return; }
+            if (newName.includes('/')) { notify("השם לא יכול להכיל /"); return; }
+            if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
+
+            const oldEmp = employees.find(e => e.name === originalEditingName);
+            if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
+
+            const renamed = (originalEditingName !== newName);
+            if (renamed && employees.some(e => e.name === newName)) {
+                notify("השם כבר קיים"); return;
+            }
+
+            const hasExistingCode = !!(oldEmp.pinHash || oldEmp.pin);
+            if (!pinRaw && !hasExistingCode) { notify("קוד אישי: 4 ספרות"); return; }
+
+            try {
+                const updated = { ...oldEmp, name: newName, rank: rank, color: color };
+                if (pinRaw) {
+                    const salt = generateSalt();
+                    updated.pinHash = await hashPassword(pinRaw, salt);
+                    updated.pinSalt = salt;
+                    delete updated.pin;
+                }
+                await setDoc(doc(getEmpCollection(), newName), updated);
+                if (renamed) {
+                    await renameEmployeeReferences(originalEditingName, newName);
+                    await deleteDoc(doc(getEmpCollection(), originalEditingName));
+                }
+                closeEditModal();
+                notify("עודכן");
+            } catch(e) { notify("שגיאה בעדכון"); }
+        };
+
+        window.deleteEmployee = async function(name) {
+            if(await askConfirm(`למחוק את ${name}?`)) {
+                try {
+                    await deleteDoc(doc(getEmpCollection(), name));
+                    await deleteDoc(doc(getAvailCollection(), name));
+                    await deleteDoc(doc(getAbsCollection(), name));
+                } catch(e){}
+            }
+        };
+
+        function renderEmployeesList() {
+            const list = document.getElementById('empList');
+            if (!list) return;
+            if (employees.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
+            list.innerHTML = employees.map((e) => {
+                const pinInfo = e.pinHash ? 'קוד: מוצפן' : `קוד: ${esc(e.pin || '—')} (לא מוצפן)`;
+                return `
+                <div class="emp-item">
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span class="emp-tag" style="background-color: ${esc(e.color || '#74b9ff')}; margin:0;">${esc(e.name)}</span>
+                        <span style="font-size:0.75em; color:#555;">(${pinInfo}, רמה ${esc(e.rank || 1)})</span>
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="edit-btn" data-name="${esc(e.name)}" data-pin="${esc(e.pinHash ? '' : (e.pin || ''))}" data-rank="${esc(e.rank || 3)}" data-color="${esc(e.color || '#74b9ff')}" onclick="openEditModal(this.dataset.name, this.dataset.pin, this.dataset.rank, this.dataset.color)">ערוך</button>
+                        <button class="delete-btn" data-name="${esc(e.name)}" onclick="deleteEmployee(this.dataset.name)">הסר</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function loadEmployeesForEmployeeView() {
+            const dropdown = document.getElementById('employeeNameDropdown');
+            if(!dropdown) return;
+            dropdown.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'בחר את שמך...';
+            dropdown.appendChild(placeholder);
+            resetPinStep();
+            employees.forEach(emp => {
+                const opt = document.createElement('option');
+                opt.value = emp.name;
+                opt.textContent = emp.name;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        window.resetPinStep = function() {
+            verifiedEmployeeName = null;
+            document.getElementById('employeePinInput').value = '';
+            document.getElementById('employeeFormArea').classList.add('hidden');
+            subscribeNotifs(null);
+            renderEmployeeExtras();
+        };
+
+        window.verifyEmployeePin = async function() {
+            const selectedName = document.getElementById('employeeNameDropdown').value;
+            const inputPin = document.getElementById('employeePinInput').value.trim();
+            if (!selectedName || !inputPin) { notify("בחר שם והכנס קוד"); return; }
+
+            const emp = employees.find(e => e.name === selectedName);
+            if (!emp) { notify("העובד לא נמצא."); return; }
+
+            let ok = false, needsMigration = false;
+            try {
+                if (emp.pinHash && emp.pinSalt) {
+                    ok = ((await hashPassword(inputPin, emp.pinSalt)) === emp.pinHash);
+                } else if (emp.pin) {
+                    ok = (inputPin === String(emp.pin));
+                    needsMigration = ok;
+                } else {
+                    notify("לא הוגדר קוד. פנה למנהל."); return;
+                }
+            } catch(e) { notify("שגיאה באימות"); return; }
+
+            if (ok) {
+                verifiedEmployeeName = selectedName;
+                document.getElementById('employeeFormArea').classList.remove('hidden');
+
+                try {
+                    const now = new Date();
+                    const formattedTime = now.toLocaleString('he-IL', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' });
+                    const update = { lastViewedAt: formattedTime };
+                    if (needsMigration) Object.assign(update, await makeMergePinFields(inputPin));
+                    await setDoc(doc(getEmpCollection(), selectedName), update, { merge: true });
+                } catch(e){}
+
+                renderEmployeeShiftCheckboxes();
+                let existingAvail = employeeAvailMap[selectedName] || {};
+                let existingNote = employeeNotesMap[selectedName] || '';
+
+                document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => {
+                    cb.checked = !!existingAvail[cb.value];
+                });
+                document.getElementById('employeeNoteInput').value = existingNote;
+                renderScheduleForEmployee(selectedName);
+                onEmployeeLoggedIn(selectedName);
+            } else {
+                notify("קוד שגוי");
+                document.getElementById('employeeFormArea').classList.add('hidden');
+            }
+        };
+
+        function renderScheduleForEmployee(empName) {
+            const summaryBox = document.getElementById('myShiftsSummary');
+            if (!summaryBox) return;
+
+            if (!isPublished) {
+                summaryBox.innerHTML = `<div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; border: 1px solid #ffeeba; text-align: center; font-size:0.9em;"><b>סידור העבודה לשבוע הבא טרם פורסם.</b></div>`;
+                daysKeys.forEach(d => ['m','e'].forEach(s => {
+                    const cell = document.getElementById(`emp-cell-${d}-${s}`);
+                    if(cell) cell.innerHTML = '-';
+                }));
+                return;
+            }
+
+            let myShiftsList = [];
+            daysKeys.forEach(dIdx => {
+                ['m', 'e'].forEach(shiftType => {
+                    const key = `${dIdx}-${shiftType}`;
+                    const cell = document.getElementById(`emp-cell-${key}`);
+                    if(!cell) return;
+
+                    const assigned = publishedSchedule[key] || [];
+                    const defaultHours = getShiftHours(dIdx, shiftType);
+                    let html = '';
+
+                    assigned.forEach((name, index) => {
+                        if(!name) return;
+                        const empObj = employees.find(e => e.name === name);
+                        const empColor = empObj ? empObj.color : '#74b9ff';
+                        const isMe = (name === empName);
+                        const customHours = publishedCustomShiftTimes[`${key}-${name}`];
+                        const shiftHours = customHours || defaultHours;
+                        const isCustom = !!customHours && customHours !== defaultHours;
+
+                        if (isMe) myShiftsList.push(`יום ${daysNames[dIdx]} (${shiftType === 'm' ? 'בוקר' : 'ערב'} ${esc(shiftHours)})`);
+
+                        html += `
+                            <div class="emp-container ${isMe ? 'my-shift-highlight' : ''}" style="cursor: default;">
+                                <span class="emp-tag" style="background-color: ${esc(empColor)}; cursor: default; pointer-events: none;">${esc(name)} ${isMe ? '⭐' : ''}</span>
+                                <div style="margin-top: 2px;">${hoursHtml(shiftHours, isCustom ? 'custom' : '')}</div>
+                            </div>`;
+                    });
+
+                    cell.innerHTML = html || '-';
+                });
+            });
+
+            if (myShiftsList.length > 0) {
+                summaryBox.innerHTML = `<div class="my-shifts-box"><h3 style="margin: 0 0 6px 0; color: #0d47a1; font-size:1em;">שלום ${esc(empName)}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3><ul style="margin: 0; padding-right: 18px; color: #1565c0; font-weight: bold; font-size:0.85em;">${myShiftsList.map(s => `<li>${s}</li>`).join('')}</ul></div>`;
+            } else {
+                summaryBox.innerHTML = `<div class="my-shifts-box" style="background:#f5f5f5; border-color:#ccc;"><h3 style="margin:0; color:#666; font-size:0.95em;">שלום ${esc(empName)}, לא שובצת למשמרות השבוע.</h3></div>`;
+            }
+        }
+
+        window.submitEmployeeAvailability = async function() {
+            if(!verifiedEmployeeName) return;
+            const checkboxes = document.querySelectorAll('#shiftsCheckboxContainer input:not([disabled]):checked');
+            let selectedShifts = {};
+            checkboxes.forEach(cb => selectedShifts[cb.value] = true);
+            const note = document.getElementById('employeeNoteInput').value.trim();
+
+            try {
+                await setDoc(doc(getAvailCollection(), verifiedEmployeeName), {
+                    name: verifiedEmployeeName,
+                    shifts: selectedShifts,
+                    note: note,
+                    updatedAt: Date.now()
+                });
+                notify("הזמינות עודכנה");
+                switchView('selection');
+            } catch(e){ notify("שגיאה בשמירה"); }
+        };
+
+        window.generateSchedule = async function() {
+            if (employees.length === 0) { notify("אין עובדים"); return; }
+            let shiftCounts = {};
+            employees.forEach(e => shiftCounts[e.name] = 0);
+            currentSchedule = {};
+            customShiftTimes = {};
+
+            daysKeys.forEach(dIdx => {
+                let assignedToday = [];
+                let reqMCount = parseInt(document.getElementById('mCount').value);
+                if (dIdx === '5') reqMCount = parseInt(document.getElementById('friMCount').value);
+                if (dIdx === '6') reqMCount = parseInt(document.getElementById('satMCount').value);
+
+                if (activeShiftsConfig[`${dIdx}-m`] !== false) {
+                    let morningShift = assignShift(reqMCount, dIdx, 'm', assignedToday, shiftCounts);
+                    assignedToday.push(...morningShift);
+                    morningShift.forEach(e => shiftCounts[e.name]++);
+                    currentSchedule[`${dIdx}-m`] = morningShift.map(e => e.name);
+                } else {
+                    currentSchedule[`${dIdx}-m`] = [];
+                }
+
+                let reqECount = parseInt(document.getElementById('eCount').value);
+                if (dIdx === '5') reqECount = parseInt(document.getElementById('friECount').value);
+                if (dIdx === '6') reqECount = parseInt(document.getElementById('satECount').value);
+
+                if (activeShiftsConfig[`${dIdx}-e`] !== false) {
+                    let eveningShift = assignShift(reqECount, dIdx, 'e', assignedToday, shiftCounts);
+                    assignedToday.push(...eveningShift);
+                    eveningShift.forEach(e => shiftCounts[e.name]++);
+                    currentSchedule[`${dIdx}-e`] = eveningShift.map(e => e.name);
+                } else {
+                    currentSchedule[`${dIdx}-e`] = [];
+                }
+            });
+
+            await saveDraftToFirestore();
+            renderFullScheduleForManager();
+            renderSummaryTable();
+            renderManagerNotes();
+            notify("הטיוטה נשמרה");
+        };
+
+        window.publishSchedule = async function() {
+            if (!currentSchedule || Object.keys(currentSchedule).length === 0) { notify("אין סידור לפרסום"); return; }
+            const currentTimes = readTimesFromInputs();
+            try {
+                await saveDraftToFirestore();
+                await setDoc(getSettingsDoc("published_schedule"), {
+                    schedule: currentSchedule,
+                    times: currentTimes,
+                    slotTimes: customShiftTimes,
+                    publishedAt: Date.now()
+                });
+                notify("הסידור פורסם");
+                // התראה (באנר + push) לכל העובדים
+                const sun = currentWeekSunday();
+                const txt = `סידור העבודה לשבוע ${fmtDM(sun)}–${fmtDM(addDays(sun, 6))} פורסם`;
+                for (const e of employees) await pushNotif(e.name, 'published', txt);
+            } catch(e){ notify("שגיאה בפרסום"); }
+        };
+
+        window.unpublishSchedule = async function() {
+            if (!isPublished) { notify("הסידור לא מפורסם"); return; }
+            if (!await askConfirm("לבטל פרסום?")) return;
+            try {
+                await deleteDoc(getSettingsDoc("published_schedule"));
+                notify("הפרסום בוטל");
+            } catch(e){ notify("שגיאה בביטול"); }
+        };
+
+        window.renderFullScheduleForManager = function() {
+            const t = readTimesFromInputs();
+
+            daysKeys.forEach(dIdx => {
+                renderShiftCell(dIdx, 'm', hoursFromTimes(t, dIdx, 'm'));
+                renderShiftCell(dIdx, 'e', hoursFromTimes(t, dIdx, 'e'));
+            });
+        };
+
+        function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
+            const key = `${dayIdx}-${shiftType}`;
+            let available = employees.filter(e => (employeeAvailMap[e.name] || {})[key]);
+            let fresh = available.filter(e => !alreadyAssignedToday.some(a => a.name === e.name));
+            let tired = available.filter(e => alreadyAssignedToday.some(a => a.name === e.name));
+
+            const sortEmps = (arr) => {
+                arr.sort((a, b) => {
+                    if (b.rank !== a.rank) return b.rank - a.rank;
+                    if (shiftCounts[a.name] !== shiftCounts[b.name]) return shiftCounts[a.name] - shiftCounts[b.name];
+                    return Math.random() - 0.5;
+                });
+            };
+            sortEmps(fresh);
+            sortEmps(tired);
+
+            let chosen = fresh.slice(0, requiredCount);
+            if (chosen.length < requiredCount && tired.length > 0) {
+                chosen.push(...tired.slice(0, requiredCount - chosen.length));
+            }
+            return chosen;
+        }
+
+        function renderShiftCell(dayIdx, shiftType, defaultTime) {
+            const key = `${dayIdx}-${shiftType}`;
+            const cell = document.getElementById(`cell-${key}`);
+            if (!cell) return;
+
+            if (activeShiftsConfig[key] === false) {
+                cell.innerHTML = `<span style="color: #aaa; font-size: 0.75em;">לא פעילה השבוע</span>`;
+                return;
+            }
+
+            const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+
+            let reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'mCount' : 'eCount').value);
+            if (dayIdx === '5') {
+                reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'friMCount' : 'friECount').value);
+            }
+            if (dayIdx === '6') {
+                reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'satMCount' : 'satECount').value);
+            }
+
+            let html = '';
+            assignedNames.forEach((empName, index) => {
+                const emp = employees.find(e => e.name === empName);
+                const isAvail = employeeAvailMap[empName]?.[key];
+                const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
+                const customTime = customShiftTimes[`${key}-${empName}`];
+                const slotTime = customTime || defaultTime;
+                const isCustom = !!customTime && customTime !== defaultTime;
+
+                html += `
+                    <div class="emp-container">
+                        <span class="emp-tag" style="background-color: ${esc(empColor)}" onclick="openSwapModal('${key}', ${index})">
+                            ${esc(empName)}
+                        </span>
+                        ${!isAvail ? '<div class="unavail-badge">ללא זמינות</div>' : ''}
+                        <div>
+                            <button type="button" class="time-badge-btn ${isCustom ? 'custom' : ''}" title="שינוי שעות"
+                                data-key="${key}" data-time="${esc(slotTime)}" data-name="${esc(empName)}"
+                                onclick="openTimeModal(this.dataset.key, this.dataset.name, this.dataset.time)">
+                                ${hoursHtml(slotTime)}
+                            </button>
+                        </div>
+                    </div>`;
+            });
+
+            let maxSlots = Math.max(reqCount, assignedNames.length + 1);
+            for (let i = assignedNames.length; i < maxSlots; i++) {
+                const isExtra = i >= reqCount;
+                html += `
+                    <div class="empty-slot" style="${isExtra ? 'border-color:#e67e22; color:#d35400; background:#fef5e7;' : ''}" onclick="openSwapModal('${key}', ${i})">
+                        + ${isExtra ? 'לאלץ עובד נוסף' : 'שיבוץ עובד'}
+                    </div>`;
+            }
+            cell.innerHTML = html;
+        }
+
+        window.openSwapModal = function(shiftKey, index) {
+            activeSwapKey = shiftKey;
+            activeSwapIndex = index;
+            const modal = document.getElementById('swapModal');
+            const list = document.getElementById('modalEmpList');
+
+            let html = `<button class="modal-emp-btn" style="color:red;" onclick="applySwap(null)"><span>הסר עובד ממשבצת זו</span></button>`;
+            employees.forEach((emp) => {
+                const isAvail = employeeAvailMap[emp.name]?.[shiftKey];
+                html += `
+                    <button class="modal-emp-btn" data-name="${esc(emp.name)}" onclick="applySwap(this.dataset.name)">
+                        <span><strong style="color:${esc(emp.color || '#74b9ff')}">●</strong> ${esc(emp.name)} (רמה ${esc(emp.rank || 1)})</span>
+                        <span style="font-size:0.75em; color:${isAvail?'green':'red'}">${isAvail?'זמין':'לא הגיש'}</span>
+                    </button>`;
+            });
+
+            list.innerHTML = html;
+            modal.style.display = 'flex';
+        };
+
+        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; };
+
+        window.applySwap = async function(empName) {
+            if(!activeSwapKey) return;
+            if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
+
+            if (empName === null) {
+                const removedName = currentSchedule[activeSwapKey][activeSwapIndex];
+                currentSchedule[activeSwapKey].splice(activeSwapIndex, 1);
+                if (removedName) delete customShiftTimes[`${activeSwapKey}-${removedName}`];
+            } else {
+                currentSchedule[activeSwapKey][activeSwapIndex] = empName;
+            }
+            closeModal();
+            await saveDraftToFirestore();
+            await syncPublishedIfActive();
+            renderFullScheduleForManager();
+            renderSummaryTable();
+        };
+
+        function renderDailyAvailabilityTable() {
+            const tbody = document.getElementById('dailyAvailTableBody');
+            if (!tbody) return;
+
+            const tagHtml = (e) => `<span class="emp-tag" style="background-color:${esc(e.color || '#74b9ff')}; font-size:0.75em; margin:2px;">${esc(e.name)} (${esc(e.rank || 1)})</span>`;
+
+            let html = '';
+            daysKeys.forEach((dIdx) => {
+                const dayName = daysNames[dIdx];
+                const mKey = `${dIdx}-m`;
+                const eKey = `${dIdx}-e`;
+
+                let morningAvail = employees.filter(e => employeeAvailMap[e.name]?.[mKey]);
+                let eveningAvail = employees.filter(e => employeeAvailMap[e.name]?.[eKey]);
+
+                let mHtml = morningAvail.length > 0 ? morningAvail.map(tagHtml).join(' ') : '<span style="color:#aaa; font-size:0.8em;">אין זמינים</span>';
+                let eHtml = eveningAvail.length > 0 ? eveningAvail.map(tagHtml).join(' ') : '<span style="color:#aaa; font-size:0.8em;">אין זמינים</span>';
+
+                html += `<tr><td><b>${dayName}</b></td><td style="text-align: right;">${mHtml}</td><td style="text-align: right;">${eHtml}</td></tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderSummaryTable() {
+            const tbody = document.getElementById('summaryTableBody');
+            const countSummary = document.getElementById('submissionSummaryCount');
+            if (!tbody) return;
+
+            if (employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">אין עובדים במערכת</td></tr>'; return;
+            }
+
+            let submittedCount = 0;
+            tbody.innerHTML = employees.map((emp) => {
+                let userAvail = employeeAvailMap[emp.name] || {};
+                let hasSubmitted = Object.values(userAvail).some(val => val === true);
+                if (hasSubmitted) submittedCount++;
+
+                let statusHtml = hasSubmitted ? '<span style="color: #27ae60; font-weight: bold; font-size: 1.25em;">✔</span>' : '<span style="color: #e74c3c; font-weight: bold; font-size: 1.25em;">✖</span>';
+                let availCount = Object.values(userAvail).filter(Boolean).length;
+                let assignedCount = 0;
+                Object.values(currentSchedule).forEach(list => {
+                    if(Array.isArray(list)) assignedCount += list.filter(name => name === emp.name).length;
+                });
+                let lastView = emp.lastViewedAt ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${esc(emp.lastViewedAt)}</span>` : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
+
+                return `
+                    <tr>
+                        <td><span class="emp-tag" style="background-color:${esc(emp.color || '#74b9ff')}; display:inline-block; margin:0;">${esc(emp.name)}</span></td>
+                        <td>${statusHtml}</td>
+                        <td><span class="stat-num">${availCount}</span></td>
+                        <td><span class="stat-num" style="color:#1877f2;">${assignedCount}</span></td>
+                        <td>${lastView}</td>
+                    </tr>`;
+            }).join('');
+
+            if(countSummary) {
+                countSummary.innerHTML = `<div style="background: #eef5ff; padding: 8px; border-radius: 6px; margin-bottom: 10px; text-align: center; font-weight: bold; color: #1877f2; font-size: 0.85em;">מילאו זמינות: ${submittedCount} מתוך ${employees.length} עובדים</div>`;
+            }
+        }
+
+        function renderManagerNotes() {
+            const container = document.getElementById('managerNotesContainer');
+            if(!container) return;
+            let notesHtml = '<h4>הערות עובדים:</h4><ul>';
+            let hasNotes = false;
+            Object.keys(employeeNotesMap).forEach(name => {
+                if(employeeNotesMap[name]) {
+                    hasNotes = true;
+                    notesHtml += `<li><strong>${esc(name)}:</strong> ${esc(employeeNotesMap[name])}</li>`;
+                }
+            });
+            container.innerHTML = hasNotes ? notesHtml + '</ul>' : '';
+        }
+
+        window.resetScheduleOnly = async function() {
+            if(!await askConfirm("למחוק את כל הזמינויות והסידור?")) return;
+            try {
+                const availSnap = await getDocs(getAvailCollection());
+                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(getAvailCollection(), d.id))));
+                await deleteDoc(getSettingsDoc("draft_schedule"));
+                await deleteDoc(getSettingsDoc("published_schedule"));
+                currentSchedule = {}; customShiftTimes = {};
+                renderFullScheduleForManager();
+                renderSummaryTable();
+                notify("הנתונים נמחקו");
+            } catch(e){ notify("שגיאה במחיקה"); }
+        };
+
+        window.exportToPDF = async function() {
+            const btn = document.getElementById('pdfExportBtn');
+            btn.disabled = true;
+            btn.innerText = "מייצר PDF...";
+
+            const dates = getScheduleDates();
+            const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
+
+            // עדכון התאריכים בכותרות הטבלה של ה-PDF הנסתר
+            for(let i=0; i<7; i++) {
+                let th = document.getElementById(`pdf-th-${i}`);
+                if(th) th.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+            }
+            document.getElementById('pdfSubtitleDates').innerText = `תאריכים: ${dates[0]} - ${dates[6]}`;
+
+            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
+            const inputTimes = readTimesFromInputs();
+            const pdfTimes = {};
+            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
+
+            // מילוי נתוני המשמרות לתוך הטבלה הנסתרת - בכל תא מוצגות שעות לכל עובד
+            daysKeys.forEach(dIdx => {
+                ['m', 'e'].forEach(shiftType => {
+                    const key = `${dIdx}-${shiftType}`;
+                    const targetCell = document.getElementById(`pdf-cell-${key}`);
+                    if(!targetCell) return;
+
+                    if (activeShiftsConfig[key] === false) {
+                        targetCell.innerHTML = `<div style="color: #aaa; font-size: 16px; text-align: center;">לא פעילה</div>`;
+                        return;
+                    }
+
+                    const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+                    let html = '';
+                    const defaultTime = hoursFromTimes(pdfTimes, dIdx, shiftType);
+
+                    assignedNames.forEach((empName, index) => {
+                        const emp = employees.find(e => e.name === empName);
+                        const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
+                        const customTime = customShiftTimes[`${key}-${empName}`];
+                        const slotTime = customTime || defaultTime;
+                        const isCustom = !!customTime && customTime !== defaultTime;
+
+                        html += `
+                            <div style="background: white; border: 1px solid #bbb; border-radius: 6px; padding: 6px 4px; margin-bottom: 6px; text-align: center;">
+                                <div style="display: inline-block; background-color: ${esc(empColor)}; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 20px; color: black; border: 1px solid rgba(0,0,0,0.15);">${esc(empName)}</div>
+                                <div style="margin-top: 5px;">${hoursHtml(slotTime, isCustom ? 'custom' : '')}</div>
+                            </div>`;
+                    });
+                    targetCell.innerHTML = html || '<div style="color:#aaa; font-size:20px; text-align:center;">—</div>';
+                });
+            });
+
+            const exportContainer = document.getElementById('pdfExportContainer');
+            exportContainer.style.display = 'block';
+
+            try {
+                const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('l', 'mm', 'a4'); // A4 לרוחב מלא
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+
+                let imgWidth = pageWidth - 16;
+                let imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                if (imgHeight > pageHeight - 16) {
+                    imgHeight = pageHeight - 16;
+                    imgWidth = (canvas.width * imgHeight) / canvas.height;
+                }
+
+                const x = (pageWidth - imgWidth) / 2;
+                const y = 8;
+
+                pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+                pdf.save('work-schedule.pdf');
+            } catch (err) {
+                notify("שגיאה בייצוא");
+            } finally {
+                exportContainer.style.display = 'none';
+                btn.disabled = false;
+                btn.innerText = "ייצא ל-PDF";
+            }
+        };
+
+        window.sendScheduleToWhatsapp = function() {
+            const dates = getScheduleDates();
+            let text = `📋 *סידור עבודה שבועי* 📋\n`;
+
+            daysKeys.forEach(dIdx => {
+                const dayName = daysNames[dIdx];
+                const dateStr = dates[dIdx];
+                text += `\n📅 *${dayName} (${dateStr}):*\n`;
+
+                ['m', 'e'].forEach(shiftType => {
+                    const key = `${dIdx}-${shiftType}`;
+                    if (activeShiftsConfig[key] === false) return;
+                    const shiftName = shiftType === 'm' ? 'בוקר' : 'ערב';
+                    const assignedNames = (publishedSchedule[key] || []).filter(Boolean);
+
+                    if (assignedNames.length > 0) {
+                        let defaultTime = getShiftHours(dIdx, shiftType);
+                        text += `  • *${shiftName}:*\n`;
+                        assignedNames.forEach((name, index) => {
+                            const timeStr = publishedCustomShiftTimes[`${key}-${name}`] || defaultTime;
+                            text += `    - ${name} (${timeStr})\n`;
+                        });
+                    }
+                });
+            });
+
+            const encoded = encodeURIComponent(text);
+            window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+        };
+    </script>
 </body>
 </html>
