@@ -1,32 +1,28 @@
 {
-  "id": "/work-schedule/",
-  "name": "מערכת סידור עבודה",
+  "name": "מערכת סידור עבודה חכם",
   "short_name": "סידור עבודה",
+  "description": "מערכת לסידור משמרות עבודה",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
   "lang": "he",
   "dir": "rtl",
-  "start_url": "/work-schedule/index.html",
-  "scope": "/work-schedule/",
-  "display": "standalone",
   "background_color": "#f0f2f5",
   "theme_color": "#1877f2",
   "icons": [
     {
-      "src": "/work-schedule/icon-192.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/work-schedule/icon-512.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "/work-schedule/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }
