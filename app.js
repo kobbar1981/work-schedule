@@ -812,7 +812,7 @@ async function registerPush(role, silent) {
         if (!token) return;
         await setDoc(doc(db, '_tokens', token), { rid: RESTAURANT_ID, name: role, token, updatedAt: Date.now() });
         if (!silent) { notify("התראות הופעלו"); renderEmployeeExtras(); renderManagerExtras(); }
-    } catch (e) { console.error(e); if (!silent) notify("שגיאה בהפעלת התראות"); }
+    } catch (e) { console.error(e); if (!silent) notify("שגיאה: " + (e.code || e.message)); }
 }
 window.wsPushEmployee = () => registerPush(verifiedEmployeeName, false);
 window.wsPushManager = () => registerPush(MANAGER, false);
