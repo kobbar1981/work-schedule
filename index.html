@@ -60,6 +60,8 @@
         .whatsapp-btn { background-color: #25D366; color: white; }
         .pdf-btn { background-color: #e74c3c; color: white; }
 
+        .secret-input { -webkit-text-security: disc; text-security: disc; }
+
         .reset-btn { background-color: #e67e22; margin-top: 10px; }
         .emp-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 5px; }
 
@@ -316,7 +318,7 @@
 
         <div class="form-group" id="pinStepArea">
             <label>2. הכנס קוד אישי (4 ספרות):</label>
-            <input type="password" id="employeePinInput" maxlength="4" placeholder="****" pattern="[0-9]*" inputmode="numeric">
+            <input type="text" class="secret-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" name="wsx-pin" id="employeePinInput" maxlength="4" placeholder="****" pattern="[0-9]*" inputmode="numeric">
             <button onclick="verifyEmployeePin()" style="margin-top: 8px; background-color: #3498db;">אימות קוד וכניסה</button>
         </div>
 
@@ -625,7 +627,7 @@
             <h2>9. הגדרות מנהל</h2>
             <div class="form-group">
                 <label>סיסמת מנהל חדשה:</label>
-                <input type="password" id="newManagerPass" placeholder="לפחות 4 תווים">
+                <input type="text" class="secret-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" name="wsx-newpass" id="newManagerPass" placeholder="לפחות 4 תווים">
             </div>
             <button onclick="updateManagerPassword()" style="background-color: #8e44ad;">עדכן סיסמת מנהל</button>
             <hr style="margin: 14px 0;">
@@ -846,7 +848,15 @@
                 let inp = null;
                 if (withInput) {
                     inp = document.createElement('input');
-                    inp.type = 'password';
+                    // שדה טקסט עם הסתרת תווים (ולא type=password) כדי שלא תופיע שורת מילוי האוטומטי של כרום מעל המקלדת
+                    inp.type = 'text';
+                    inp.className = 'secret-input';
+                    inp.name = 'wsx-' + Math.random().toString(36).slice(2, 8);
+                    inp.setAttribute('autocomplete', 'off');
+                    inp.setAttribute('autocapitalize', 'off');
+                    inp.setAttribute('autocorrect', 'off');
+                    inp.setAttribute('spellcheck', 'false');
+                    inp.setAttribute('data-lpignore', 'true');
                     box.appendChild(inp);
                 }
                 const row = document.createElement('div');
