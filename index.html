@@ -368,6 +368,7 @@
 
             <hr style="margin: 20px 0;">
 
+            <div id="employeeAvailabilitySection">
             <h3>הגשת זמינות שבועית</h3>
             <label>סמן משמרות שאתה יכול לעבוד:</label>
             <div class="shift-checkboxes" id="shiftsCheckboxContainer"></div>
@@ -378,6 +379,7 @@
             </div>
 
             <button onclick="submitEmployeeAvailability()" style="background-color: #27ae60;">עדכן זמינות</button>
+            </div>
         </div>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
@@ -387,40 +389,87 @@
     <div class="hidden" id="managerView">
 
         <div class="card">
-            <h2>1. הוספת עובד/ת ודירוג</h2>
-            <div class="form-group">
-                <label>שם העובד/ת:</label>
-                <input type="text" id="empName" placeholder="שם מלא">
+            <h2>2. שיבוץ ופרסום</h2>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 110px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
+                <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 110px; background-color: #27ae60;">2. פרסם לעובדים</button>
+                <button class="auto-btn" onclick="unpublishSchedule()" style="flex: 1; min-width: 110px; background-color: #c0392b;">3. בטל פרסום (הורד)</button>
             </div>
-            <div class="form-group">
-                <label>קוד אישי לעובד (4 ספרות):</label>
-                <input type="text" id="empPin" maxlength="4" placeholder="4 ספרות" pattern="[0-9]*" inputmode="numeric">
-            </div>
-            <div class="form-group">
-                <label>דירוג:</label>
-                <select id="empRank">
-                    <option value="3" selected>חזק (3)</option>
-                    <option value="2">בינוני (2)</option>
-                    <option value="1">חלש (1)</option>
-                </select>
+        </div>
+
+        <div class="card" id="scheduleCard">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>לוח משמרות שבועי (מנהל)</h2>
+                <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
             </div>
 
-            <div class="form-group">
-                <label>צבע:</label>
-                <div class="palette-grid" id="addColorPalette"></div>
-                <input type="hidden" id="empColorInput" value="#74b9ff">
+            <div class="table-wrapper">
+                <table class="schedule-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>משמרת</th>
+                            <th id="th-mgr-0">א'</th>
+                            <th id="th-mgr-1">ב'</th>
+                            <th id="th-mgr-2">ג'</th>
+                            <th id="th-mgr-3">ד'</th>
+                            <th id="th-mgr-4">ה'</th>
+                            <th id="th-mgr-5">ו'</th>
+                            <th id="th-mgr-6">ש'</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><b>בוקר</b></td>
+                            <td id="cell-0-m"></td>
+                            <td id="cell-1-m"></td>
+                            <td id="cell-2-m"></td>
+                            <td id="cell-3-m"></td>
+                            <td id="cell-4-m"></td>
+                            <td id="cell-5-m"></td>
+                            <td id="cell-6-m"></td>
+                        </tr>
+                        <tr>
+                            <td><b>ערב</b></td>
+                            <td id="cell-0-e"></td>
+                            <td id="cell-1-e"></td>
+                            <td id="cell-2-e"></td>
+                            <td id="cell-3-e"></td>
+                            <td id="cell-4-e"></td>
+                            <td id="cell-5-e"></td>
+                            <td id="cell-6-e"></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <button onclick="addEmployee()">הוסף עובד חדש</button>
-            <button class="reset-btn" onclick="resetScheduleOnly()">מחק את כל הנתונים</button>
+            <div class="export-group">
+                <button class="export-btn whatsapp-btn" onclick="sendScheduleToWhatsapp()">שלח לוואטסאפ</button>
+                <button class="export-btn pdf-btn" id="pdfExportBtn" onclick="exportToPDF()">ייצא ל-PDF</button>
+            </div>
+        </div>
 
-            <h3>צוות:</h3>
-            <div id="empList"></div>
+        <!-- טבלת זמינויות לפי ימים -->
+        <div class="card">
+            <h2>3. זמינויות לפי ימים</h2>
+            <div class="table-wrapper">
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">יום</th>
+                            <th style="width: 42.5%;">זמינים לבוקר</th>
+                            <th style="width: 42.5%;">זמינים לערב</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyAvailTableBody">
+                        <tr><td colspan="3" style="color: #888;">טוען...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- אזור בחירת משמרות פעילות לשבוע -->
         <div class="card">
-            <h2>2. משמרות פעילות</h2>
+            <h2>4. משמרות פעילות</h2>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">משמרות שלא יסומנו יופיעו באפור אצל העובדים.</p>
             <div class="shift-checkboxes" id="managerActiveShiftsContainer">
                 <label><input type="checkbox" value="0-m" checked onchange="saveActiveShiftsConfig()"> ראשון בוקר</label>
@@ -440,9 +489,9 @@
             </div>
         </div>
 
-        <!-- 3. שעות וכמות עובדים -->
+        <!-- 5. שעות וכמות עובדים -->
         <div class="card">
-            <h2>3. שעות וכמות עובדים</h2>
+            <h2>5. שעות וכמות עובדים</h2>
 
             <div class="table-wrapper">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
@@ -510,86 +559,7 @@
         </div>
 
         <div class="card">
-            <h2>4. שיבוץ ופרסום</h2>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 110px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
-                <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 110px; background-color: #27ae60;">2. פרסם לעובדים</button>
-                <button class="auto-btn" onclick="unpublishSchedule()" style="flex: 1; min-width: 110px; background-color: #c0392b;">3. בטל פרסום (הורד)</button>
-            </div>
-        </div>
-
-        <div class="card" id="scheduleCard">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2>לוח משמרות שבועי (מנהל)</h2>
-                <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
-            </div>
-
-            <div class="table-wrapper">
-                <table class="schedule-table compact-table">
-                    <thead>
-                        <tr>
-                            <th>משמרת</th>
-                            <th id="th-mgr-0">א'</th>
-                            <th id="th-mgr-1">ב'</th>
-                            <th id="th-mgr-2">ג'</th>
-                            <th id="th-mgr-3">ד'</th>
-                            <th id="th-mgr-4">ה'</th>
-                            <th id="th-mgr-5">ו'</th>
-                            <th id="th-mgr-6">ש'</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><b>בוקר</b></td>
-                            <td id="cell-0-m"></td>
-                            <td id="cell-1-m"></td>
-                            <td id="cell-2-m"></td>
-                            <td id="cell-3-m"></td>
-                            <td id="cell-4-m"></td>
-                            <td id="cell-5-m"></td>
-                            <td id="cell-6-m"></td>
-                        </tr>
-                        <tr>
-                            <td><b>ערב</b></td>
-                            <td id="cell-0-e"></td>
-                            <td id="cell-1-e"></td>
-                            <td id="cell-2-e"></td>
-                            <td id="cell-3-e"></td>
-                            <td id="cell-4-e"></td>
-                            <td id="cell-5-e"></td>
-                            <td id="cell-6-e"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="export-group">
-                <button class="export-btn whatsapp-btn" onclick="sendScheduleToWhatsapp()">שלח לוואטסאפ</button>
-                <button class="export-btn pdf-btn" id="pdfExportBtn" onclick="exportToPDF()">ייצא ל-PDF</button>
-            </div>
-        </div>
-
-        <!-- טבלת זמינויות לפי ימים -->
-        <div class="card">
-            <h2>זמינויות לפי ימים</h2>
-            <div class="table-wrapper">
-                <table class="summary-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%;">יום</th>
-                            <th style="width: 42.5%;">זמינים לבוקר</th>
-                            <th style="width: 42.5%;">זמינים לערב</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dailyAvailTableBody">
-                        <tr><td colspan="3" style="color: #888;">טוען...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>סיכום שבועי</h2>
+            <h2>6. סיכום שבועי</h2>
             <div id="submissionSummaryCount"></div>
             <div class="table-wrapper">
                 <table class="summary-table">
@@ -611,7 +581,39 @@
         </div>
 
         <div class="card">
-            <h2>שיתוף המערכת עם העובדים</h2>
+            <h2>7. הוספת עובד/ת ודירוג</h2>
+            <div class="form-group">
+                <label>שם העובד/ת:</label>
+                <input type="text" id="empName" placeholder="שם מלא">
+            </div>
+            <div class="form-group">
+                <label>קוד אישי לעובד (4 ספרות):</label>
+                <input type="text" id="empPin" maxlength="4" placeholder="4 ספרות" pattern="[0-9]*" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label>דירוג:</label>
+                <select id="empRank">
+                    <option value="3" selected>חזק (3)</option>
+                    <option value="2">בינוני (2)</option>
+                    <option value="1">חלש (1)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>צבע:</label>
+                <div class="palette-grid" id="addColorPalette"></div>
+                <input type="hidden" id="empColorInput" value="#74b9ff">
+            </div>
+
+            <button onclick="addEmployee()">הוסף עובד חדש</button>
+            <button class="reset-btn" onclick="resetScheduleOnly()">מחק את כל הנתונים</button>
+
+            <h3>צוות:</h3>
+            <div id="empList"></div>
+        </div>
+
+        <div class="card">
+            <h2>8. שיתוף המערכת עם העובדים</h2>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">שלח לעובדים את הקישור:</p>
             <div class="form-group">
                 <input type="text" id="inviteLinkDisplay" readonly style="background:#f5f6f7; direction: ltr; text-align: left; font-size: 0.8em;">
@@ -620,7 +622,7 @@
         </div>
 
         <div class="card">
-            <h2>הגדרות מנהל</h2>
+            <h2>9. הגדרות מנהל</h2>
             <div class="form-group">
                 <label>סיסמת מנהל חדשה:</label>
                 <input type="password" id="newManagerPass" placeholder="לפחות 4 תווים">
@@ -976,7 +978,7 @@
 
             updateRestaurantTag();
             const tagEl = document.getElementById('restaurantTag');
-            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v6-diag';
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v7';
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
@@ -1468,7 +1470,7 @@
 
         /* ----- החלפות משמרות ----- */
         const SWAP_STATUS = {
-            pending_peer: (s) => `ממתין לאישור ${s.to}`,
+            pending_peer: (s) => s.to ? `ממתין לאישור ${s.to}` : 'ממתין למחליף/ה',
             pending_manager: () => 'ממתין לאישור מנהל',
             approved: () => 'אושרה ✔',
             rejected_peer: () => 'נדחתה ע"י העובד',
@@ -1476,37 +1478,79 @@
             expired: () => 'פגה'
         };
 
+        // שעת סיום המשמרת (לפי הסידור המפורסם והשעות האישיות של העובד)
+        function shiftEndDate(key, name) {
+            const [d, t] = key.split('-');
+            const day = weekDatesFull(currentWeekSunday())[parseInt(d)];
+            const hours = (publishedCustomShiftTimes || {})[`${key}-${name}`] || getShiftHours(d, t);
+            const [st, en] = splitTimeRange(hours);
+            const m = /^(\d{1,2}):(\d{2})$/.exec(en || '');
+            if (!m) return null;
+            const end = new Date(day);
+            end.setHours(+m[1], +m[2], 0, 0);
+            const ms = /^(\d{1,2}):(\d{2})$/.exec(st || '');
+            if (ms && (+m[1] * 60 + +m[2]) <= (+ms[1] * 60 + +ms[2])) end.setDate(end.getDate() + 1);
+            return end;
+        }
+        const shiftEnded = (key, name) => { const e = shiftEndDate(key, name); return e ? israelNow() >= e : false; };
+
+        // האם העובד יכול להחליף בבקשה הזו
+        function canCover(me, s) {
+            if (!me || !s || s.from === me || s.status !== 'pending_peer') return false;
+            if (s.to && s.to !== me) return false; // בקשה ישנה שמיועדת לעובד ספציפי
+            if (s.week !== ymd(currentWeekSunday())) return false;
+            if ((publishedSchedule[s.key] || []).includes(me)) return false;
+            const day = weekDatesFull(currentWeekSunday())[parseInt(s.key.split('-')[0])];
+            if (isAbsent(me, ymd(day))) return false;
+            if (shiftEnded(s.key, s.from)) return false;
+            return true;
+        }
+
         window.wsRequestSwap = async function () {
             const me = verifiedEmployeeName;
             const key = $id('wsSwapShift') && $id('wsSwapShift').value;
-            const to = $id('wsSwapTo') && $id('wsSwapTo').value;
-            if (!me || !key || !to) { notify("בחר משמרת ועובד"); return; }
-            if ((publishedSchedule[key] || []).includes(to)) { notify(`${to} כבר משובץ במשמרת הזו`); return; }
+            if (!me || !key) { notify("בחר משמרת"); return; }
+            if (!isPublished || !(publishedSchedule[key] || []).includes(me)) { notify("אינך משובץ/ת במשמרת הזו"); return; }
+            if (shiftEnded(key, me)) { notify("המשמרת כבר הסתיימה"); return; }
             const sun = currentWeekSunday();
             const shiftDay = weekDatesFull(sun)[parseInt(key.split('-')[0])];
-            if (isAbsent(to, ymd(shiftDay))) { notify(`${to} בהיעדרות ביום הזה`); return; }
             const wk = ymd(sun);
             if (swaps.some(s => s.from === me && s.key === key && s.week === wk && (s.status === 'pending_peer' || s.status === 'pending_manager'))) {
                 notify("כבר יש בקשה פתוחה למשמרת הזו"); return;
             }
             try {
-                await setDoc(doc(getSwapsCollection()), { from: me, to, key, week: wk, status: 'pending_peer', createdAt: Date.now() });
-                await pushNotif(to, 'swap_request', `${me} מבקש/ת שתחליף/י אותו/ה ב${shiftLabelText(key)} (${fmtDM(shiftDay)})`);
-                notify("הבקשה נשלחה");
+                await setDoc(doc(getSwapsCollection()), { from: me, to: '', key, week: wk, status: 'pending_peer', createdAt: Date.now() });
+                const txt = `${me} מחפש/ת מחליף/ה ב${shiftLabelText(key)} (${fmtDM(shiftDay)})`;
+                const names = employees.map(e => e.name).filter(n => n && n !== me);
+                await Promise.all([...names.map(n => pushNotif(n, 'swap_request', txt)), pushNotif(MANAGER, 'swap_request', txt)]);
+                notify("הבקשה נשלחה לכולם");
             } catch (e) { notify("שגיאה בשליחה"); }
         };
 
         window.wsPeerAnswer = async function (id, ok) {
-            const sw = swaps.find(s => s.id === id);
-            if (!sw) return;
+            const me = verifiedEmployeeName;
+            if (!me) return;
             try {
+                const ref = doc(getSwapsCollection(), id);
+                const snap = await getDoc(ref); // קריאה מחדש: מוודא שאף אחד אחר לא תפס את המשמרת
+                const cur = snap.exists() ? { id, ...snap.data() } : null;
+                if (!cur || cur.status !== 'pending_peer') { notify("הבקשה כבר לא פתוחה"); return; }
+                const label = shiftLabelText(cur.key);
                 if (ok) {
-                    await setDoc(doc(getSwapsCollection(), id), { status: 'pending_manager', updatedAt: Date.now() }, { merge: true });
-                    await pushNotif(MANAGER, 'swap_manager', `בקשת החלפה לאישור: ${sw.from} → ${sw.to}, ${shiftLabelText(sw.key)}`);
-                    await pushNotif(sw.from, 'swap_result', `${sw.to} אישר/ה את ההחלפה. ממתין לאישור מנהל.`);
+                    if (!canCover(me, cur)) { notify("אי אפשר לאשר: את/ה משובץ/ת, בהיעדרות או שהמשמרת הסתיימה"); return; }
+                    const wasOpen = !cur.to;
+                    await setDoc(ref, { to: me, status: 'pending_manager', updatedAt: Date.now() }, { merge: true });
+                    await pushNotif(MANAGER, 'swap_manager', `בקשת החלפה לאישור: ${cur.from} ← ${me}, ${label}`);
+                    await pushNotif(cur.from, 'swap_result', `${me} אישר/ה להחליף אותך ב${label}. ממתין לאישור מנהל.`);
+                    if (wasOpen) {
+                        const others = employees.map(e => e.name).filter(n => n && n !== cur.from && n !== me);
+                        await Promise.all(others.map(n => pushNotif(n, 'swap_taken', `${label} נתפסה על ידי ${me}. ממתין לאישור מנהל.`)));
+                    }
+                    notify("אישרת. ממתין לאישור מנהל");
                 } else {
-                    await setDoc(doc(getSwapsCollection(), id), { status: 'rejected_peer', updatedAt: Date.now() }, { merge: true });
-                    await pushNotif(sw.from, 'swap_result', `${sw.to} דחה/תה את בקשת ההחלפה ב${shiftLabelText(sw.key)}`);
+                    if (cur.to !== me) return;
+                    await setDoc(ref, { status: 'rejected_peer', updatedAt: Date.now() }, { merge: true });
+                    await pushNotif(cur.from, 'swap_result', `${me} דחה/תה את בקשת ההחלפה ב${label}`);
                 }
             } catch (e) { notify("שגיאה"); }
         };
@@ -1581,27 +1625,7 @@
                 if (!silent) { notify("התראות הופעלו"); renderEmployeeExtras(); renderManagerExtras(); }
             } catch (e) {
                 console.error(e);
-                if (!silent) {
-                    // אבחון: בדיקת הגעה לשרתי Firebase + הצגת פרטי השגיאה המלאים
-                    const hosts = ['firebaseinstallations.googleapis.com', 'fcmregistrations.googleapis.com', 'fcm.googleapis.com'];
-                    const results = [];
-                    for (const h of hosts) {
-                        try {
-                            await fetch('https://' + h + '/', { mode: 'no-cors', cache: 'no-store' });
-                            results.push('✔ ' + h);
-                        } catch (err) { results.push('✖ נחסם: ' + h); }
-                    }
-                    const info = [
-                        'קוד: ' + (e && e.code ? e.code : '—'),
-                        'הודעה: ' + (e && e.message ? e.message : String(e)),
-                        '',
-                        'בדיקת חיבור:',
-                        ...results,
-                        '',
-                        'דפדפן: ' + navigator.userAgent.slice(0, 120)
-                    ].join('\n');
-                    askConfirm(info);
-                }
+                if (!silent) notify("שגיאה בהפעלת התראות" + (e && e.code ? " (" + e.code + ")" : ""));
             }
         }
         window.wsPushEmployee = () => registerPush(verifiedEmployeeName, false);
@@ -1642,12 +1666,22 @@
                 box.id = 'wsEmpBox';
                 anchor.insertAdjacentElement('afterend', box);
             }
+            let box2 = $id('wsEmpBox2');
+            if (!box2) {
+                const anchor2 = $id('employeeAvailabilitySection');
+                if (anchor2) {
+                    box2 = document.createElement('div');
+                    box2.id = 'wsEmpBox2';
+                    anchor2.insertAdjacentElement('afterend', box2);
+                }
+            }
             const me = verifiedEmployeeName;
-            if (!me) { box.innerHTML = ''; return; }
+            if (!me) { box.innerHTML = ''; if (box2) box2.innerHTML = ''; return; }
             const wk = ymd(currentWeekSunday());
-            let h = '';
+            const weekDays = weekDatesFull(currentWeekSunday());
 
-            // באנרים של התראות שלא נקראו (עד שבוע אחורה)
+            /* ---- חלק עליון: התראות ובקשות שמחכות לי ---- */
+            let h = '';
             const weekAgo = Date.now() - 7 * 86400000;
             myNotifs.filter(n => !n.read && n.createdAt > weekAgo).sort((a, b) => b.createdAt - a.createdAt).forEach(n => {
                 h += `<div class="ws-info"><span>🔔 ${esc(n.text)}</span><button class="ws-mini" data-id="${esc(n.id)}" onclick="wsReadNotif(this.dataset.id)">קראתי</button></div>`;
@@ -1655,42 +1689,47 @@
 
             if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
 
-            // בקשות החלפה אליי
-            const incoming = swaps.filter(s => s.to === me && s.status === 'pending_peer' && s.week === wk);
+            const incoming = swaps.filter(s => canCover(me, s));
             if (incoming.length) {
-                h += `<div class="ws-card"><h3>בקשות החלפה אליך</h3>`;
+                h += `<div class="ws-card"><h3>מחפשים מחליף/ה</h3>`;
                 incoming.forEach(s => {
-                    h += `<div class="ws-row"><span>${esc(s.from)} מבקש/ת שתחליף/י אותו/ה ב${esc(shiftLabelText(s.key))}</span>
-                        <span><button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,true)">אשר</button>
-                        <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,false)">דחה</button></span></div>`;
+                    const day = weekDays[parseInt(s.key.split('-')[0])];
+                    const btns = s.to === me
+                        ? `<button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,true)">אשר</button>
+                           <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,false)">דחה</button>`
+                        : `<button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsPeerAnswer(this.dataset.id,true)">אני מחליף/ה</button>`;
+                    h += `<div class="ws-row"><span>${esc(s.from)} מחפש/ת מחליף/ה ב${esc(shiftLabelText(s.key))} (${esc(fmtDM(day))})</span><span>${btns}</span></div>`;
                 });
                 h += `</div>`;
             }
+            keepRender(box, h);
 
-            // בקשת החלפה שלי
-            h += `<div class="ws-card"><h3>בקשת החלפת משמרת</h3>`;
-            const myKeys = isPublished
+            /* ---- חלק תחתון (מתחת לזמינות): בקשת החלפה, ואחריה היעדרות ---- */
+            if (!box2) return;
+            let h2 = '';
+            h2 += `<div class="ws-card"><h3>בקשת החלפת משמרת</h3>`;
+            const allMine = isPublished
                 ? Object.keys(publishedSchedule).filter(k => (publishedSchedule[k] || []).includes(me)).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b))
                 : [];
-            if (!isPublished) h += `<p class="ws-note">אפשר לבקש החלפה אחרי שהסידור מפורסם.</p>`;
-            else if (!myKeys.length) h += `<p class="ws-note">אין לך משמרות השבוע.</p>`;
+            const myKeys = allMine.filter(k => !shiftEnded(k, me));
+            if (!isPublished) h2 += `<p class="ws-note">אפשר לבקש החלפה אחרי שהסידור מפורסם.</p>`;
+            else if (!allMine.length) h2 += `<p class="ws-note">אין לך משמרות השבוע.</p>`;
+            else if (!myKeys.length) h2 += `<p class="ws-note">כל המשמרות שלך השבוע כבר הסתיימו.</p>`;
             else {
-                const others = employees.filter(e => e.name !== me);
-                h += `<label>המשמרת שלי:</label><select id="wsSwapShift" data-keep>${myKeys.map(k => `<option value="${esc(k)}">${esc(shiftLabelText(k))}</option>`).join('')}</select>
-                      <label style="margin-top:6px;">מי יחליף אותי:</label><select id="wsSwapTo" data-keep>${others.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('')}</select>
+                h2 += `<label>המשמרת שלי:</label><select id="wsSwapShift" data-keep>${myKeys.map(k => `<option value="${esc(k)}">${esc(shiftLabelText(k))}</option>`).join('')}</select>
+                      <p class="ws-note">הבקשה תישלח לכל העובדים ולמנהל. מי שיאשר ייכנס במקומך, בכפוף לאישור המנהל.</p>
                       <button onclick="wsRequestSwap()" style="background-color:#e67e22;">שלח בקשה</button>`;
             }
             const mine = swaps.filter(s => s.from === me && s.week === wk).slice(0, 6);
             if (mine.length) {
-                h += `<h4 style="text-align:right;margin:10px 0 4px;">הבקשות שלי:</h4>`;
-                mine.forEach(s => { h += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))} ← ${esc(s.to)}</span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span></div>`; });
+                h2 += `<h4 style="text-align:right;margin:10px 0 4px;">הבקשות שלי:</h4>`;
+                mine.forEach(s => { h2 += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))}${s.to ? ' ← ' + esc(s.to) : ''}</span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span></div>`; });
             }
-            h += `</div>`;
+            h2 += `</div>`;
 
-            // היעדרויות מראש
             const today = ymd(israelNow());
             const ranges = absMap[me] || [];
-            h += `<div class="ws-card"><h3>חופשה / היעדרות מראש</h3>
+            h2 += `<div class="ws-card"><h3>חופשה / היעדרות מראש</h3>
                 <p class="ws-note">המשמרות בטווח ייסגרו אוטומטית בכל שבוע.</p>
                 <label>מתאריך:</label><input type="date" id="wsAbsFrom" min="${today}" data-keep>
                 <label style="margin-top:6px;">עד תאריך:</label><input type="date" id="wsAbsTo" min="${today}" data-keep>
@@ -1698,12 +1737,11 @@
                 <button onclick="wsAddAbsence()" style="background-color:#27ae60;">הוסף היעדרות</button>`;
             ranges.forEach((r, i) => {
                 if (r.to < today) return;
-                h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.from)))} – ${esc(fmtDM(parseYmd(r.to)))} ${r.reason ? '(' + esc(r.reason) + ')' : ''}</span>
+                h2 += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.from)))} – ${esc(fmtDM(parseYmd(r.to)))} ${r.reason ? '(' + esc(r.reason) + ')' : ''}</span>
                     <button class="ws-mini" style="background:#c0392b" onclick="wsDelAbsence(${i})">✖</button></div>`;
             });
-            h += `</div>`;
-
-            keepRender(box, h);
+            h2 += `</div>`;
+            keepRender(box2, h2);
         }
 
         function renderManagerExtras() {
@@ -1739,7 +1777,7 @@
             }
 
             // היעדרויות קרובות
-            h += `<div class="ws-card"><h3>היעדרויות קרובות</h3>`;
+            h += `<div class="ws-card"><h3>1. היעדרויות קרובות</h3>`;
             h += info.length ? info.map(w => `<div class="ws-row"><span>${esc(describeWeek(w))}</span></div>`).join('') : `<p class="ws-note">אין היעדרויות רשומות.</p>`;
             h += `</div>`;
 
@@ -2553,7 +2591,7 @@
                 // התראה (באנר + push) לכל העובדים
                 const sun = currentWeekSunday();
                 const txt = `סידור העבודה לשבוע ${fmtDM(sun)}–${fmtDM(addDays(sun, 6))} פורסם`;
-                for (const e of employees) await pushNotif(e.name, 'published', txt);
+                await Promise.all(employees.map(e => pushNotif(e.name, 'published', txt)));
             } catch(e){ notify("שגיאה בפרסום"); }
         };
 
