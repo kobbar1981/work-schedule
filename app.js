@@ -863,7 +863,7 @@ function renderEmployeeExtras() {
         h += `<div class="ws-info"><span>🔔 ${esc(n.text)}</span><button class="ws-mini" data-id="${esc(n.id)}" onclick="wsReadNotif(this.dataset.id)">קראתי</button></div>`;
     });
 
-    if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
+    h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
 
     // בקשות החלפה אליי
     const incoming = swaps.filter(s => s.to === me && s.status === 'pending_peer' && s.week === wk);
@@ -953,7 +953,7 @@ function renderManagerExtras() {
     h += info.length ? info.map(w => `<div class="ws-row"><span>${esc(describeWeek(w))}</span></div>`).join('') : `<p class="ws-note">אין היעדרויות רשומות.</p>`;
     h += `</div>`;
 
-    if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
+    h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
     keepRender(box, h);
 }
