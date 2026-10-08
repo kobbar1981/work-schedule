@@ -569,9 +569,9 @@
                     <thead>
                         <tr>
                             <th>שם העובד/ת</th>
-                            <th>הגשה</th>
-                            <th>זמינות</th>
-                            <th>בפועל</th>
+                            <th id="sumThSubmit">הגשה</th>
+                            <th id="sumThAvail">זמינות</th>
+                            <th id="sumThAssigned">בפועל</th>
                             <th>צפה בסידור</th>
                         </tr>
                     </thead>
@@ -2966,6 +2966,16 @@
                 tbody.innerHTML = '<tr><td colspan="5">אין עובדים במערכת</td></tr>'; return;
             }
 
+            // כותרות עם תאריכים: זמינות = השבוע הבא, בפועל = השבוע של הסידור המוצג
+            try {
+                const rng = (d) => `${d[0]}–${d[6]}`;
+                const small = (t) => `<br><span style="font-size:0.7em; font-weight:normal;">${t}</span>`;
+                const nextR = rng(getScheduleDates()), curR = rng(displayDates());
+                const th1 = document.getElementById('sumThSubmit'), th2 = document.getElementById('sumThAvail'), th3 = document.getElementById('sumThAssigned');
+                if (th1) th1.innerHTML = 'הגשה' + small('שבוע ' + nextR);
+                if (th2) th2.innerHTML = 'זמינות' + small('שבוע ' + nextR);
+                if (th3) th3.innerHTML = 'בפועל' + small('שבוע ' + curR);
+            } catch(e) {}
             let submittedCount = 0;
             tbody.innerHTML = employees.map((emp) => {
                 let userAvail = employeeAvailMap[emp.name] || {};
