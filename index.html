@@ -988,7 +988,7 @@
 
             updateRestaurantTag();
             const tagEl = document.getElementById('restaurantTag');
-            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v7';
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v8';
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
@@ -1023,6 +1023,7 @@
         let publishedSchedule = {};
         let publishedTimes = {};
         let publishedCustomShiftTimes = {};
+        let publishedWeekSun = ''; // תאריך יום ראשון (yyyy-mm-dd) של השבוע שאליו הסידור שפורסם שייך
         let isPublished = false;
 
         let activeShiftsConfig = {
@@ -1293,12 +1294,15 @@
             if (isPublished) {
                 try {
                     const currentTimes = readTimesFromInputs();
-                    await setDoc(getSettingsDoc("published_schedule"), {
+                    const payload = {
                         schedule: currentSchedule,
                         times: currentTimes,
                         slotTimes: customShiftTimes,
                         publishedAt: Date.now()
-                    });
+                    };
+                    // שומרים את השבוע המקורי של הסידור (לא מחשבים מחדש לפי היום)
+                    if (publishedWeekSun) payload.weekSun = publishedWeekSun;
+                    await setDoc(getSettingsDoc("published_schedule"), payload);
                     if (changeDesc) pushNotif(MANAGER, 'schedule_change', 'שינוי בסידור שפורסם: ' + changeDesc);
                 } catch(e){}
             }
@@ -1336,6 +1340,14 @@
         }
         const weekDatesFull = (sun) => [0, 1, 2, 3, 4, 5, 6].map(i => addDays(sun, i));
         const shiftLabelText = (key) => { const [d, t] = key.split('-'); return `${daysNames[d]} ${t === 'm' ? 'בוקר' : 'ערב'}`; };
+
+        // ראשון של השבוע שאליו הסידור שהתפרסם שייך.
+        // סידורים ישנים (בלי השדה) ממשיכים להשתמש בחישוב לפי היום הנוכחי.
+        function pubSunday() {
+            if (publishedWeekSun && /^\d{4}-\d{2}-\d{2}$/.test(publishedWeekSun)) return parseYmd(publishedWeekSun);
+            return currentWeekSunday();
+        }
+        const pubWeekKey = () => ymd(pubSunday());
 
         /* ----- התראות: מסמך ב-_notifs, ה-Cloud Function שולח ממנו push ----- */
         async function pushNotif(to, type, text, fixedId) {
@@ -1502,10 +1514,11 @@
             cancelled: () => 'בוטלה'
         };
 
-        // שעת סיום המשמרת (לפי הסידור המפורסם והשעות האישיות של העובד)
+        // שעת סיום המשמרת (לפי הסידור המפורסם והשעות האישיות של העובד).
+        // התאריך נקבע לפי השבוע שאליו הסידור שפורסם שייך, ולא לפי היום הנוכחי.
         function shiftEndDate(key, name) {
             const [d, t] = key.split('-');
-            const day = weekDatesFull(currentWeekSunday())[parseInt(d)];
+            const day = weekDatesFull(pubSunday())[parseInt(d)];
             const hours = (publishedCustomShiftTimes || {})[`${key}-${name}`] || getShiftHours(d, t);
             const [st, en] = splitTimeRange(hours);
             const m = /^(\d{1,2}):(\d{2})$/.exec(en || '');
@@ -1522,9 +1535,9 @@
         function canCover(me, s) {
             if (!me || !s || s.from === me || s.status !== 'pending_peer') return false;
             if (s.to && s.to !== me) return false; // בקשה ישנה שמיועדת לעובד ספציפי
-            if (s.week !== ymd(currentWeekSunday())) return false;
+            if (s.week !== pubWeekKey()) return false;
             if ((publishedSchedule[s.key] || []).includes(me)) return false;
-            const day = weekDatesFull(currentWeekSunday())[parseInt(s.key.split('-')[0])];
+            const day = weekDatesFull(pubSunday())[parseInt(s.key.split('-')[0])];
             if (isAbsent(me, ymd(day))) return false;
             if (shiftEnded(s.key, s.from)) return false;
             return true;
@@ -1536,7 +1549,7 @@
             if (!me || !key) { notify("בחר משמרת"); return; }
             if (!isPublished || !(publishedSchedule[key] || []).includes(me)) { notify("אינך משובץ/ת במשמרת הזו"); return; }
             if (shiftEnded(key, me)) { notify("המשמרת כבר הסתיימה"); return; }
-            const sun = currentWeekSunday();
+            const sun = pubSunday();
             const shiftDay = weekDatesFull(sun)[parseInt(key.split('-')[0])];
             const wk = ymd(sun);
             if (swaps.some(s => s.from === me && s.key === key && s.week === wk && (s.status === 'pending_peer' || s.status === 'pending_manager'))) {
@@ -1629,7 +1642,7 @@
             if (sw.status !== 'pending_manager') { notify("הבקשה כבר לא פתוחה"); return; }
             try {
                 if (ok) {
-                    if (sw.week !== ymd(currentWeekSunday())) {
+                    if (sw.week !== pubWeekKey()) {
                         await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
                         notify("הבקשה פגה (שבוע אחר)"); return;
                     }
@@ -1724,8 +1737,8 @@
             }
             const me = verifiedEmployeeName;
             if (!me) { box.innerHTML = ''; if (box2) box2.innerHTML = ''; return; }
-            const wk = ymd(currentWeekSunday());
-            const weekDays = weekDatesFull(currentWeekSunday());
+            const wk = pubWeekKey();
+            const weekDays = weekDatesFull(pubSunday());
 
             /* ---- חלק עליון: התראות ובקשות שמחכות לי ---- */
             let h = '';
@@ -1825,7 +1838,7 @@
             if (pending.length) {
                 h += `<div class="ws-card"><h3>בקשות החלפה לאישור (${pending.length})</h3>`;
                 pending.forEach(s => {
-                    const expired = s.week !== ymd(currentWeekSunday());
+                    const expired = s.week !== pubWeekKey();
                     h += `<div class="ws-row"><span>${esc(s.from)} ← ${esc(s.to)}: ${esc(shiftLabelText(s.key))} ${expired ? '<span class="ws-note">(שבוע אחר)</span>' : ''}</span>
                         <span><button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,true)">אשר</button>
                         <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,false)">דחה</button></span></div>`;
@@ -1834,9 +1847,9 @@
             }
 
             // בקשות החלפה פתוחות (עדיין מחפשות מחליף)
-            const openReqs = swaps.filter(s => s.status === 'pending_peer' && s.week === ymd(currentWeekSunday()));
+            const openReqs = swaps.filter(s => s.status === 'pending_peer' && s.week === pubWeekKey());
             if (openReqs.length) {
-                const wd = weekDatesFull(currentWeekSunday());
+                const wd = weekDatesFull(pubSunday());
                 h += `<div class="ws-card"><h3>בקשות החלפה פתוחות (${openReqs.length})</h3>`;
                 openReqs.forEach(s => {
                     h += `<div class="ws-row"><span>${esc(s.from)}: ${esc(shiftLabelText(s.key))} (${esc(fmtDM(wd[parseInt(s.key.split('-')[0])]))})</span><span class="ws-note">${s.to ? 'ממתין לאישור ' + esc(s.to) : 'מחפש/ת מחליף/ה'}</span></div>`;
@@ -1962,6 +1975,7 @@
                         publishedSchedule = {};
                         publishedTimes = {};
                         publishedCustomShiftTimes = {};
+                        publishedWeekSun = '';
                         isPublished = false;
                         updatePublishBadge(false);
                         try { await deleteDoc(getSettingsDoc("published_schedule")); } catch(e){}
@@ -1969,6 +1983,7 @@
                         publishedSchedule = data.schedule || {};
                         publishedTimes = data.times || {};
                         publishedCustomShiftTimes = data.slotTimes || {};
+                        publishedWeekSun = data.weekSun || '';
                         isPublished = true;
                         updatePublishBadge(true);
                     }
@@ -1976,6 +1991,7 @@
                     publishedSchedule = {};
                     publishedTimes = {};
                     publishedCustomShiftTimes = {};
+                    publishedWeekSun = '';
                     isPublished = false;
                     updatePublishBadge(false);
                 }
@@ -1983,6 +1999,7 @@
                 renderSummaryTable();
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
                 renderEmployeeExtras();
+                renderManagerExtras();
             });
 
             // הודעות push כשהאפליקציה פתוחה
@@ -2248,6 +2265,16 @@
 
                 const settingsDocs = ["manager_config", "active_shifts_config", "draft_schedule", "published_schedule"];
                 await Promise.all(settingsDocs.map(name => deleteDoc(doc(db, `${bizId}_settings`, name))));
+
+                // מחיקת ההתראות והטוקנים (push) ששייכים לעסק
+                try {
+                    const notifSnap = await getDocs(query(collection(db, '_notifs'), where('rid', '==', bizId)));
+                    await Promise.all(notifSnap.docs.map(d => deleteDoc(doc(db, '_notifs', d.id))));
+                } catch(e) { console.error(e); }
+                try {
+                    const tokenSnap = await getDocs(query(collection(db, '_tokens'), where('rid', '==', bizId)));
+                    await Promise.all(tokenSnap.docs.map(d => deleteDoc(doc(db, '_tokens', d.id))));
+                } catch(e) { console.error(e); }
 
                 // לא מוחקים את רשומת המרשם עצמה - מסמנים כ"נמחק" כדי לחסום כניסה מחדש דרך קישור ישן
                 await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: true, deletedAt: Date.now() }, { merge: true });
@@ -2662,6 +2689,7 @@
                     schedule: currentSchedule,
                     times: currentTimes,
                     slotTimes: customShiftTimes,
+                    weekSun: ymd(currentWeekSunday()), // לאיזה שבוע הסידור הזה שייך
                     publishedAt: Date.now()
                 });
                 notify("הסידור פורסם");
