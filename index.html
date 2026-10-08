@@ -1289,7 +1289,7 @@
             } catch(e){}
         }
 
-        async function syncPublishedIfActive() {
+        async function syncPublishedIfActive(changeDesc) {
             if (isPublished) {
                 try {
                     const currentTimes = readTimesFromInputs();
@@ -1299,6 +1299,7 @@
                         slotTimes: customShiftTimes,
                         publishedAt: Date.now()
                     });
+                    if (changeDesc) pushNotif(MANAGER, 'schedule_change', 'שינוי בסידור שפורסם: ' + changeDesc);
                 } catch(e){}
             }
         }
@@ -1354,11 +1355,17 @@
                 myNotifs = [];
                 snap.forEach(d => myNotifs.push({ id: d.id, ...d.data() }));
                 renderEmployeeExtras();
+                renderManagerExtras();
             });
         }
 
         window.wsReadNotif = async function (id) {
             try { await setDoc(doc(db, '_notifs', id), { read: true }, { merge: true }); } catch (e) {}
+        };
+
+        window.wsReadAllNotifs = async function () {
+            const arr = myNotifs.filter(n => !n.read);
+            await Promise.all(arr.map(n => window.wsReadNotif(n.id)));
         };
 
         /* ----- היעדרויות ----- */
@@ -1436,6 +1443,7 @@
                 await saveAbsRanges(name, [...(absMap[name] || []), { from, to, reason }]);
                 ['wsAbsFrom', 'wsAbsTo', 'wsAbsReason'].forEach(id => { const e = $id(id); if (e) e.value = ''; });
                 notify("ההיעדרות נשמרה");
+                pushNotif(MANAGER, 'absence_change', `${name} הוסיף/ה היעדרות ${fmtDM(parseYmd(from))}–${fmtDM(parseYmd(to))}${reason ? ' (' + reason + ')' : ''}`);
                 await afterAbsenceChange(name);
             } catch (e) { notify("שגיאה בשמירה"); }
         };
@@ -1443,8 +1451,13 @@
         window.wsDelAbsence = async function (i) {
             const name = verifiedEmployeeName;
             if (!name) return;
+            const removed = (absMap[name] || [])[i];
             const ranges = (absMap[name] || []).filter((_, idx) => idx !== i);
-            try { await saveAbsRanges(name, ranges); notify("נמחק"); } catch (e) { notify("שגיאה"); }
+            try {
+                await saveAbsRanges(name, ranges);
+                notify("נמחק");
+                if (removed) pushNotif(MANAGER, 'absence_change', `${name} מחק/ה היעדרות ${fmtDM(parseYmd(removed.from))}–${fmtDM(parseYmd(removed.to))}`);
+            } catch (e) { notify("שגיאה"); }
         };
 
         // סוגר בטופס הזמינות את המשמרות שנופלות בהיעדרות
@@ -1485,7 +1498,8 @@
             approved: () => 'אושרה ✔',
             rejected_peer: () => 'נדחתה ע"י העובד',
             rejected_manager: () => 'נדחתה ע"י המנהל',
-            expired: () => 'פגה'
+            expired: () => 'פגה',
+            cancelled: () => 'בוטלה'
         };
 
         // שעת סיום המשמרת (לפי הסידור המפורסם והשעות האישיות של העובד)
@@ -1535,6 +1549,27 @@
                 await Promise.all([...names.map(n => pushNotif(n, 'swap_request', txt)), pushNotif(MANAGER, 'swap_request', txt)]);
                 notify("הבקשה נשלחה לכולם");
             } catch (e) { notify("שגיאה בשליחה"); }
+        };
+
+        window.wsCancelSwap = async function (id) {
+            const me = verifiedEmployeeName;
+            if (!me) return;
+            const open = (st) => st === 'pending_peer' || st === 'pending_manager';
+            try {
+                const ref = doc(getSwapsCollection(), id);
+                const snap = await getDoc(ref);
+                if (!snap.exists() || snap.data().from !== me) return;
+                if (!open(snap.data().status)) { notify("אי אפשר לבטל: הבקשה כבר טופלה"); return; }
+                if (!await askConfirm("לבטל את בקשת ההחלפה?")) return;
+                const snap2 = await getDoc(ref); // בדיקה חוזרת: ייתכן שהמנהל טיפל בינתיים
+                if (!snap2.exists() || !open(snap2.data().status)) { notify("אי אפשר לבטל: הבקשה כבר טופלה"); return; }
+                const cur = snap2.data();
+                await setDoc(ref, { status: 'cancelled', updatedAt: Date.now() }, { merge: true });
+                const txt = `${me} ביטל/ה את בקשת ההחלפה ב${shiftLabelText(cur.key)}`;
+                await pushNotif(MANAGER, 'swap_cancelled', txt);
+                if (cur.to) await pushNotif(cur.to, 'swap_cancelled', txt);
+                notify("הבקשה בוטלה");
+            } catch (e) { notify("שגיאה"); }
         };
 
         window.wsPeerAnswer = async function (id, ok) {
@@ -1591,6 +1626,7 @@
         window.wsManagerAnswer = async function (id, ok) {
             const sw = swaps.find(s => s.id === id);
             if (!sw) return;
+            if (sw.status !== 'pending_manager') { notify("הבקשה כבר לא פתוחה"); return; }
             try {
                 if (ok) {
                     if (sw.week !== ymd(currentWeekSunday())) {
@@ -1606,6 +1642,7 @@
                     const txt = `ההחלפה ב${shiftLabelText(sw.key)} אושרה: ${sw.to} במקום ${sw.from}`;
                     await pushNotif(sw.from, 'swap_result', txt);
                     await pushNotif(sw.to, 'swap_result', txt);
+                    await pushNotif(MANAGER, 'schedule_change', `שינוי בסידור: ${txt}`);
                     notify("ההחלפה אושרה והסידור עודכן");
                 } else {
                     await setDoc(doc(getSwapsCollection(), id), { status: 'rejected_manager', updatedAt: Date.now() }, { merge: true });
@@ -1693,7 +1730,7 @@
             /* ---- חלק עליון: התראות ובקשות שמחכות לי ---- */
             let h = '';
             const weekAgo = Date.now() - 7 * 86400000;
-            myNotifs.filter(n => !n.read && n.createdAt > weekAgo).sort((a, b) => b.createdAt - a.createdAt).forEach(n => {
+            myNotifs.filter(n => n.to === me && !n.read && n.createdAt > weekAgo).sort((a, b) => b.createdAt - a.createdAt).forEach(n => {
                 h += `<div class="ws-info"><span>🔔 ${esc(n.text)}</span><button class="ws-mini" data-id="${esc(n.id)}" onclick="wsReadNotif(this.dataset.id)">קראתי</button></div>`;
             });
 
@@ -1733,7 +1770,9 @@
             const mine = swaps.filter(s => s.from === me && s.week === wk).slice(0, 6);
             if (mine.length) {
                 h2 += `<h4 style="text-align:right;margin:10px 0 4px;">הבקשות שלי:</h4>`;
-                mine.forEach(s => { h2 += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))}${s.to ? ' ← ' + esc(s.to) : ''}</span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span></div>`; });
+                mine.forEach(s => { const canCancel = s.status === 'pending_peer' || s.status === 'pending_manager';
+                    h2 += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))}${s.to ? ' ← ' + esc(s.to) : ''}</span><span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span>${canCancel ? ` <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsCancelSwap(this.dataset.id)">בטל</button>` : ''}</span></div>`;
+                });
             }
             h2 += `</div>`;
 
@@ -1767,6 +1806,14 @@
             const info = overlapInfo();
             let h = '';
 
+            // באנרים של התראות שלא נקראו (עד שבוע אחורה)
+            const weekAgoM = Date.now() - 7 * 86400000;
+            const unreadM = myNotifs.filter(n => n.to === MANAGER && !n.read && n.createdAt > weekAgoM).sort((a, b) => b.createdAt - a.createdAt);
+            unreadM.forEach(n => {
+                h += `<div class="ws-info"><span>🔔 ${esc(n.text)}</span><button class="ws-mini" data-id="${esc(n.id)}" onclick="wsReadNotif(this.dataset.id)">קראתי</button></div>`;
+            });
+            if (unreadM.length >= 2) h += `<button class="ws-mini" style="width:100%;margin:2px 0 8px;background:#5f6368" onclick="wsReadAllNotifs()">סמן הכול כנקרא (${unreadM.length})</button>`;
+
             // באנר אדום: 2 עובדים או יותר בהיעדרות באותו שבוע
             const multi = info.filter(w => w.multi);
             if (multi.length) {
@@ -1782,6 +1829,17 @@
                     h += `<div class="ws-row"><span>${esc(s.from)} ← ${esc(s.to)}: ${esc(shiftLabelText(s.key))} ${expired ? '<span class="ws-note">(שבוע אחר)</span>' : ''}</span>
                         <span><button class="ws-mini" style="background:#27ae60" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,true)">אשר</button>
                         <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsManagerAnswer(this.dataset.id,false)">דחה</button></span></div>`;
+                });
+                h += `</div>`;
+            }
+
+            // בקשות החלפה פתוחות (עדיין מחפשות מחליף)
+            const openReqs = swaps.filter(s => s.status === 'pending_peer' && s.week === ymd(currentWeekSunday()));
+            if (openReqs.length) {
+                const wd = weekDatesFull(currentWeekSunday());
+                h += `<div class="ws-card"><h3>בקשות החלפה פתוחות (${openReqs.length})</h3>`;
+                openReqs.forEach(s => {
+                    h += `<div class="ws-row"><span>${esc(s.from)}: ${esc(shiftLabelText(s.key))} (${esc(fmtDM(wd[parseInt(s.key.split('-')[0])]))})</span><span class="ws-note">${s.to ? 'ממתין לאישור ' + esc(s.to) : 'מחפש/ת מחליף/ה'}</span></div>`;
                 });
                 h += `</div>`;
             }
@@ -1805,6 +1863,7 @@
 
         function onManagerEntered() {
             managerScreenActive = true;
+            subscribeNotifs(MANAGER);
             if (notifGranted()) registerPush(MANAGER, true);
             renderManagerExtras();
         }
@@ -1965,9 +2024,10 @@
             const end = document.getElementById('modalEndTime').value;
             if(!start || !end) { notify("בחר שעות"); return; }
             customShiftTimes[`${activeTimeKey}-${activeTimeEmpName}`] = `${start} - ${end}`;
+            const changeDesc = `שעות ${activeTimeEmpName} ב${shiftLabelText(activeTimeKey)}: ${start} - ${end}`;
             closeTimeModal();
             await saveDraftToFirestore();
-            await syncPublishedIfActive();
+            await syncPublishedIfActive(changeDesc);
             renderFullScheduleForManager();
         };
 
@@ -2530,6 +2590,7 @@
             let selectedShifts = {};
             checkboxes.forEach(cb => selectedShifts[cb.value] = true);
             const note = document.getElementById('employeeNoteInput').value.trim();
+            const isUpdate = !!employeeAvailMap[verifiedEmployeeName]; // כבר הוגשה זמינות השבוע
 
             try {
                 await setDoc(doc(getAvailCollection(), verifiedEmployeeName), {
@@ -2539,6 +2600,11 @@
                     updatedAt: Date.now()
                 });
                 notify("הזמינות עודכנה");
+                if (isUpdate) {
+                    // מזהה קבוע ליום: עדכונים חוזרים באותו יום מרעננים את הבאנר בלי push נוסף
+                    const nid = 'av_' + encodeURIComponent(`${RESTAURANT_ID}_${verifiedEmployeeName}_${ymd(israelNow())}`);
+                    pushNotif(MANAGER, 'avail_update', `${verifiedEmployeeName} עדכן/ה זמינות אחרי ההגשה`, nid);
+                }
                 switchView('selection');
             } catch(e){ notify("שגיאה בשמירה"); }
         };
@@ -2589,6 +2655,7 @@
         window.publishSchedule = async function() {
             if (!currentSchedule || Object.keys(currentSchedule).length === 0) { notify("אין סידור לפרסום"); return; }
             const currentTimes = readTimesFromInputs();
+            const wasPublished = isPublished;
             try {
                 await saveDraftToFirestore();
                 await setDoc(getSettingsDoc("published_schedule"), {
@@ -2602,6 +2669,7 @@
                 const sun = currentWeekSunday();
                 const txt = `סידור העבודה לשבוע ${fmtDM(sun)}–${fmtDM(addDays(sun, 6))} פורסם`;
                 await Promise.all(employees.map(e => pushNotif(e.name, 'published', txt)));
+                if (wasPublished) await pushNotif(MANAGER, 'schedule_change', 'הסידור שפורסם עודכן ופורסם מחדש');
             } catch(e){ notify("שגיאה בפרסום"); }
         };
 
@@ -2727,6 +2795,10 @@
         window.applySwap = async function(empName) {
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
+            const prevName = currentSchedule[activeSwapKey][activeSwapIndex];
+            const changeDesc = empName === null
+                ? `${prevName || 'עובד'} הוסר/ה מ${shiftLabelText(activeSwapKey)}`
+                : `${shiftLabelText(activeSwapKey)}: ${prevName ? prevName + ' ← ' : ''}${empName}`;
 
             if (empName === null) {
                 const removedName = currentSchedule[activeSwapKey][activeSwapIndex];
@@ -2737,7 +2809,7 @@
             }
             closeModal();
             await saveDraftToFirestore();
-            await syncPublishedIfActive();
+            await syncPublishedIfActive(changeDesc);
             renderFullScheduleForManager();
             renderSummaryTable();
         };
