@@ -632,6 +632,8 @@
             </div>
             <button onclick="updateManagerPassword()" style="background-color: #8e44ad;">עדכן סיסמת מנהל</button>
             <hr style="margin: 14px 0;">
+            <button id="bioToggleBtn" onclick="toggleBiometric()" style="background-color: #16a085;">הפעל כניסה בטביעת אצבע</button>
+            <hr style="margin: 14px 0;">
             <button onclick="encryptAllLegacyPins()" style="background-color: #2c3e50;">הצפן קודים אישיים</button>
         </div>
 
@@ -1878,6 +1880,7 @@
         }
 
         function onManagerEntered() {
+            try { refreshBioBtn(); } catch(e){}
             managerScreenActive = true;
             subscribeNotifs(MANAGER);
             if (notifGranted()) registerPush(MANAGER, true);
@@ -2072,7 +2075,64 @@
             }
         };
 
+
+        // ===== כניסה בטביעת אצבע (WebAuthn) - שמירה מקומית במכשיר בלבד =====
+        const bioKey = () => 'work_schedule_bio_' + (RESTAURANT_ID || 'default');
+        const bioSupported = () => !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+        const b64e = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+        const b64d = (str) => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+        const bioGetId = () => { try { return localStorage.getItem(bioKey()); } catch(e) { return null; } };
+
+        async function bioRegister() {
+            try {
+                const cred = await navigator.credentials.create({ publicKey: {
+                    challenge: crypto.getRandomValues(new Uint8Array(32)),
+                    rp: { name: 'work-schedule' },
+                    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'manager', displayName: 'מנהל' },
+                    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+                    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+                    timeout: 60000
+                }});
+                localStorage.setItem(bioKey(), b64e(cred.rawId));
+                return true;
+            } catch(e) { return false; }
+        }
+
+        async function bioVerify() {
+            const id = bioGetId();
+            if (!id || !bioSupported()) return false;
+            try {
+                const res = await navigator.credentials.get({ publicKey: {
+                    challenge: crypto.getRandomValues(new Uint8Array(32)),
+                    allowCredentials: [{ type: 'public-key', id: b64d(id), transports: ['internal'] }],
+                    userVerification: 'required',
+                    timeout: 60000
+                }});
+                return !!res;
+            } catch(e) { return false; }
+        }
+
+        function refreshBioBtn() {
+            const b = document.getElementById('bioToggleBtn');
+            if (!b) return;
+            if (!bioSupported()) { b.style.display = 'none'; return; }
+            b.textContent = bioGetId() ? 'בטל כניסה בטביעת אצבע' : 'הפעל כניסה בטביעת אצבע';
+        }
+
+        window.toggleBiometric = async function() {
+            if (bioGetId()) {
+                try { localStorage.removeItem(bioKey()); } catch(e){}
+                notify('טביעת האצבע בוטלה');
+            } else if (await bioRegister()) {
+                notify('כניסה בטביעת אצבע הופעלה');
+            } else {
+                notify('לא ניתן להפעיל (ודא שיש נעילת מסך/טביעת אצבע במכשיר)');
+            }
+            refreshBioBtn();
+        };
+
         window.checkManagerPassword = async function() {
+            if (bioGetId() && await bioVerify()) { switchView('manager'); return; }
             let cfg = null;
             try {
                 const docSnap = await getDoc(getSettingsDoc("manager_config"));
@@ -2111,6 +2171,12 @@
                     notify("הסיסמה נשמרה");
                 }
                 switchView('manager');
+                if (bioSupported() && !bioGetId()) {
+                    if (await askConfirm("להפעיל כניסה בטביעת אצבע במכשיר הזה?")) {
+                        notify(await bioRegister() ? 'כניסה בטביעת אצבע הופעלה' : 'לא ניתן להפעיל טביעת אצבע');
+                    }
+                }
+                refreshBioBtn();
             } catch(e) { notify("שגיאה באימות"); }
         };
 
