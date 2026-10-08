@@ -1028,6 +1028,7 @@
         let publishedSchedule = {};
         let publishedTimes = {};
         let publishedCustomShiftTimes = {};
+        let publishedAtTs = 0; // זמן הפרסום - משמש לחישוב השבוע של סידורים ישנים בלי weekSun
         let publishedWeekSun = ''; // תאריך יום ראשון (yyyy-mm-dd) של השבוע שאליו הסידור שפורסם שייך
         let isPublished = false;
 
@@ -1190,11 +1191,13 @@
 
         function updateDatesInUI() {
             const dates = getScheduleDates();
+            // בטבלת העובד מוצגים תאריכי השבוע שאליו הסידור המפורסם שייך
+            const empDates = isPublished ? weekDatesFull(pubSunday()).map(d => `${d.getDate()}/${d.getMonth()+1}`) : dates;
             const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
             for(let i=0; i<7; i++) {
                 let thEmp = document.getElementById(`th-emp-${i}`);
-                if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+                if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${empDates[i]}</span>`;
                 let thMgr = document.getElementById(`th-mgr-${i}`);
                 if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
             }
@@ -1350,6 +1353,16 @@
         // סידורים ישנים (בלי השדה) ממשיכים להשתמש בחישוב לפי היום הנוכחי.
         function pubSunday() {
             if (publishedWeekSun && /^\d{4}-\d{2}-\d{2}$/.test(publishedWeekSun)) return parseYmd(publishedWeekSun);
+            if (publishedAtTs) {
+                // סידור ישן בלי weekSun: מחשבים את השבוע לפי זמן הפרסום ולא לפי היום הנוכחי
+                const d = new Date(new Date(publishedAtTs).toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+                const dow = d.getDay(), h = d.getHours();
+                const s = new Date(d);
+                s.setHours(0, 0, 0, 0);
+                if ((dow === 4 && h >= 7) || dow === 5 || dow === 6) s.setDate(d.getDate() + ((7 - dow) % 7 || 7));
+                else s.setDate(d.getDate() - dow);
+                return s;
+            }
             return currentWeekSunday();
         }
         const pubWeekKey = () => ymd(pubSunday());
@@ -1982,6 +1995,7 @@
                         publishedTimes = {};
                         publishedCustomShiftTimes = {};
                         publishedWeekSun = '';
+                        publishedAtTs = 0;
                         isPublished = false;
                         updatePublishBadge(false);
                         try { await deleteDoc(getSettingsDoc("published_schedule")); } catch(e){}
@@ -1990,6 +2004,7 @@
                         publishedTimes = data.times || {};
                         publishedCustomShiftTimes = data.slotTimes || {};
                         publishedWeekSun = data.weekSun || '';
+                        publishedAtTs = data.publishedAt || 0;
                         isPublished = true;
                         updatePublishBadge(true);
                     }
@@ -1998,9 +2013,11 @@
                     publishedTimes = {};
                     publishedCustomShiftTimes = {};
                     publishedWeekSun = '';
+                    publishedAtTs = 0;
                     isPublished = false;
                     updatePublishBadge(false);
                 }
+                try { updateDatesInUI(); } catch(e){}
                 renderFullScheduleForManager();
                 renderSummaryTable();
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
