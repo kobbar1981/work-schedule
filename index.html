@@ -1189,17 +1189,23 @@
             return dates;
         }
 
+        // תאריכי הסידור המוצג: אם יש סידור מפורסם - לפי השבוע שלו, אחרת השבוע הבא (חישוב רגיל)
+        function displayDates() {
+            if (isPublished) return weekDatesFull(pubSunday()).map(d => `${d.getDate()}/${d.getMonth()+1}`);
+            return getScheduleDates();
+        }
+
         function updateDatesInUI() {
             const dates = getScheduleDates();
             // בטבלת העובד מוצגים תאריכי השבוע שאליו הסידור המפורסם שייך
-            const empDates = isPublished ? weekDatesFull(pubSunday()).map(d => `${d.getDate()}/${d.getMonth()+1}`) : dates;
+            const empDates = displayDates();
             const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
             for(let i=0; i<7; i++) {
                 let thEmp = document.getElementById(`th-emp-${i}`);
                 if(thEmp) thEmp.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${empDates[i]}</span>`;
                 let thMgr = document.getElementById(`th-mgr-${i}`);
-                if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
+                if(thMgr) thMgr.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${empDates[i]}</span>`;
             }
         }
         updateDatesInUI();
@@ -3022,7 +3028,7 @@
             btn.disabled = true;
             btn.innerText = "מייצר PDF...";
 
-            const dates = getScheduleDates();
+            const dates = displayDates();
             const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
             // עדכון התאריכים בכותרות הטבלה של ה-PDF הנסתר
@@ -3104,7 +3110,7 @@
         };
 
         window.sendScheduleToWhatsapp = function() {
-            const dates = getScheduleDates();
+            const dates = displayDates();
             let text = `📋 *סידור עבודה שבועי* 📋\n`;
 
             daysKeys.forEach(dIdx => {
