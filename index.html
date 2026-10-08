@@ -773,7 +773,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
         const firebaseConfig = {
@@ -1256,7 +1256,7 @@
             });
             try {
                 await setDoc(getSettingsDoc("active_shifts_config"), { activeShifts: activeShiftsConfig });
-            } catch(e) {}
+            } catch(e) { console.error(e); notify("שגיאה בשמירת המשמרות הפעילות"); }
         };
 
         function renderEmployeeShiftCheckboxes() {
@@ -1301,7 +1301,7 @@
                     slotTimes: customShiftTimes,
                     updatedAt: Date.now()
                 });
-            } catch(e){}
+            } catch(e){ console.error(e); notify("שגיאה בשמירת הסידור. בדוק חיבור ונסה שוב"); }
         }
 
         async function syncPublishedIfActive(changeDesc) {
@@ -1318,7 +1318,7 @@
                     if (publishedWeekSun) payload.weekSun = publishedWeekSun;
                     await setDoc(getSettingsDoc("published_schedule"), payload);
                     if (changeDesc) pushNotif(MANAGER, 'schedule_change', 'שינוי בסידור שפורסם: ' + changeDesc);
-                } catch(e){}
+                } catch(e){ console.error(e); notify("שגיאה בעדכון הסידור שפורסם"); }
             }
         }
 
@@ -1621,7 +1621,14 @@
                 if (ok) {
                     if (!canCover(me, cur)) { notify("אי אפשר לאשר: את/ה משובץ/ת, בהיעדרות או שהמשמרת הסתיימה"); return; }
                     const wasOpen = !cur.to;
-                    await setDoc(ref, { to: me, status: 'pending_manager', updatedAt: Date.now() }, { merge: true });
+                    // טרנזקציה: רק עובד אחד יכול לתפוס את הבקשה, גם אם שניים לוחצים בו זמנית
+                    const taken = await runTransaction(db, async (tx) => {
+                        const fresh = await tx.get(ref);
+                        if (!fresh.exists() || fresh.data().status !== 'pending_peer') return false;
+                        tx.update(ref, { to: me, status: 'pending_manager', updatedAt: Date.now() });
+                        return true;
+                    });
+                    if (!taken) { notify("מישהו כבר תפס את המשמרת"); return; }
                     await pushNotif(MANAGER, 'swap_manager', `בקשת החלפה לאישור: ${cur.from} ← ${me}, ${label}`);
                     await pushNotif(cur.from, 'swap_result', `${me} אישר/ה להחליף אותך ב${label}. ממתין לאישור מנהל.`);
                     if (wasOpen) {
@@ -1639,25 +1646,35 @@
 
         // מחליף את העובד גם בטיוטה וגם בסידור המפורסם
         async function applySwapToSchedules(sw) {
-            const pub = await getDoc(getSettingsDoc('published_schedule'));
-            if (!pub.exists() || !((pub.data().schedule || {})[sw.key] || []).includes(sw.from)) return false;
-            for (const nm of ['draft_schedule', 'published_schedule']) {
-                const ref = getSettingsDoc(nm);
-                const snap = await getDoc(ref);
-                if (!snap.exists()) continue;
-                const d = snap.data();
-                const sch = { ...(d.schedule || {}) };
-                const list = [...(sch[sw.key] || [])];
-                const i = list.indexOf(sw.from);
-                if (i < 0) continue;
-                if (list.includes(sw.to)) list.splice(i, 1); else list[i] = sw.to;
-                sch[sw.key] = list;
-                const slot = { ...(d.slotTimes || {}) };
-                const k = `${sw.key}-${sw.from}`;
-                if (slot[k]) { slot[`${sw.key}-${sw.to}`] = slot[k]; delete slot[k]; }
-                await setDoc(ref, { ...d, schedule: sch, slotTimes: slot });
-            }
-            return true;
+            // טרנזקציה אחת: קוראים את הבקשה, הסידור המפורסם והטיוטה, ורק אז כותבים את הכול יחד
+            const swapRef = doc(getSwapsCollection(), sw.id);
+            const pubRef = getSettingsDoc('published_schedule');
+            const draftRef = getSettingsDoc('draft_schedule');
+            return await runTransaction(db, async (tx) => {
+                const swapSnap = await tx.get(swapRef);
+                const pubSnap = await tx.get(pubRef);
+                const draftSnap = await tx.get(draftRef);
+                if (!swapSnap.exists() || swapSnap.data().status !== 'pending_manager') return false;
+                if (!pubSnap.exists() || !((pubSnap.data().schedule || {})[sw.key] || []).includes(sw.from)) return false;
+                const writes = [];
+                [[pubRef, pubSnap], [draftRef, draftSnap]].forEach(([ref, snap]) => {
+                    if (!snap.exists()) return;
+                    const d = snap.data();
+                    const sch = { ...(d.schedule || {}) };
+                    const list = [...(sch[sw.key] || [])];
+                    const i = list.indexOf(sw.from);
+                    if (i < 0) return;
+                    if (list.includes(sw.to)) list.splice(i, 1); else list[i] = sw.to;
+                    sch[sw.key] = list;
+                    const slot = { ...(d.slotTimes || {}) };
+                    const k = `${sw.key}-${sw.from}`;
+                    if (slot[k]) { slot[`${sw.key}-${sw.to}`] = slot[k]; delete slot[k]; }
+                    writes.push([ref, { ...d, schedule: sch, slotTimes: slot }]);
+                });
+                writes.forEach(([ref, data]) => tx.set(ref, data));
+                tx.update(swapRef, { status: 'approved', updatedAt: Date.now() });
+                return true;
+            });
         }
 
         window.wsManagerAnswer = async function (id, ok) {
@@ -1898,7 +1915,18 @@
             applyAbsencesToCheckboxes();
         }
 
+        // ניקוי התראות ישנות (מעל 14 יום) של העסק, כדי שהאוסף לא יגדל לנצח
+        async function cleanupOldNotifs() {
+            try {
+                const cutoff = Date.now() - 14 * 86400000;
+                const snap = await getDocs(query(collection(db, '_notifs'), where('rid', '==', RESTAURANT_ID)));
+                const old = snap.docs.filter(d => (d.data().createdAt || 0) < cutoff);
+                await Promise.all(old.map(d => deleteDoc(doc(db, '_notifs', d.id))));
+            } catch (e) { console.error(e); }
+        }
+
         function onManagerEntered() {
+            cleanupOldNotifs();
             try { refreshBioBtn(); } catch(e){}
             managerScreenActive = true;
             subscribeNotifs(MANAGER);
@@ -2165,6 +2193,8 @@
                 return;
             }
 
+            const mgrLocked = lockRemainingMs('manager');
+            if (mgrLocked) { notify(lockedMsg(mgrLocked)); return; }
             const rawPass = await askText("סיסמת מנהל");
             if (rawPass === null) return;
             const pass = rawPass.trim();
@@ -2181,7 +2211,12 @@
                     mustSetNew = ok;
                 }
 
-                if (!ok) { notify("סיסמה שגויה"); return; }
+                if (!ok) {
+                    const nowLocked = lockRegisterFail('manager');
+                    notify(nowLocked ? lockedMsg(nowLocked) : "סיסמה שגויה");
+                    return;
+                }
+                lockClear('manager');
 
                 if (mustSetNew) {
                     const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
@@ -2427,7 +2462,7 @@
             if (!name) { notify("הכנס שם עובד"); return; }
             if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
-            if (employees.some(e => e.name === name)) {
+            if (employees.some(e => normName(e.name) === normName(name))) {
                 notify("השם כבר קיים"); return;
             }
 
@@ -2522,7 +2557,7 @@
             if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
 
             const renamed = (originalEditingName !== newName);
-            if (renamed && employees.some(e => e.name === newName)) {
+            if (renamed && employees.some(e => e.name !== originalEditingName && normName(e.name) === normName(newName))) {
                 notify("השם כבר קיים"); return;
             }
 
@@ -2602,6 +2637,28 @@
             renderEmployeeExtras();
         };
 
+        // ===== נעילה זמנית אחרי ניסיונות כניסה שגויים (מגבלה בצד הלקוח, לכל מכשיר) =====
+        const LOCK_MAX_FAILS = 5, LOCK_MS = 5 * 60 * 1000;
+        const lockKey = (scope) => `work_schedule_lock_${RESTAURANT_ID}_${scope}`;
+        function lockRemainingMs(scope) {
+            try {
+                const o = JSON.parse(localStorage.getItem(lockKey(scope)) || '{}');
+                return o.until && o.until > Date.now() ? o.until - Date.now() : 0;
+            } catch(e) { return 0; }
+        }
+        function lockRegisterFail(scope) {
+            try {
+                const o = JSON.parse(localStorage.getItem(lockKey(scope)) || '{}');
+                const fails = (o.until && o.until <= Date.now() ? 0 : (o.fails || 0)) + 1;
+                const next = fails >= LOCK_MAX_FAILS ? { fails: 0, until: Date.now() + LOCK_MS } : { fails, until: 0 };
+                localStorage.setItem(lockKey(scope), JSON.stringify(next));
+                return next.until ? LOCK_MS : 0;
+            } catch(e) { return 0; }
+        }
+        function lockClear(scope) { try { localStorage.removeItem(lockKey(scope)); } catch(e){} }
+        function lockedMsg(ms) { return `יותר מדי ניסיונות. נסה שוב בעוד ${Math.ceil(ms / 60000)} דקות`; }
+        const normName = (n) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
         window.verifyEmployeePin = async function() {
             const selectedName = document.getElementById('employeeNameDropdown').value;
             const inputPin = document.getElementById('employeePinInput').value.trim();
@@ -2609,6 +2666,10 @@
 
             const emp = employees.find(e => e.name === selectedName);
             if (!emp) { notify("העובד לא נמצא."); return; }
+
+            const lockScope = 'emp_' + selectedName;
+            const lockedFor = lockRemainingMs(lockScope);
+            if (lockedFor) { notify(lockedMsg(lockedFor)); return; }
 
             let ok = false, needsMigration = false;
             try {
@@ -2623,6 +2684,7 @@
             } catch(e) { notify("שגיאה באימות"); return; }
 
             if (ok) {
+                lockClear(lockScope);
                 verifiedEmployeeName = selectedName;
                 document.getElementById('employeeFormArea').classList.remove('hidden');
 
@@ -2645,7 +2707,8 @@
                 renderScheduleForEmployee(selectedName);
                 onEmployeeLoggedIn(selectedName);
             } else {
-                notify("קוד שגוי");
+                const nowLocked = lockRegisterFail(lockScope);
+                notify(nowLocked ? lockedMsg(nowLocked) : "קוד שגוי");
                 document.getElementById('employeeFormArea').classList.add('hidden');
             }
         };
@@ -2728,6 +2791,14 @@
             } catch(e){ notify("שגיאה בשמירה"); }
         };
 
+        // קריאת כמות עובדים בטוחה: שדה ריק או לא תקין לא שובר את השיבוץ
+        function readCount(id) {
+            const el = document.getElementById(id);
+            const n = el ? parseInt(el.value) : NaN;
+            if (isNaN(n) || n < 0) return (el && el.min !== '' && !isNaN(parseInt(el.min))) ? parseInt(el.min) : 0;
+            return n;
+        }
+
         window.generateSchedule = async function() {
             if (employees.length === 0) { notify("אין עובדים"); return; }
             let shiftCounts = {};
@@ -2737,9 +2808,9 @@
 
             daysKeys.forEach(dIdx => {
                 let assignedToday = [];
-                let reqMCount = parseInt(document.getElementById('mCount').value);
-                if (dIdx === '5') reqMCount = parseInt(document.getElementById('friMCount').value);
-                if (dIdx === '6') reqMCount = parseInt(document.getElementById('satMCount').value);
+                let reqMCount = readCount('mCount');
+                if (dIdx === '5') reqMCount = readCount('friMCount');
+                if (dIdx === '6') reqMCount = readCount('satMCount');
 
                 if (activeShiftsConfig[`${dIdx}-m`] !== false) {
                     let morningShift = assignShift(reqMCount, dIdx, 'm', assignedToday, shiftCounts);
@@ -2750,9 +2821,9 @@
                     currentSchedule[`${dIdx}-m`] = [];
                 }
 
-                let reqECount = parseInt(document.getElementById('eCount').value);
-                if (dIdx === '5') reqECount = parseInt(document.getElementById('friECount').value);
-                if (dIdx === '6') reqECount = parseInt(document.getElementById('satECount').value);
+                let reqECount = readCount('eCount');
+                if (dIdx === '5') reqECount = readCount('friECount');
+                if (dIdx === '6') reqECount = readCount('satECount');
 
                 if (activeShiftsConfig[`${dIdx}-e`] !== false) {
                     let eveningShift = assignShift(reqECount, dIdx, 'e', assignedToday, shiftCounts);
@@ -2813,7 +2884,8 @@
 
         function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
             const key = `${dayIdx}-${shiftType}`;
-            let available = employees.filter(e => (employeeAvailMap[e.name] || {})[key]);
+            const dayDate = ymd(weekDatesFull(currentWeekSunday())[parseInt(dayIdx)]);
+            let available = employees.filter(e => (employeeAvailMap[e.name] || {})[key] && !isAbsent(e.name, dayDate));
             let fresh = available.filter(e => !alreadyAssignedToday.some(a => a.name === e.name));
             let tired = available.filter(e => alreadyAssignedToday.some(a => a.name === e.name));
 
@@ -2846,12 +2918,12 @@
 
             const assignedNames = (currentSchedule[key] || []).filter(Boolean);
 
-            let reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'mCount' : 'eCount').value);
+            let reqCount = readCount(shiftType === 'm' ? 'mCount' : 'eCount');
             if (dayIdx === '5') {
-                reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'friMCount' : 'friECount').value);
+                reqCount = readCount(shiftType === 'm' ? 'friMCount' : 'friECount');
             }
             if (dayIdx === '6') {
-                reqCount = parseInt(document.getElementById(shiftType === 'm' ? 'satMCount' : 'satECount').value);
+                reqCount = readCount(shiftType === 'm' ? 'satMCount' : 'satECount');
             }
 
             let html = '';
@@ -2915,6 +2987,17 @@
         window.applySwap = async function(empName) {
             if(!activeSwapKey) return;
             if(!currentSchedule[activeSwapKey]) currentSchedule[activeSwapKey] = [];
+            if (empName !== null) {
+                // חסימת כפילות: אותו עובד לא משובץ פעמיים באותה משמרת
+                const dupIdx = currentSchedule[activeSwapKey].indexOf(empName);
+                if (dupIdx !== -1 && dupIdx !== activeSwapIndex) { notify(`${empName} כבר משובץ/ת במשמרת הזו`); return; }
+                // אזהרה: עובד בחופשה באותו יום
+                const dayDate = ymd(weekDatesFull(currentWeekSunday())[parseInt(activeSwapKey.split('-')[0])]);
+                if (isAbsent(empName, dayDate)) {
+                    closeModal();
+                    if (!await askConfirm(`${empName} בחופשה ביום הזה. לשבץ בכל זאת?`)) return;
+                }
+            }
             const prevName = currentSchedule[activeSwapKey][activeSwapIndex];
             const changeDesc = empName === null
                 ? `${prevName || 'עובד'} הוסר/ה מ${shiftLabelText(activeSwapKey)}`
