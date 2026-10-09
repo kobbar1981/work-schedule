@@ -633,8 +633,6 @@
             <button onclick="updateManagerPassword()" style="background-color: #8e44ad;">עדכן סיסמת מנהל</button>
             <hr style="margin: 14px 0;">
             <button id="bioToggleBtn" onclick="toggleBiometric()" style="background-color: #16a085;">הפעל כניסה בטביעת אצבע</button>
-            <hr style="margin: 14px 0;">
-            <button onclick="encryptAllLegacyPins()" style="background-color: #2c3e50;">הצפן קודים אישיים</button>
         </div>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
@@ -775,6 +773,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+        import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyASfs5MXS62ehM1kVSj0pudOEUGUh37BYI",
@@ -787,6 +787,8 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
+        const functionsClient = getFunctions(app, 'us-central1');
 
         // מפתח VAPID: Firebase Console > Project settings > Cloud Messaging > Web Push certificates
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
@@ -807,22 +809,51 @@
         function getAbsCollection() { return collection(db, `${RESTAURANT_ID}_absences`); }
         function getSwapsCollection() { return collection(db, `${RESTAURANT_ID}_swaps`); }
 
-        // מרשם מרכזי של כל העסקים שנוצרו אי-פעם, לצורך מסך "ניהול-על"
-        const getRegistryDoc = (id) => doc(db, '_registry', id);
-        const getSuperAdminConfigDoc = () => doc(db, '_system', 'super_admin_config');
-        const SUPER_ADMIN_DEFAULT_PASSWORD = "9999";
-
-        async function touchRegistry() {
-            if (!RESTAURANT_ID) return;
-            try {
-                const ref = getRegistryDoc(RESTAURANT_ID);
-                const snap = await getDoc(ref);
-                const payload = { id: RESTAURANT_ID, lastSeenAt: Date.now() };
-                if (!snap.exists()) payload.createdAt = Date.now();
-                await setDoc(ref, payload, { merge: true });
-            } catch(e) {}
+        // ===== התחברות ופעולות רגישות עוברות דרך Cloud Functions. הסיסמאות והקודים נבדקים בשרת בלבד =====
+        async function call(name, data) {
+            const res = await httpsCallable(functionsClient, name, { timeout: 300000 })(data || {});
+            return res.data;
+        }
+        const SAFE_ERR_CODES = new Set(['permission-denied', 'resource-exhausted', 'failed-precondition', 'invalid-argument', 'not-found', 'already-exists', 'unauthenticated']);
+        function errMsg(e, fallback) {
+            const code = String((e && e.code) || '').replace('functions/', '');
+            if (SAFE_ERR_CODES.has(code) && e.message) return e.message;
+            return fallback;
         }
 
+        let businessInfo = null;           // תוצאת getBusinessInfo (קיום העסק + שמות העובדים)
+        let listenerUnsubs = [];
+        let listenersFor = null;           // uid שעבורו הופעלו ההאזנות
+        let listenersReady = Promise.resolve();
+        let pushHooked = false;
+
+        async function currentClaims() {
+            try {
+                if (auth.authStateReady) await auth.authStateReady();
+                const u = auth.currentUser;
+                if (!u) return null;
+                return (await u.getIdTokenResult(true)).claims;   // refresh כפוי: מוודא שההרשאה עדיין תקפה
+            } catch (e) { return null; }
+        }
+
+        function stopListeners() {
+            listenerUnsubs.forEach(u => { try { u(); } catch (e) {} });
+            listenerUnsubs = [];
+            listenersFor = null;
+            try { subscribeNotifs(null); } catch (e) {}
+            // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
+            employees = []; employeeAvailMap = {}; employeeNotesMap = {};
+            absMap = {}; swaps = [];
+            currentSchedule = {}; customShiftTimes = {};
+            publishedSchedule = {}; publishedTimes = {}; publishedCustomShiftTimes = {};
+            publishedWeekSun = ''; publishedAtTs = 0; isPublished = false;
+        }
+
+        async function signInWithToken(token) {
+            const prevUid = auth.currentUser ? auth.currentUser.uid : null;
+            const cred = await signInWithCustomToken(auth, token);
+            if (prevUid !== cred.user.uid) stopListeners();
+        }
 
         // ===== חלונות פנימיים (במקום alert/confirm/prompt של הדפדפן) =====
         let _toastTimer = null;
@@ -932,19 +963,19 @@
             if (!cleaned) { notify("שם עסק לא תקין"); return; }
 
             try {
-                const snap = await getDoc(getRegistryDoc(cleaned));
-                if (snap.exists() && snap.data().deleted) {
-                    notify("העסק נמחק. פנה לניהול-על.");
+                const info = await call('getBusinessInfo', { rid: cleaned });
+                if (info.exists && info.deleted) {
+                    notify(superAdminVerified ? "העסק נמחק. שחזר אותו מרשימת העסקים." : "העסק נמחק. פנה לניהול-על.");
                     return;
                 }
-                if (!snap.exists()) {
-                    if (!superAdminVerified) {
-                        notify("העסק לא קיים");
-                        return;
-                    }
-                    await setDoc(getRegistryDoc(cleaned), { id: cleaned, createdAt: Date.now(), lastSeenAt: Date.now() });
+                if (!info.exists) {
+                    if (!superAdminVerified) { notify("העסק לא קיים"); return; }
+                    const pw = await askText("עסק חדש. הגדר סיסמת מנהל ראשונית (לפחות 4 תווים)");
+                    if (pw === null) return;
+                    await call('adminCreateBusiness', { rid: cleaned, managerPassword: pw.trim() });
+                    notify("העסק נוצר");
                 }
-            } catch(e) { notify("שגיאה בבדיקת העסק."); return; }
+            } catch(e) { notify(errMsg(e, "שגיאה בבדיקת העסק.")); return; }
 
             try { localStorage.setItem('work_schedule_restaurant_id', cleaned); } catch(e){}
             const url = new URL(window.location.href);
@@ -963,9 +994,10 @@
                 // בדיקה אם העסק הזה סומן כמחוק - חוסם כניסה מחדש דרך קישור ישן
                 let isDeleted = false, blockedMsg = '';
                 try {
-                    const snap = await getDoc(getRegistryDoc(candidate));
-                    if (!snap.exists()) { isDeleted = true; blockedMsg = `העסק "${candidate}" לא קיים במערכת.`; }
-                    else if (snap.data().deleted) { isDeleted = true; blockedMsg = `העסק "${candidate}" הוסר מהמערכת.`; }
+                    const info = await call('getBusinessInfo', { rid: candidate });
+                    businessInfo = info;
+                    if (!info.exists) { isDeleted = true; blockedMsg = `העסק "${candidate}" לא קיים במערכת.`; }
+                    else if (info.deleted) { isDeleted = true; blockedMsg = `העסק "${candidate}" הוסר מהמערכת.`; }
                 } catch(e) {
                     notify("שגיאה בבדיקת העסק: " + (e.code || e.message));
                     isDeleted = true; blockedMsg = 'שגיאה בבדיקת העסק.';
@@ -993,7 +1025,7 @@
 
             updateRestaurantTag();
             const tagEl = document.getElementById('restaurantTag');
-            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v8';
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v9';
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
@@ -1006,8 +1038,6 @@
                 return true;
             }
         }
-
-        const LEGACY_DEFAULT_PASSWORD = "1212";
 
         const daysKeys = ['0', '1', '2', '3', '4', '5', '6'];
         const daysNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -1058,47 +1088,10 @@
                 .replace(/'/g, '&#39;');
         }
 
-        function bytesToHex(buf) {
-            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        function hexToBytes(hex) {
-            const out = new Uint8Array(hex.length / 2);
-            for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
-            return out;
-        }
-
-        function generateSalt() {
-            const arr = new Uint8Array(16);
-            crypto.getRandomValues(arr);
-            return bytesToHex(arr);
-        }
-
-        async function hashPassword(pass, saltHex) {
-            const enc = new TextEncoder();
-            const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveBits"]);
-            const bits = await crypto.subtle.deriveBits(
-                { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 150000, hash: "SHA-256" },
-                keyMaterial,
-                256
-            );
-            return bytesToHex(bits);
-        }
-
         async function saveManagerPassword(newPass) {
-            const salt = generateSalt();
-            const hash = await hashPassword(newPass, salt);
-            await setDoc(getSettingsDoc("manager_config"), {
-                passwordHash: hash,
-                salt: salt,
-                password: deleteField()
-            }, { merge: true });
-        }
-
-        async function makeMergePinFields(pin) {
-            const salt = generateSalt();
-            const hash = await hashPassword(String(pin), salt);
-            return { pinHash: hash, pinSalt: salt, pin: deleteField() };
+            const r = await call('setManagerPassword', { password: newPass });
+            // השרת מנתק את שאר המכשירים; המכשיר הנוכחי מקבל כניסה חדשה
+            if (r && r.token) await signInWithToken(r.token);
         }
 
         const colorPaletteList = [
@@ -1936,8 +1929,26 @@
 
         /* ===================== סוף התוספות ===================== */
 
-        function initRealtimeListeners() {
-            onSnapshot(getEmpCollection(), (snapshot) => {
+        function startListeners(role) {
+            const uid = auth.currentUser && auth.currentUser.uid;
+            if (!uid) return Promise.resolve();
+            if (listenersFor === uid) return listenersReady;
+            stopListeners();
+            listenersFor = uid;
+
+            const pending = new Set();
+            let resolveAll;
+            const allDone = new Promise(r => { resolveAll = r; });
+            const sub = (name, ref, cb) => {
+                pending.add(name);
+                const done = () => { pending.delete(name); if (!pending.size) resolveAll(); };
+                listenerUnsubs.push(onSnapshot(ref, (snap) => {
+                    try { const p = cb(snap); if (p && p.catch) p.catch(console.error); }
+                    finally { done(); }
+                }, (err) => { console.error('listener', name, err && err.code); done(); }));
+            };
+
+            sub('emp', getEmpCollection(), (snapshot) => {
                 employees = [];
                 snapshot.forEach((d) => {
                     let data = d.data();
@@ -1953,7 +1964,7 @@
                 renderManagerExtras();
             });
 
-            onSnapshot(getAvailCollection(), (snapshot) => {
+            sub('avail', getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
                 const lastThu7AM = getLastThursday7AM();
@@ -1970,7 +1981,7 @@
                 renderManagerNotes();
             });
 
-            onSnapshot(getAbsCollection(), (snap) => {
+            sub('abs', getAbsCollection(), (snap) => {
                 absMap = {};
                 snap.forEach(d => { const x = d.data(); absMap[x.name || d.id] = x.ranges || []; });
                 refreshAvailabilityCheckboxes();
@@ -1978,7 +1989,7 @@
                 renderManagerExtras();
             });
 
-            onSnapshot(getSwapsCollection(), (snap) => {
+            sub('swaps', getSwapsCollection(), (snap) => {
                 swaps = [];
                 snap.forEach(d => swaps.push({ id: d.id, ...d.data() }));
                 swaps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -1986,7 +1997,7 @@
                 renderManagerExtras();
             });
 
-            onSnapshot(getSettingsDoc("active_shifts_config"), (snap) => {
+            sub('active', getSettingsDoc("active_shifts_config"), (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
                     if (data.activeShifts) {
@@ -2002,7 +2013,8 @@
                 renderEmployeeShiftCheckboxes();
             });
 
-            onSnapshot(getSettingsDoc("draft_schedule"), async (snap) => {
+            // הטיוטה גלויה למנהל בלבד (גם בכללי האבטחה)
+            if (role === 'manager') sub('draft', getSettingsDoc("draft_schedule"), async (snap) => {
                 if (snap.exists()) {
                     const data = snap.data();
                     if (data.updatedAt && data.updatedAt < getLastFriday7AM()) {
@@ -2021,7 +2033,7 @@
                 renderSummaryTable();
             });
 
-            onSnapshot(getSettingsDoc("published_schedule"), async (scheduleSnap) => {
+            sub('pub', getSettingsDoc("published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
                     if (isScheduleExpired(data.publishedAt)) {
@@ -2059,16 +2071,21 @@
                 renderManagerExtras();
             });
 
-            // הודעות push כשהאפליקציה פתוחה
-            isSupported().then(ok => {
-                if (ok) onMessage(getMessaging(app), (p) => notify((p.notification && p.notification.body) || 'התראה חדשה'));
-            }).catch(() => {});
-        }
-        (async function boot() {
-            if (await initRestaurantId()) {
-                initRealtimeListeners();
-                touchRegistry();
+            // הודעות push כשהאפליקציה פתוחה (נרשמים פעם אחת)
+            if (!pushHooked) {
+                pushHooked = true;
+                isSupported().then(ok => {
+                    if (ok) onMessage(getMessaging(app), (p) => notify((p.notification && p.notification.body) || 'התראה חדשה'));
+                }).catch(() => {});
             }
+
+            listenersReady = Promise.race([allDone, new Promise(r => setTimeout(r, 6000))]);
+            return listenersReady;
+        }
+
+        (async function boot() {
+            // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
+            await initRestaurantId();
         })();
 
         function getShiftHours(dayIdx, shiftType) {
@@ -2182,60 +2199,37 @@
             refreshBioBtn();
         };
 
+        async function enterManager() {
+            await startListeners('manager');
+            switchView('manager');
+        }
+
         window.checkManagerPassword = async function() {
-            if (bioGetId() && await bioVerify()) { switchView('manager'); return; }
-            let cfg = null;
-            try {
-                const docSnap = await getDoc(getSettingsDoc("manager_config"));
-                if (docSnap.exists()) cfg = docSnap.data();
-            } catch(e) {
-                notify("שגיאת חיבור");
-                return;
+            // כניסה בטביעת אצבע: רק כשבמכשיר הזה כבר קיימת כניסה תקפה של מנהל העסק הזה
+            if (bioGetId()) {
+                const c = await currentClaims();
+                if (c && c.role === 'manager' && c.rid === RESTAURANT_ID && await bioVerify()) { await enterManager(); return; }
             }
 
-            const mgrLocked = lockRemainingMs('manager');
-            if (mgrLocked) { notify(lockedMsg(mgrLocked)); return; }
             const rawPass = await askText("סיסמת מנהל");
             if (rawPass === null) return;
             const pass = rawPass.trim();
+            if (!pass) { notify("הכנס סיסמה"); return; }
 
             try {
-                let ok = false, mustSetNew = false;
-                if (cfg && cfg.passwordHash && cfg.salt) {
-                    ok = (await hashPassword(pass, cfg.salt)) === cfg.passwordHash;
-                } else if (cfg && cfg.password) {
-                    ok = (pass === String(cfg.password));
-                    if (ok) await saveManagerPassword(pass);
-                } else {
-                    ok = (pass === LEGACY_DEFAULT_PASSWORD);
-                    mustSetNew = ok;
-                }
+                const r = await call('login', { role: 'manager', rid: RESTAURANT_ID, secret: pass });
+                await signInWithToken(r.token);
+            } catch(e) { notify(errMsg(e, "שגיאה באימות")); return; }
 
-                if (!ok) {
-                    const nowLocked = lockRegisterFail('manager');
-                    notify(nowLocked ? lockedMsg(nowLocked) : "סיסמה שגויה");
-                    return;
-                }
-                lockClear('manager');
-
-                if (mustSetNew) {
-                    const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
-                    const newPass = newRaw === null ? "" : newRaw.trim();
-                    if (newPass.length < 4 || newPass === LEGACY_DEFAULT_PASSWORD) {
-                        notify("סיסמה לא תקינה");
-                        return;
-                    }
-                    await saveManagerPassword(newPass);
-                    notify("הסיסמה נשמרה");
-                }
-                switchView('manager');
+            try {
+                await enterManager();
                 if (bioSupported() && !bioGetId()) {
                     if (await askConfirm("להפעיל כניסה בטביעת אצבע במכשיר הזה?")) {
                         notify(await bioRegister() ? 'כניסה בטביעת אצבע הופעלה' : 'לא ניתן להפעיל טביעת אצבע');
                     }
                 }
                 refreshBioBtn();
-            } catch(e) { notify("שגיאה באימות"); }
+            } catch(e) { console.error(e); notify("שגיאה בטעינת הנתונים"); }
         };
 
         window.updateManagerPassword = async function() {
@@ -2246,57 +2240,29 @@
                 await saveManagerPassword(newPass);
                 notify("הסיסמה עודכנה");
                 document.getElementById('newManagerPass').value = '';
-            } catch(e){ notify("שגיאה בעדכון"); }
+            } catch(e){ notify(errMsg(e, "שגיאה בעדכון")); }
         };
 
         window.checkSuperAdminPassword = async function() {
-            let cfg = null;
-            try {
-                const docSnap = await getDoc(getSuperAdminConfigDoc());
-                if (docSnap.exists()) cfg = docSnap.data();
-            } catch(e) {
-                notify("שגיאת חיבור");
-                return;
-            }
-
             const rawPass = await askText("סיסמת ניהול-על");
             if (rawPass === null) return;
             const pass = rawPass.trim();
+            if (!pass) { notify("הכנס סיסמה"); return; }
 
             try {
-                let ok = false, mustSetNew = false;
-                if (cfg && cfg.passwordHash && cfg.salt) {
-                    ok = (await hashPassword(pass, cfg.salt)) === cfg.passwordHash;
-                } else {
-                    ok = (pass === SUPER_ADMIN_DEFAULT_PASSWORD);
-                    mustSetNew = ok;
-                }
+                const r = await call('login', { role: 'super', secret: pass });
+                await signInWithToken(r.token);
+            } catch(e) { notify(errMsg(e, "שגיאה באימות")); return; }
 
-                if (!ok) { notify("סיסמה שגויה"); return; }
-
-                if (mustSetNew) {
-                    const newRaw = await askText("הגדר סיסמה חדשה (לפחות 4 תווים)");
-                    const newPass = newRaw === null ? "" : newRaw.trim();
-                    if (newPass.length < 4 || newPass === SUPER_ADMIN_DEFAULT_PASSWORD) {
-                        notify("סיסמה לא תקינה");
-                        return;
-                    }
-                    const salt = generateSalt();
-                    const hash = await hashPassword(newPass, salt);
-                    await setDoc(getSuperAdminConfigDoc(), { passwordHash: hash, salt: salt });
-                    notify("הסיסמה נשמרה");
-                }
-
-                document.getElementById('selectionView').classList.add('hidden');
-                document.getElementById('employeeView').classList.add('hidden');
-                document.getElementById('managerView').classList.add('hidden');
-                const notice = document.getElementById('deletedNoticeCard');
-                if (notice) notice.remove();
-                superAdminVerified = true;
-                document.getElementById('businessSetupView').classList.add('hidden');
-                document.getElementById('superAdminView').classList.remove('hidden');
-                loadSuperAdminList();
-            } catch(e) { notify("שגיאה באימות"); }
+            document.getElementById('selectionView').classList.add('hidden');
+            document.getElementById('employeeView').classList.add('hidden');
+            document.getElementById('managerView').classList.add('hidden');
+            const notice = document.getElementById('deletedNoticeCard');
+            if (notice) notice.remove();
+            superAdminVerified = true;
+            document.getElementById('businessSetupView').classList.add('hidden');
+            document.getElementById('superAdminView').classList.remove('hidden');
+            loadSuperAdminList();
         };
 
         window.loadSuperAdminList = async function() {
@@ -2305,14 +2271,13 @@
             container.innerHTML = '<p style="color:#888;">טוען רשימת עסקים...</p>';
 
             try {
-                const snap = await getDocs(collection(db, '_registry'));
-                if (snap.empty) {
-                    container.innerHTML = '<p style="color:#888;">לא נמצאו עסקים רשומים עדיין. עסקים נרשמים אוטומטית בכניסה הראשונה שלהם למערכת.</p>';
+                const res = await call('adminListBusinesses');
+                const businesses = res.businesses || [];
+                if (businesses.length === 0) {
+                    container.innerHTML = '<p style="color:#888;">לא נמצאו עסקים רשומים עדיין.</p>';
                     return;
                 }
 
-                const businesses = [];
-                snap.forEach(d => businesses.push(d.data()));
                 const activeBiz = businesses.filter(b => !b.deleted).sort((a, b) => (b.lastSeenAt || 0) - (a.lastSeenAt || 0));
                 const deletedBiz = businesses.filter(b => b.deleted).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
 
@@ -2323,21 +2288,16 @@
                     html += '<p style="color:#888;">אין עסקים פעילים.</p>';
                 }
                 for (const biz of activeBiz) {
-                    let empCount = 0;
-                    try {
-                        const empSnap = await getDocs(collection(db, `${biz.id}_employees`));
-                        empCount = empSnap.size;
-                    } catch(e) {}
-
                     html += `
                         <div class="biz-item">
                             <div class="biz-info">
                                 <b>${esc(biz.id)}</b> ${biz.id === RESTAURANT_ID ? '⭐ (הנוכחי)' : ''}<br>
-                                עובדים: ${empCount} | נוצר: ${fmtDate(biz.createdAt)}<br>
+                                עובדים: ${biz.empCount || 0} | נוצר: ${fmtDate(biz.createdAt)}<br>
                                 כניסה אחרונה: ${fmtDate(biz.lastSeenAt)}
                             </div>
-                            <div style="display:flex; gap:6px;">
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                 <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="jumpToBusiness(this.dataset.id)">עבור לעסק</button>
+                                <button class="edit-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="resetManagerPass(this.dataset.id)">אפס סיסמת מנהל</button>
                                 <button class="delete-btn" style="width:auto;" data-id="${esc(biz.id)}" onclick="deleteBusiness(this.dataset.id)">מחק עסק</button>
                             </div>
                         </div>`;
@@ -2376,69 +2336,38 @@
         window.deleteBusiness = async function(bizId) {
             if (!await askConfirm(`למחוק לצמיתות את "${bizId}"?`)) return;
             if (!await askConfirm(`בטוח? למחוק את "${bizId}"`)) return;
-
             try {
-                const empSnap = await getDocs(collection(db, `${bizId}_employees`));
-                await Promise.all(empSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_employees`, d.id))));
-
-                const availSnap = await getDocs(collection(db, `${bizId}_availability`));
-                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_availability`, d.id))));
-
-                const absSnap = await getDocs(collection(db, `${bizId}_absences`));
-                await Promise.all(absSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_absences`, d.id))));
-
-                const swapSnap = await getDocs(collection(db, `${bizId}_swaps`));
-                await Promise.all(swapSnap.docs.map(d => deleteDoc(doc(db, `${bizId}_swaps`, d.id))));
-
-                const settingsDocs = ["manager_config", "active_shifts_config", "draft_schedule", "published_schedule"];
-                await Promise.all(settingsDocs.map(name => deleteDoc(doc(db, `${bizId}_settings`, name))));
-
-                // מחיקת ההתראות והטוקנים (push) ששייכים לעסק
-                try {
-                    const notifSnap = await getDocs(query(collection(db, '_notifs'), where('rid', '==', bizId)));
-                    await Promise.all(notifSnap.docs.map(d => deleteDoc(doc(db, '_notifs', d.id))));
-                } catch(e) { console.error(e); }
-                try {
-                    const tokenSnap = await getDocs(query(collection(db, '_tokens'), where('rid', '==', bizId)));
-                    await Promise.all(tokenSnap.docs.map(d => deleteDoc(doc(db, '_tokens', d.id))));
-                } catch(e) { console.error(e); }
-
-                // לא מוחקים את רשומת המרשם עצמה - מסמנים כ"נמחק" כדי לחסום כניסה מחדש דרך קישור ישן
-                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: true, deletedAt: Date.now() }, { merge: true });
-
+                notify("מוחק...");
+                await call('adminDeleteBusiness', { rid: bizId });
                 notify("העסק נמחק");
                 loadSuperAdminList();
-            } catch(e) { notify("שגיאה במחיקה"); }
+            } catch(e) { notify(errMsg(e, "שגיאה במחיקה")); }
         };
 
         window.restoreBusiness = async function(bizId) {
-            if (!await askConfirm(`לשחזר את "${bizId}"? הנתונים שנמחקו לא יחזרו.`)) return;
+            if (!await askConfirm(`לשחזר את "${bizId}"? הנתונים שנמחקו לא יחזרו, וצריך להגדיר סיסמת מנהל חדשה.`)) return;
             try {
-                await setDoc(getRegistryDoc(bizId), { id: bizId, deleted: false, deletedAt: null }, { merge: true });
-                notify("שוחזר");
+                await call('adminRestoreBusiness', { rid: bizId });
+                notify("שוחזר. הגדר סיסמת מנהל דרך 'אפס סיסמת מנהל'");
                 loadSuperAdminList();
-            } catch(e) { notify("שגיאה בשחזור."); }
+            } catch(e) { notify(errMsg(e, "שגיאה בשחזור.")); }
         };
 
         window.purgeBusinessRecord = async function(bizId) {
             if (!await askConfirm(`להסיר את "${bizId}" מהרשימה?`)) return;
             try {
-                await deleteDoc(getRegistryDoc(bizId));
+                await call('adminPurgeBusiness', { rid: bizId });
                 loadSuperAdminList();
-            } catch(e) { notify("שגיאה."); }
+            } catch(e) { notify(errMsg(e, "שגיאה.")); }
         };
 
-        window.encryptAllLegacyPins = async function() {
-            const legacy = employees.filter(e => e.pin && !e.pinHash);
-            if (legacy.length === 0) { notify("הכול כבר מוצפן"); return; }
-            if (!await askConfirm(`להצפין ${legacy.length} קודים?`)) return;
+        window.resetManagerPass = async function(bizId) {
+            const pw = await askText(`סיסמת מנהל חדשה ל-"${bizId}" (לפחות 4 תווים)`);
+            if (pw === null) return;
             try {
-                for (const e of legacy) {
-                    const fields = await makeMergePinFields(e.pin);
-                    await setDoc(doc(getEmpCollection(), e.name), fields, { merge: true });
-                }
-                notify("הקודים הוצפנו");
-            } catch(err) { notify("שגיאה בהצפנה"); }
+                await call('setManagerPassword', { rid: bizId, password: pw.trim() });
+                notify("סיסמת המנהל עודכנה");
+            } catch(e) { notify(errMsg(e, "שגיאה בעדכון")); }
         };
 
         function updatePublishBadge(published) {
@@ -2467,14 +2396,13 @@
             }
 
             try {
-                const salt = generateSalt();
-                const pinHash = await hashPassword(pin, salt);
-                const empData = { id: Date.now(), name, pinHash, pinSalt: salt, rank, color };
+                await call('employeeSecret', { action: 'set', name, pin });
+                const empData = { id: Date.now(), name, rank, color };
                 await setDoc(doc(getEmpCollection(), name), empData);
                 document.getElementById('empName').value = '';
                 document.getElementById('empPin').value = '';
                 notify("העובד נוסף");
-            } catch(e) { notify("שגיאה בהוספה"); }
+            } catch(e) { notify(errMsg(e, "שגיאה בהוספה")); }
         };
 
         window.openEditModal = function(name, pin, rank, color) {
@@ -2561,16 +2489,20 @@
                 notify("השם כבר קיים"); return;
             }
 
-            const hasExistingCode = !!(oldEmp.pinHash || oldEmp.pin);
-            if (!pinRaw && !hasExistingCode) { notify("קוד אישי: 4 ספרות"); return; }
-
             try {
                 const updated = { ...oldEmp, name: newName, rank: rank, color: color };
-                if (pinRaw) {
-                    const salt = generateSalt();
-                    updated.pinHash = await hashPassword(pinRaw, salt);
-                    updated.pinSalt = salt;
-                    delete updated.pin;
+                // הקודים נשמרים בשרת בלבד
+                delete updated.pinHash; delete updated.pinSalt; delete updated.pin;
+
+                if (renamed) {
+                    if (pinRaw) {
+                        await call('employeeSecret', { action: 'set', name: newName, pin: pinRaw });
+                        await call('employeeSecret', { action: 'delete', name: originalEditingName });
+                    } else {
+                        await call('employeeSecret', { action: 'rename', name: originalEditingName, newName });
+                    }
+                } else if (pinRaw) {
+                    await call('employeeSecret', { action: 'set', name: newName, pin: pinRaw });
                 }
                 await setDoc(doc(getEmpCollection(), newName), updated);
                 if (renamed) {
@@ -2579,7 +2511,7 @@
                 }
                 closeEditModal();
                 notify("עודכן");
-            } catch(e) { notify("שגיאה בעדכון"); }
+            } catch(e) { notify(errMsg(e, "שגיאה בעדכון")); }
         };
 
         window.deleteEmployee = async function(name) {
@@ -2589,6 +2521,7 @@
                     await deleteDoc(doc(getAvailCollection(), name));
                     await deleteDoc(doc(getAbsCollection(), name));
                 } catch(e){}
+                try { await call('employeeSecret', { action: 'delete', name }); } catch(e){}
             }
         };
 
@@ -2597,7 +2530,7 @@
             if (!list) return;
             if (employees.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
             list.innerHTML = employees.map((e) => {
-                const pinInfo = e.pinHash ? 'קוד: מוצפן' : `קוד: ${esc(e.pin || '—')} (לא מוצפן)`;
+                const pinInfo = 'קוד: מוצפן';
                 return `
                 <div class="emp-item">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -2605,14 +2538,14 @@
                         <span style="font-size:0.75em; color:#555;">(${pinInfo}, רמה ${esc(e.rank || 1)})</span>
                     </div>
                     <div style="display: flex; gap: 4px;">
-                        <button class="edit-btn" data-name="${esc(e.name)}" data-pin="${esc(e.pinHash ? '' : (e.pin || ''))}" data-rank="${esc(e.rank || 3)}" data-color="${esc(e.color || '#74b9ff')}" onclick="openEditModal(this.dataset.name, this.dataset.pin, this.dataset.rank, this.dataset.color)">ערוך</button>
+                        <button class="edit-btn" data-name="${esc(e.name)}" data-pin="" data-rank="${esc(e.rank || 3)}" data-color="${esc(e.color || '#74b9ff')}" onclick="openEditModal(this.dataset.name, this.dataset.pin, this.dataset.rank, this.dataset.color)">ערוך</button>
                         <button class="delete-btn" data-name="${esc(e.name)}" onclick="deleteEmployee(this.dataset.name)">הסר</button>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        function loadEmployeesForEmployeeView() {
+        async function loadEmployeesForEmployeeView() {
             const dropdown = document.getElementById('employeeNameDropdown');
             if(!dropdown) return;
             dropdown.innerHTML = '';
@@ -2621,10 +2554,20 @@
             placeholder.textContent = 'בחר את שמך...';
             dropdown.appendChild(placeholder);
             resetPinStep();
-            employees.forEach(emp => {
+
+            // לפני כניסה אי אפשר לקרוא מ-Firestore: רשימת השמות מגיעה מהשרת (שמות בלבד)
+            let names = ((businessInfo && businessInfo.employees) || []).map(e => e.name);
+            try {
+                const info = await call('getBusinessInfo', { rid: RESTAURANT_ID });
+                businessInfo = info;
+                names = (info.employees || []).map(e => e.name);
+            } catch(e) {}
+            if (!names.length) names = employees.map(e => e.name);
+            names.sort((a, b) => String(a).localeCompare(String(b), 'he'));
+            names.forEach(n => {
                 const opt = document.createElement('option');
-                opt.value = emp.name;
-                opt.textContent = emp.name;
+                opt.value = n;
+                opt.textContent = n;
                 dropdown.appendChild(opt);
             });
         }
@@ -2637,26 +2580,7 @@
             renderEmployeeExtras();
         };
 
-        // ===== נעילה זמנית אחרי ניסיונות כניסה שגויים (מגבלה בצד הלקוח, לכל מכשיר) =====
-        const LOCK_MAX_FAILS = 5, LOCK_MS = 5 * 60 * 1000;
-        const lockKey = (scope) => `work_schedule_lock_${RESTAURANT_ID}_${scope}`;
-        function lockRemainingMs(scope) {
-            try {
-                const o = JSON.parse(localStorage.getItem(lockKey(scope)) || '{}');
-                return o.until && o.until > Date.now() ? o.until - Date.now() : 0;
-            } catch(e) { return 0; }
-        }
-        function lockRegisterFail(scope) {
-            try {
-                const o = JSON.parse(localStorage.getItem(lockKey(scope)) || '{}');
-                const fails = (o.until && o.until <= Date.now() ? 0 : (o.fails || 0)) + 1;
-                const next = fails >= LOCK_MAX_FAILS ? { fails: 0, until: Date.now() + LOCK_MS } : { fails, until: 0 };
-                localStorage.setItem(lockKey(scope), JSON.stringify(next));
-                return next.until ? LOCK_MS : 0;
-            } catch(e) { return 0; }
-        }
-        function lockClear(scope) { try { localStorage.removeItem(lockKey(scope)); } catch(e){} }
-        function lockedMsg(ms) { return `יותר מדי ניסיונות. נסה שוב בעוד ${Math.ceil(ms / 60000)} דקות`; }
+        // הגבלת ניסיונות הכניסה מתבצעת בשרת (login)
         const normName = (n) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
         window.verifyEmployeePin = async function() {
@@ -2664,53 +2588,29 @@
             const inputPin = document.getElementById('employeePinInput').value.trim();
             if (!selectedName || !inputPin) { notify("בחר שם והכנס קוד"); return; }
 
-            const emp = employees.find(e => e.name === selectedName);
-            if (!emp) { notify("העובד לא נמצא."); return; }
-
-            const lockScope = 'emp_' + selectedName;
-            const lockedFor = lockRemainingMs(lockScope);
-            if (lockedFor) { notify(lockedMsg(lockedFor)); return; }
-
-            let ok = false, needsMigration = false;
             try {
-                if (emp.pinHash && emp.pinSalt) {
-                    ok = ((await hashPassword(inputPin, emp.pinSalt)) === emp.pinHash);
-                } else if (emp.pin) {
-                    ok = (inputPin === String(emp.pin));
-                    needsMigration = ok;
-                } else {
-                    notify("לא הוגדר קוד. פנה למנהל."); return;
-                }
-            } catch(e) { notify("שגיאה באימות"); return; }
-
-            if (ok) {
-                lockClear(lockScope);
-                verifiedEmployeeName = selectedName;
-                document.getElementById('employeeFormArea').classList.remove('hidden');
-
-                try {
-                    const now = new Date();
-                    const formattedTime = now.toLocaleString('he-IL', { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'numeric' });
-                    const update = { lastViewedAt: formattedTime };
-                    if (needsMigration) Object.assign(update, await makeMergePinFields(inputPin));
-                    await setDoc(doc(getEmpCollection(), selectedName), update, { merge: true });
-                } catch(e){}
-
-                renderEmployeeShiftCheckboxes();
-                let existingAvail = employeeAvailMap[selectedName] || {};
-                let existingNote = employeeNotesMap[selectedName] || '';
-
-                document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => {
-                    cb.checked = !!existingAvail[cb.value];
-                });
-                document.getElementById('employeeNoteInput').value = existingNote;
-                renderScheduleForEmployee(selectedName);
-                onEmployeeLoggedIn(selectedName);
-            } else {
-                const nowLocked = lockRegisterFail(lockScope);
-                notify(nowLocked ? lockedMsg(nowLocked) : "קוד שגוי");
+                const r = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: selectedName, secret: inputPin });
+                await signInWithToken(r.token);
+                await startListeners('employee');
+            } catch(e) {
+                notify(errMsg(e, "שגיאה באימות"));
                 document.getElementById('employeeFormArea').classList.add('hidden');
+                return;
             }
+
+            verifiedEmployeeName = selectedName;
+            document.getElementById('employeeFormArea').classList.remove('hidden');
+
+            renderEmployeeShiftCheckboxes();
+            let existingAvail = employeeAvailMap[selectedName] || {};
+            let existingNote = employeeNotesMap[selectedName] || '';
+
+            document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => {
+                cb.checked = !!existingAvail[cb.value];
+            });
+            document.getElementById('employeeNoteInput').value = existingNote;
+            renderScheduleForEmployee(selectedName);
+            onEmployeeLoggedIn(selectedName);
         };
 
         function renderScheduleForEmployee(empName) {
