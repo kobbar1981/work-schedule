@@ -803,7 +803,8 @@
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
-        const APP_VERSION = 'v11';
+        // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
+        const APP_VERSION = 'v12';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -3366,6 +3367,11 @@
                 const y = 8;
 
                 pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+                const pdfFile = new File([pdf.output('blob')], 'work-schedule.pdf', { type: 'application/pdf' });
+                if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    try { await navigator.share({ files: [pdfFile], title: 'סידור עבודה' }); return; }
+                    catch (e) { if (e && e.name === 'AbortError') return; }
+                }
                 pdf.save('work-schedule.pdf');
             } catch (err) {
                 notify("שגיאה בייצוא");
