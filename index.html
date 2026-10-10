@@ -118,6 +118,9 @@
 
         .empty-slot { margin-bottom: 4px; border: 1px dashed #3498db; background: #f0f8ff; padding: 4px; border-radius: 4px; color: #2980b9; font-weight: bold; font-size: 0.75em; cursor: pointer; }
 
+        /* משבצת חסרה: כשיש סידור והמשמרת לא מאוישת במלואה */
+        .empty-slot.missing-slot { border: 2px solid #d63031; background: #fdecea; color: #b71c1c; }
+
         .emp-tag { display: inline-block; padding: 4px 6px; border-radius: 4px; font-weight: bold; color: black; font-size: 0.85em; cursor: pointer; text-align: center; border: 1px solid rgba(0,0,0,0.1); }
 
         .my-shift-highlight {
@@ -840,6 +843,7 @@
             listenerUnsubs.forEach(u => { try { u(); } catch (e) {} });
             listenerUnsubs = [];
             listenersFor = null;
+            hoursConfigLoaded = false;
             try { subscribeNotifs(null); } catch (e) {}
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
             employees = []; employeeAvailMap = {}; employeeNotesMap = {};
@@ -1047,6 +1051,37 @@
             'friMStart', 'friMEnd', 'friEStart', 'friEEnd',
             'satMStart', 'satMEnd', 'satEStart', 'satEEnd'
         ];
+
+        // כמויות העובדים בסעיף 5 (נשמרות יחד עם השעות)
+        const COUNT_INPUT_IDS = ['mCount', 'eCount', 'friMCount', 'friECount', 'satMCount', 'satECount'];
+        let hoursConfigLoaded = false;   // לא שומרים לפני שנטענה ההגדרה הקיימת, כדי לא לדרוס אותה בברירות מחדל
+
+        async function saveHoursConfig() {
+            if (!hoursConfigLoaded || !RESTAURANT_ID) return;
+            const data = {};
+            TIME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el && el.value) data[id] = el.value; });
+            COUNT_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el && el.value !== '') data[id] = el.value; });
+            data.updatedAt = Date.now();
+            try { await setDoc(getSettingsDoc("hours_config"), data); }
+            catch (e) { console.error(e); notify("שגיאה בשמירת השעות והכמויות"); }
+        }
+
+        function applyHoursConfig(data) {
+            [...TIME_INPUT_IDS, ...COUNT_INPUT_IDS].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && data[id] !== undefined && document.activeElement !== el) el.value = data[id];
+            });
+        }
+
+        // כל שינוי בשעה או בכמות נשמר אוטומטית
+        [...TIME_INPUT_IDS, ...COUNT_INPUT_IDS].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', () => {
+                try { renderFullScheduleForManager(); } catch (e) {}
+                saveHoursConfig();
+            });
+        });
 
         let employees = [];
         let employeeAvailMap = {};
@@ -2033,6 +2068,13 @@
                 renderSummaryTable();
             });
 
+            // שעות וכמויות (סעיף 5): למנהל בלבד
+            if (role === 'manager') sub('hours', getSettingsDoc("hours_config"), (snap) => {
+                if (snap.exists()) applyHoursConfig(snap.data());
+                hoursConfigLoaded = true;
+                renderFullScheduleForManager();
+            });
+
             sub('pub', getSettingsDoc("published_schedule"), async (scheduleSnap) => {
                 if (scheduleSnap.exists()) {
                     const data = scheduleSnap.data();
@@ -2611,7 +2653,18 @@
             document.getElementById('employeeNoteInput').value = existingNote;
             renderScheduleForEmployee(selectedName);
             onEmployeeLoggedIn(selectedName);
+            recordScheduleView(selectedName);
         };
+
+        // רישום זמן הצפייה בסידור המפורסם (מוצג למנהל בעמודת "צפה בסידור")
+        async function recordScheduleView(name) {
+            if (!isPublished) return;
+            try {
+                const n = israelNow();
+                const stamp = `${fmtDM(n)} ${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
+                await setDoc(doc(getEmpCollection(), name), { lastViewedAt: stamp, lastViewedWeek: pubWeekKey() }, { merge: true });
+            } catch (e) { console.error('recordScheduleView', e); }
+        }
 
         function renderScheduleForEmployee(empName) {
             const summaryBox = document.getElementById('myShiftsSummary');
@@ -2851,12 +2904,21 @@
                     </div>`;
             });
 
+            // סימון חוסר: רק אחרי שנוצר סידור (טיוטה), כדי שלא יהיה הכול אדום לפני השיבוץ
+            const scheduleExists = Object.keys(currentSchedule || {}).length > 0;
+            const missingCount = Math.max(0, reqCount - assignedNames.length);
+
             let maxSlots = Math.max(reqCount, assignedNames.length + 1);
             for (let i = assignedNames.length; i < maxSlots; i++) {
                 const isExtra = i >= reqCount;
+                const isMissing = !isExtra && scheduleExists;
+                let label;
+                if (isExtra) label = 'לאלץ עובד נוסף';
+                else if (isMissing) label = (i === assignedNames.length && missingCount > 1) ? `חסרים ${missingCount} עובדים` : 'חסר עובד';
+                else label = 'שיבוץ עובד';
                 html += `
-                    <div class="empty-slot" style="${isExtra ? 'border-color:#e67e22; color:#d35400; background:#fef5e7;' : ''}" onclick="openSwapModal('${key}', ${i})">
-                        + ${isExtra ? 'לאלץ עובד נוסף' : 'שיבוץ עובד'}
+                    <div class="empty-slot ${isMissing ? 'missing-slot' : ''}" style="${isExtra ? 'border-color:#e67e22; color:#d35400; background:#fef5e7;' : ''}" onclick="openSwapModal('${key}', ${i})">
+                        + ${label}
                     </div>`;
             }
             cell.innerHTML = html;
@@ -2971,7 +3033,9 @@
                 Object.values(currentSchedule).forEach(list => {
                     if(Array.isArray(list)) assignedCount += list.filter(name => name === emp.name).length;
                 });
-                let lastView = emp.lastViewedAt ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${esc(emp.lastViewedAt)}</span>` : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
+                // מציגים צפייה רק אם היא לשבוע של הסידור המפורסם הנוכחי
+                const viewedThisWeek = isPublished && emp.lastViewedAt && emp.lastViewedWeek === pubWeekKey();
+                let lastView = viewedThisWeek ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${esc(emp.lastViewedAt)}</span>` : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
 
                 return `
                     <tr>
