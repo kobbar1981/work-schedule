@@ -250,6 +250,8 @@
         /* אזור נקי ומיועד ל-PDF בלבד */
         #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
         #pdfExportContainer .hours-2l { font-size: 17px; }
+        /* תיקון ייצוא: html2canvas מצייר את הרקע של תיבה מוארת (שעות מותאמות) מעל הטקסט שבתוכה. stacking context מסדר את שכבות הציור */
+        #pdfExportContainer .hours-2l.custom { position: relative; z-index: 0; }
 
         /* תגית שם המסעדה הנוכחית */
         .restaurant-tag { text-align: center; font-size: 0.8em; color: #555; margin-bottom: 6px; }
@@ -804,7 +806,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v13';
+        const APP_VERSION = 'v14';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
