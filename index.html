@@ -1150,15 +1150,14 @@
             if (r && r.token) await signInWithToken(r.token);
         }
 
-        const FIRST_COLORS_COUNT = 12;
         const colorPaletteList = [
-            '#d63031', '#e67e22', '#f1c40f', '#2ecc71', '#00b894', '#18dcff',
-            '#0984e3', '#6c5ce7', '#9b59b6', '#e84393', '#badc58', '#636e72',
-            '#ff7675', '#c0392b', '#fd79a8', '#fab1a0', '#f39c12', '#ffeaa7',
-            '#d35400', '#cd6133', '#55efc4', '#27ae60', '#1abc9c', '#00cec9',
-            '#74b9ff', '#2980b9', '#3498db', '#81ecec', '#a29bfe', '#8e44ad',
-            '#e056fd', '#b2bec3', '#2d3436', '#dfe6e9', '#485460', '#ff9f43'
+            '#f9bab8', '#c61610', '#840f0b', '#f47671', '#84430b', '#f4ae71',
+            '#ee862b', '#d4a017', '#ffe119', '#808000', '#2bee5b', '#b8f9c8',
+            '#0b8429', '#71f492', '#0b8484', '#2beeee', '#b8f9f9', '#b8d0f9',
+            '#71a1f4', '#2b72ee', '#0b3784', '#a32bee', '#e0b8f9', '#c271f4',
+            '#560b84', '#f032e6', '#fd79a8', '#e0e0e0', '#a89f91', '#5f6368'
         ];
+        const FIRST_COLORS_COUNT = colorPaletteList.length;
         let editOwnColor = '';
 
         function buildColorPalettes() {
@@ -1181,6 +1180,7 @@
             const grid = document.getElementById(kind + 'ColorPalette');
             const btn = document.getElementById(kind + 'MoreBtn');
             if (!grid || !btn) return;
+            if (colorPaletteList.length <= FIRST_COLORS_COUNT) { btn.style.display = 'none'; grid.classList.remove('collapsed'); return; }
             grid.classList.toggle('collapsed', !open);
             btn.textContent = open ? 'פחות צבעים ▴' : 'עוד צבעים ▾ (' + (colorPaletteList.length - FIRST_COLORS_COUNT) + ')';
         }
@@ -2773,6 +2773,16 @@
 
             editOwnColor = color || '';
             let openMore = false;
+            const oldExtra = document.querySelector('#editColorPalette .own-extra');
+            if (oldExtra) oldExtra.remove();
+            if (color && !colorPaletteList.some(h => h.toLowerCase() === color.toLowerCase())) {
+                const ex = document.createElement('div');
+                ex.className = 'color-swatch edit-swatch own-extra';
+                ex.style.backgroundColor = color;
+                ex.setAttribute('data-hex', color);
+                ex.onclick = function() { selectColorEdit(color, ex); };
+                document.getElementById('editColorPalette').appendChild(ex);
+            }
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
                 el.classList.remove('selected');
                 if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
