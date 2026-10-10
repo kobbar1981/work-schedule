@@ -204,11 +204,15 @@
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #ddd;
-            max-height: 160px;
-            overflow-y: auto;
-            overscroll-behavior: contain;
             box-sizing: border-box;
         }
+        .palette-grid.collapsed .extra { display: none; }
+        .more-colors-btn { margin-top: 8px; width: 100%; background: #fff; color: #444; border: 1px dashed #888; border-radius: 8px; padding: 8px; font-size: 14px; cursor: pointer; }
+        .color-preview-row { text-align: center; margin: 6px 0 2px; }
+        .color-preview-row .emp-tag { display: inline-block; margin: 0; padding: 5px 22px; font-weight: bold; }
+        .color-swatch { position: relative; }
+        .color-swatch.taken { opacity: 0.35; pointer-events: none; }
+        .color-swatch.taken::after { content: '\2715'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #000; font-size: 16px; font-weight: bold; }
         .color-swatch {
             width: 34px;
             height: 34px;
@@ -611,8 +615,10 @@
 
             <div class="form-group">
                 <label>צבע:</label>
-                <div class="palette-grid" id="addColorPalette"></div>
-                <input type="hidden" id="empColorInput" value="#74b9ff">
+                <div class="color-preview-row"><span class="emp-tag" id="addColorPreview">שם העובד</span></div>
+                <div class="palette-grid collapsed" id="addColorPalette"></div>
+                <button type="button" class="more-colors-btn" id="addMoreBtn" onclick="toggleMoreColors('add')"></button>
+                <input type="hidden" id="empColorInput" value="">
             </div>
 
             <button onclick="addEmployee()">הוסף עובד חדש</button>
@@ -765,7 +771,9 @@
 
             <div class="form-group" style="text-align: right;">
                 <label>בחר צבע חדש:</label>
-                <div class="palette-grid" id="editColorPalette"></div>
+                <div class="color-preview-row"><span class="emp-tag" id="editColorPreview">שם העובד</span></div>
+                <div class="palette-grid collapsed" id="editColorPalette"></div>
+                <button type="button" class="more-colors-btn" id="editMoreBtn" onclick="toggleMoreColors('edit')"></button>
                 <input type="hidden" id="editEmpColorInput" value="#74b9ff">
             </div>
 
@@ -1142,46 +1150,112 @@
             if (r && r.token) await signInWithToken(r.token);
         }
 
+        const FIRST_COLORS_COUNT = 12;
         const colorPaletteList = [
-            '#ff7675', '#d63031', '#c0392b', '#e84393', '#fd79a8', '#fab1a0',
-            '#e67e22', '#f39c12', '#f1c40f', '#ffeaa7', '#d35400', '#cd6133',
-            '#55efc4', '#00b894', '#27ae60', '#2ecc71', '#1abc9c', '#00cec9',
-            '#74b9ff', '#0984e3', '#2980b9', '#3498db', '#81ecec', '#18dcff',
-            '#a29bfe', '#6c5ce7', '#8e44ad', '#9b59b6', '#e056fd', '#b2bec3',
-            '#2d3436', '#636e72', '#badc58', '#dfe6e9', '#485460', '#ff9f43'
+            '#d63031', '#e67e22', '#f1c40f', '#2ecc71', '#00b894', '#18dcff',
+            '#0984e3', '#6c5ce7', '#9b59b6', '#e84393', '#badc58', '#636e72',
+            '#ff7675', '#c0392b', '#fd79a8', '#fab1a0', '#f39c12', '#ffeaa7',
+            '#d35400', '#cd6133', '#55efc4', '#27ae60', '#1abc9c', '#00cec9',
+            '#74b9ff', '#2980b9', '#3498db', '#81ecec', '#a29bfe', '#8e44ad',
+            '#e056fd', '#b2bec3', '#2d3436', '#dfe6e9', '#485460', '#ff9f43'
         ];
+        let editOwnColor = '';
 
         function buildColorPalettes() {
             const addContainer = document.getElementById('addColorPalette');
             const editContainer = document.getElementById('editColorPalette');
             let addHtml = '', editHtml = '';
-            colorPaletteList.forEach((hex) => {
-                addHtml += `<div class="color-swatch" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
-                editHtml += `<div class="color-swatch edit-swatch" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
+            colorPaletteList.forEach((hex, i) => {
+                const ex = i >= FIRST_COLORS_COUNT ? ' extra' : '';
+                addHtml += `<div class="color-swatch${ex}" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
+                editHtml += `<div class="color-swatch edit-swatch${ex}" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
             });
             if (addContainer) addContainer.innerHTML = addHtml;
             if (editContainer) editContainer.innerHTML = editHtml;
+            setMoreColors('add', false); setMoreColors('edit', false);
         }
 
         buildColorPalettes();
 
-        (function markDefaultAddSwatch() {
-            const defaultColor = (document.getElementById('empColorInput').value || '').toLowerCase();
-            document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => {
-                if (el.getAttribute('data-hex').toLowerCase() === defaultColor) el.classList.add('selected');
+        function setMoreColors(kind, open) {
+            const grid = document.getElementById(kind + 'ColorPalette');
+            const btn = document.getElementById(kind + 'MoreBtn');
+            if (!grid || !btn) return;
+            grid.classList.toggle('collapsed', !open);
+            btn.textContent = open ? 'פחות צבעים ▴' : 'עוד צבעים ▾ (' + (colorPaletteList.length - FIRST_COLORS_COUNT) + ')';
+        }
+        window.toggleMoreColors = function(kind) {
+            const grid = document.getElementById(kind + 'ColorPalette');
+            setMoreColors(kind, grid.classList.contains('collapsed'));
+        };
+
+        function textOn(hex) {
+            const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+            if (!m) return '#000';
+            const n = parseInt(m[1], 16);
+            const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255));
+            return lum > 150 ? '#000' : '#fff';
+        }
+
+        function updateColorPreviews() {
+            const pairs = [['addColorPreview', 'empName', 'empColorInput'], ['editColorPreview', 'editEmpName', 'editEmpColorInput']];
+            pairs.forEach(([pid, nid, cid]) => {
+                const pv = document.getElementById(pid), ni = document.getElementById(nid), ci = document.getElementById(cid);
+                if (!pv || !ni || !ci) return;
+                const c = ci.value || '#dfe6e9';
+                pv.textContent = ni.value.trim() || 'שם העובד';
+                pv.style.backgroundColor = c;
+                pv.style.color = textOn(c);
             });
-        })();
+        }
+        ['empName', 'editEmpName'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateColorPreviews);
+        });
+
+        function isColorTakenByOther(hex, excludeName) {
+            const h = (hex || '').toLowerCase();
+            return employees.some(e => e.name !== excludeName && (e.color || '').toLowerCase() === h);
+        }
+
+        window.refreshColorPalettes = function() {
+            const addSw = document.querySelectorAll('#addColorPalette .color-swatch');
+            addSw.forEach(el => el.classList.toggle('taken', isColorTakenByOther(el.getAttribute('data-hex'), null)));
+            const own = (editOwnColor || '').toLowerCase();
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
+                const h = el.getAttribute('data-hex').toLowerCase();
+                el.classList.toggle('taken', h !== own && isColorTakenByOther(h, originalEditingName));
+            });
+            const addInput = document.getElementById('empColorInput');
+            const cur = addInput.value;
+            const curTaken = !cur || isColorTakenByOther(cur, null);
+            if (curTaken) {
+                const free = Array.from(addSw).find(el => !el.classList.contains('taken'));
+                if (free) {
+                    selectColorAdd(free.getAttribute('data-hex'), free);
+                    if (free.classList.contains('extra')) setMoreColors('add', true);
+                } else {
+                    addInput.value = '';
+                    addSw.forEach(el => el.classList.remove('selected'));
+                }
+            }
+            updateColorPreviews();
+        };
 
         window.selectColorAdd = function(colorHex, element) {
+            if (element.classList.contains('taken')) return;
             document.getElementById('empColorInput').value = colorHex;
             document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
+            updateColorPreviews();
         };
 
         window.selectColorEdit = function(colorHex, element) {
+            if (element.classList.contains('taken')) return;
             document.getElementById('editEmpColorInput').value = colorHex;
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
+            updateColorPreviews();
         };
 
         function getIsraelLastThreshold(targetDay) {
@@ -2032,6 +2106,7 @@
                     employees.push(data);
                 });
                 renderEmployeesList();
+                refreshColorPalettes();
                 renderDailyAvailabilityTable();
                 renderSummaryTable();
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
@@ -2670,6 +2745,8 @@
             const color = document.getElementById('empColorInput').value;
 
             if (!name) { notify("הכנס שם עובד"); return; }
+            if (!color) { notify("אין צבע פנוי – בחר צבע"); return; }
+            if (isColorTakenByOther(color, null)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
             if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
             if (employees.some(e => normName(e.name) === normName(name))) {
@@ -2683,6 +2760,7 @@
                 document.getElementById('empName').value = '';
                 document.getElementById('empPin').value = '';
                 notify("העובד נוסף");
+                updateColorPreviews();
             } catch(e) { notify(errMsg(e, "שגיאה בהוספה")); }
         };
 
@@ -2693,12 +2771,17 @@
             document.getElementById('editEmpRank').value = rank;
             document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
+            editOwnColor = color || '';
+            let openMore = false;
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
                 el.classList.remove('selected');
                 if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
                     el.classList.add('selected');
+                    if (el.classList.contains('extra')) openMore = true;
                 }
             });
+            setMoreColors('edit', openMore);
+            refreshColorPalettes();
             document.getElementById('editEmployeeModal').style.display = 'flex'; lockBodyScroll();
         };
 
@@ -2762,6 +2845,7 @@
             if (!newName) { notify("הכנס שם עובד"); return; }
             if (newName.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
+            if (color.toLowerCase() !== (editOwnColor || '').toLowerCase() && isColorTakenByOther(color, originalEditingName)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
 
             const oldEmp = employees.find(e => e.name === originalEditingName);
             if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
