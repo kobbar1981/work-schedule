@@ -628,7 +628,13 @@
         </div>
 
         <div class="card">
-            <h2>9. הגדרות מנהל</h2>
+            <h2>9. ארכיון סידורים</h2>
+            <p style="font-size: 0.85em; color: #555; margin-top: 0;">נשמרים 6 השבועות האחרונים שפורסמו.</p>
+            <div id="archiveList"></div>
+        </div>
+
+        <div class="card">
+            <h2>10. הגדרות מנהל</h2>
             <div class="form-group">
                 <label>סיסמת מנהל חדשה:</label>
                 <input type="text" class="secret-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" name="wsx-newpass" id="newManagerPass" placeholder="לפחות 4 תווים">
@@ -796,6 +802,9 @@
         // מפתח VAPID: Firebase Console > Project settings > Cloud Messaging > Web Push certificates
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
         const MANAGER = '__manager__';
+        // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
+        const APP_VERSION = 'v10';
+        const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
         function sanitizeRestaurantId(raw) {
@@ -846,7 +855,7 @@
             hoursConfigLoaded = false;
             try { subscribeNotifs(null); } catch (e) {}
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
-            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; employeeViewMap = {};
+            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; employeeViewMap = {}; archiveWeeks = {};
             absMap = {}; swaps = [];
             currentSchedule = {}; customShiftTimes = {};
             publishedSchedule = {}; publishedTimes = {}; publishedCustomShiftTimes = {};
@@ -1029,7 +1038,7 @@
 
             updateRestaurantTag();
             const tagEl = document.getElementById('restaurantTag');
-            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | v9';
+            if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | ' + APP_VERSION;
 
             if (!RESTAURANT_ID) {
                 document.getElementById('businessSetupView').classList.remove('hidden');
@@ -2115,6 +2124,14 @@
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
                 renderEmployeeExtras();
                 renderManagerExtras();
+                // כל פרסום/עדכון/החלפה מאושרת נשמר גם בארכיון
+                if (role === 'manager') archivePublishedIfChanged();
+            });
+
+            // ארכיון הסידורים: למנהל בלבד
+            if (role === 'manager') sub('archive', getSettingsDoc("schedule_archive"), (snap) => {
+                archiveWeeks = (snap.exists() && snap.data().weeks) || {};
+                renderArchiveCard();
             });
 
             // הודעות push כשהאפליקציה פתוחה (נרשמים פעם אחת)
@@ -2133,6 +2150,182 @@
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
             await initRestaurantId();
         })();
+
+        /* ===== ארכיון סידורים (ARCHIVE_KEEP שבועות אחרונים, מסמך אחד: schedule_archive) ===== */
+        let archiveWeeks = {};
+        let archiveBusy = false;
+
+        async function archivePublishedIfChanged() {
+            if (!isPublished || !RESTAURANT_ID || archiveBusy) return;
+            const wk = pubWeekKey();
+            const entry = { schedule: publishedSchedule, times: publishedTimes, slotTimes: publishedCustomShiftTimes };
+            const sig = (e) => JSON.stringify([e.schedule || {}, e.times || {}, e.slotTimes || {}]);
+            if (archiveWeeks[wk] && sig(archiveWeeks[wk]) === sig(entry)) return;
+            archiveBusy = true;
+            try {
+                const ref = getSettingsDoc("schedule_archive");
+                const snap = await getDoc(ref);
+                const weeks = { ...((snap.exists() && snap.data().weeks) || {}) };
+                weeks[wk] = { ...entry, savedAt: Date.now() };
+                Object.keys(weeks).sort().reverse().slice(ARCHIVE_KEEP).forEach(k => delete weeks[k]);
+                await setDoc(ref, { weeks });
+            } catch (e) { console.error('archive', e); }
+            finally { archiveBusy = false; }
+        }
+
+        function renderArchiveCard() {
+            injectExtraStyles();
+            const box = $id('archiveList');
+            if (!box) return;
+            const keys = Object.keys(archiveWeeks).sort().reverse();
+            if (!keys.length) { box.innerHTML = '<p class="ws-note">עדיין אין סידורים בארכיון. סידור נשמר בו בכל פרסום.</p>'; return; }
+            box.innerHTML = keys.map(k => {
+                const sun = parseYmd(k);
+                const cnt = Object.values(archiveWeeks[k].schedule || {}).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0);
+                return `<div class="ws-row"><span>שבוע ${esc(fmtDM(sun))}–${esc(fmtDM(addDays(sun, 6)))} (${cnt} שיבוצים)</span>
+                    <span><button class="ws-mini" data-wk="${esc(k)}" onclick="wsArchiveView(this.dataset.wk)">צפה</button>
+                    <button class="ws-mini" style="background:#e67e22" data-wk="${esc(k)}" onclick="wsArchiveCopy(this.dataset.wk)">העתק לטיוטה</button></span></div>`;
+            }).join('');
+        }
+
+        window.wsArchiveView = function (wk) {
+            const e = archiveWeeks[wk];
+            if (!e) return;
+            const dates = weekDatesFull(parseYmd(wk));
+            let t = '';
+            daysKeys.forEach(d => {
+                let lines = '';
+                ['m', 'e'].forEach(s => {
+                    const key = `${d}-${s}`;
+                    const names = ((e.schedule || {})[key] || []).filter(Boolean);
+                    if (!names.length) return;
+                    const def = hoursFromTimes(e.times, d, s);
+                    lines += `  ${s === 'm' ? 'בוקר' : 'ערב'}: ` + names.map(n => `${n} (${(e.slotTimes || {})[`${key}-${n}`] || def})`).join(', ') + '\n';
+                });
+                if (lines) t += `${daysNames[d]} (${fmtDM(dates[d])})\n${lines}`;
+            });
+            const ov = document.createElement('div');
+            ov.className = 'app-dialog-overlay';
+            const box = document.createElement('div');
+            box.className = 'app-dialog';
+            box.style.maxHeight = '80vh';
+            box.style.overflowY = 'auto';
+            const p = document.createElement('p');
+            p.textContent = `שבוע ${fmtDM(dates[0])}–${fmtDM(dates[6])}\n\n` + (t || 'אין שיבוצים');
+            const b = document.createElement('button');
+            b.textContent = 'סגור';
+            b.onclick = () => ov.remove();
+            box.appendChild(p);
+            box.appendChild(b);
+            ov.appendChild(box);
+            document.body.appendChild(ov);
+        };
+
+        window.wsArchiveCopy = async function (wk) {
+            const e = archiveWeeks[wk];
+            if (!e) return;
+            const warn = isPublished ? "\nשים לב: עריכה ידנית אחרי ההעתקה תעדכן גם את הסידור המפורסם." : "";
+            if (!await askConfirm("להעתיק את הסידור לטיוטה? הטיוטה הנוכחית תוחלף. הסידור המפורסם לא ישתנה עד שתפרסם." + warn)) return;
+            // עובדים שנמחקו מהמערכת לא מועתקים
+            const known = new Set(employees.map(x => x.name));
+            const sch = {};
+            Object.keys(e.schedule || {}).forEach(k => { sch[k] = (e.schedule[k] || []).filter(n => known.has(n)); });
+            const slot = {};
+            Object.keys(e.slotTimes || {}).forEach(k => { if (known.has(k.replace(/^\d-[me]-/, ''))) slot[k] = e.slotTimes[k]; });
+            currentSchedule = sch;
+            customShiftTimes = slot;
+            await saveDraftToFirestore();
+            renderFullScheduleForManager();
+            renderSummaryTable();
+            notify("הסידור הועתק לטיוטה. לחץ 'פרסם' כדי לפרסם");
+        };
+
+        /* ===== ייצוא המשמרות של העובד ליומן (קובץ ICS) ===== */
+        const icsEsc = (s) => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+
+        window.wsDownloadIcs = async function () {
+            const me = verifiedEmployeeName;
+            if (!me || !isPublished) { notify("אין סידור מפורסם"); return; }
+            const days = weekDatesFull(pubSunday());
+            const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+            const fmtLocal = (d) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}00`;
+            const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//work-schedule//he//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+            let count = 0;
+            daysKeys.forEach(d => ['m', 'e'].forEach(s => {
+                const key = `${d}-${s}`;
+                if (!(publishedSchedule[key] || []).includes(me)) return;
+                const hours = publishedCustomShiftTimes[`${key}-${me}`] || getShiftHours(d, s);
+                const [st, en] = splitTimeRange(hours);
+                const m1 = /^(\d{1,2}):(\d{2})$/.exec(st || '');
+                const m2 = /^(\d{1,2}):(\d{2})$/.exec(en || '');
+                if (!m1 || !m2) return;
+                const start = new Date(days[d]); start.setHours(+m1[1], +m1[2], 0, 0);
+                const end = new Date(days[d]); end.setHours(+m2[1], +m2[2], 0, 0);
+                if (end <= start) end.setDate(end.getDate() + 1);   // משמרת שנגמרת אחרי חצות
+                const title = `משמרת ${s === 'm' ? 'בוקר' : 'ערב'}`;
+                count++;
+                lines.push('BEGIN:VEVENT',
+                    `UID:${RESTAURANT_ID}-${pubWeekKey()}-${key}-${encodeURIComponent(me)}@work-schedule`,
+                    `DTSTAMP:${stamp}`,
+                    `DTSTART:${fmtLocal(start)}`,
+                    `DTEND:${fmtLocal(end)}`,
+                    `SUMMARY:${icsEsc(title)}`,
+                    `DESCRIPTION:${icsEsc(`${title} ${hours}`)}`,
+                    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(title)}`, 'TRIGGER:-PT60M', 'END:VALARM',
+                    'END:VEVENT');
+            }));
+            if (!count) { notify("אין לך משמרות להוספה"); return; }
+            lines.push('END:VCALENDAR');
+            const content = lines.join('\r\n');
+            try {
+                const file = new File([content], 'my-shifts.ics', { type: 'text/calendar' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file], title: 'המשמרות שלי' }); return; }
+                    catch (e) { if (e && e.name === 'AbortError') return; }
+                }
+            } catch (e) {}
+            const url = URL.createObjectURL(new Blob([content], { type: 'text/calendar;charset=utf-8' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my-shifts.ics';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            notify("הקובץ ירד. פתח אותו כדי להוסיף ליומן");
+        };
+
+        /* ===== הודעת גרסה חדשה ===== */
+        let versionBannerShown = false;
+        async function checkForNewVersion() {
+            if (versionBannerShown) return;
+            try {
+                const res = await fetch('index.html', { cache: 'no-store' });
+                if (!res.ok) return;
+                const m = new RegExp('APP_VERSION' + "\\s*=\\s*'([^']+)'").exec(await res.text());
+                if (!m || m[1] === APP_VERSION) return;
+                versionBannerShown = true;
+                const bar = document.createElement('div');
+                bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100001;background:#1877f2;color:#fff;padding:10px;display:flex;gap:8px;align-items:center;justify-content:center;direction:rtl;font-size:0.9em;';
+                const msg = document.createElement('span');
+                msg.textContent = 'יש גרסה חדשה של המערכת';
+                const go = document.createElement('button');
+                go.textContent = 'רענן עכשיו';
+                go.style.cssText = 'width:auto;margin:0;padding:6px 12px;background:#fff;color:#1877f2;';
+                go.onclick = () => location.reload();
+                const later = document.createElement('button');
+                later.textContent = 'אחר כך';
+                later.style.cssText = 'width:auto;margin:0;padding:6px 12px;background:transparent;color:#fff;border:1px solid #fff;';
+                later.onclick = () => bar.remove();
+                bar.appendChild(msg);
+                bar.appendChild(go);
+                bar.appendChild(later);
+                document.body.appendChild(bar);
+            } catch (e) {}
+        }
+        setTimeout(checkForNewVersion, 8000);
+        setInterval(checkForNewVersion, 10 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForNewVersion(); });
 
         function getShiftHours(dayIdx, shiftType) {
             return hoursFromTimes(publishedTimes, dayIdx, shiftType);
@@ -2560,6 +2753,35 @@
             } catch(e) { notify(errMsg(e, "שגיאה בעדכון")); }
         };
 
+        // מסיר עובד שנמחק מהטיוטה, מהסידור המפורסם ומבקשות החלפה פתוחות
+        async function removeEmployeeReferences(name) {
+            const strip = (d) => {
+                const sch = {};
+                Object.keys(d.schedule || {}).forEach(k => { sch[k] = (d.schedule[k] || []).filter(n => n !== name); });
+                const slot = {};
+                Object.keys(d.slotTimes || {}).forEach(k => { if (k.replace(/^\d-[me]-/, '') !== name) slot[k] = d.slotTimes[k]; });
+                return { ...d, schedule: sch, slotTimes: slot };
+            };
+            for (const docName of ["draft_schedule", "published_schedule"]) {
+                try {
+                    const ref = getSettingsDoc(docName);
+                    const snap = await getDoc(ref);
+                    if (snap.exists()) await setDoc(ref, strip(snap.data()));
+                } catch (e) { console.error('removeEmployeeReferences', docName, e); }
+            }
+            const open = (st) => st === 'pending_peer' || st === 'pending_manager';
+            const related = swaps.filter(s => open(s.status) && (s.from === name || s.to === name));
+            for (const s of related) {
+                try {
+                    await setDoc(doc(getSwapsCollection(), s.id), { status: 'cancelled', updatedAt: Date.now() }, { merge: true });
+                    const other = s.from === name ? s.to : s.from;
+                    if (other && other !== name) {
+                        await pushNotif(other, 'swap_cancelled', `בקשת ההחלפה ב${shiftLabelText(s.key)} בוטלה כי ${name} הוסר/ה מהמערכת`);
+                    }
+                } catch (e) { console.error('cancel swap', e); }
+            }
+        }
+
         window.deleteEmployee = async function(name) {
             if(await askConfirm(`למחוק את ${name}?`)) {
                 try {
@@ -2568,6 +2790,7 @@
                     await deleteDoc(doc(getAbsCollection(), name));
                 } catch(e){}
                 try { await call('employeeSecret', { action: 'delete', name }); } catch(e){}
+                await removeEmployeeReferences(name);
             }
         };
 
@@ -2718,7 +2941,7 @@
             });
 
             if (myShiftsList.length > 0) {
-                summaryBox.innerHTML = `<div class="my-shifts-box"><h3 style="margin: 0 0 6px 0; color: #0d47a1; font-size:1em;">שלום ${esc(empName)}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3><ul style="margin: 0; padding-right: 18px; color: #1565c0; font-weight: bold; font-size:0.85em;">${myShiftsList.map(s => `<li>${s}</li>`).join('')}</ul></div>`;
+                summaryBox.innerHTML = `<div class="my-shifts-box"><h3 style="margin: 0 0 6px 0; color: #0d47a1; font-size:1em;">שלום ${esc(empName)}, שובצת ל-${myShiftsList.length} משמרות השבוע:</h3><ul style="margin: 0; padding-right: 18px; color: #1565c0; font-weight: bold; font-size:0.85em;">${myShiftsList.map(s => `<li>${s}</li>`).join('')}</ul><button type="button" onclick="wsDownloadIcs()" style="background-color:#16a085; margin-top:8px;">📅 הוסף את המשמרות שלי ליומן</button></div>`;
             } else {
                 summaryBox.innerHTML = `<div class="my-shifts-box" style="background:#f5f5f5; border-color:#ccc;"><h3 style="margin:0; color:#666; font-size:0.95em;">שלום ${esc(empName)}, לא שובצת למשמרות השבוע.</h3></div>`;
             }
