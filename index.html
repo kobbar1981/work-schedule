@@ -804,7 +804,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v12';
+        const APP_VERSION = 'v13';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1884,6 +1884,24 @@
             keepRender(box2, h2);
         }
 
+        window.wsSendBroadcast = async function () {
+            const ta = $id('wsBroadcastText');
+            const sel = $id('wsBroadcastTo');
+            const text = (ta ? ta.value : '').trim();
+            if (!text) { notify("כתוב הודעה"); return; }
+            const targets = (sel && sel.value) ? [sel.value] : employees.map(e => e.name);
+            if (!targets.length) { notify("אין עובדים לשלוח אליהם"); return; }
+            const who = targets.length === 1 ? targets[0] : `כל העובדים (${targets.length})`;
+            if (!await askConfirm(`לשלוח את ההודעה ל-${who}?`)) return;
+            try {
+                await Promise.all(targets.map(n => setDoc(doc(collection(db, '_notifs')), {
+                    rid: RESTAURANT_ID, to: n, type: 'broadcast', text, read: false, createdAt: Date.now()
+                })));
+                if (ta) ta.value = '';
+                notify(`ההודעה נשלחה (${targets.length})`);
+            } catch (e) { console.error(e); notify("שגיאה בשליחת ההודעה"); }
+        };
+
         function renderManagerExtras() {
             injectExtraStyles();
             const mv = $id('managerView');
@@ -1939,6 +1957,15 @@
             h += `<div class="ws-card"><h3>1. היעדרויות קרובות</h3>`;
             h += info.length ? info.map(w => `<div class="ws-row"><span>${esc(describeWeek(w))}</span></div>`).join('') : `<p class="ws-note">אין היעדרויות רשומות.</p>`;
             h += `</div>`;
+
+            // שליחת הודעת push לעובדים
+            h += `<div class="ws-card"><h3>📢 שליחת הודעה לעובדים</h3>
+                <textarea id="wsBroadcastText" data-keep="1" maxlength="400" rows="3" placeholder="כתוב כאן את ההודעה..." style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;resize:vertical;"></textarea>
+                <select id="wsBroadcastTo" data-keep="1" style="width:100%;box-sizing:border-box;margin:8px 0;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;">
+                    <option value="">כל העובדים</option>
+                    ${employees.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('')}
+                </select>
+                <button onclick="wsSendBroadcast()" style="background-color:#2980b9;width:100%;">שלח הודעה</button></div>`;
 
             if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
