@@ -803,7 +803,7 @@
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
-        const APP_VERSION = 'v10';
+        const APP_VERSION = 'v11';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -855,7 +855,7 @@
             hoursConfigLoaded = false;
             try { subscribeNotifs(null); } catch (e) {}
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
-            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; employeeViewMap = {}; archiveWeeks = {};
+            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; archiveWeeks = {};
             absMap = {}; swaps = [];
             currentSchedule = {}; customShiftTimes = {};
             publishedSchedule = {}; publishedTimes = {}; publishedCustomShiftTimes = {};
@@ -1095,8 +1095,6 @@
         let employees = [];
         let employeeAvailMap = {};
         let employeeNotesMap = {};
-        let employeeViewMap = {};   // זמני צפייה בסידור, נשמרים במסמך הזמינות של העובד
-
         let currentSchedule = {};
         let customShiftTimes = {};
 
@@ -2012,12 +2010,9 @@
             sub('avail', getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
-                employeeViewMap = {};
                 const lastThu7AM = getLastThursday7AM();
                 snapshot.forEach(d => {
                     let data = d.data();
-                    // זמן צפייה נקרא תמיד, גם ממסמך שאין בו זמינות מוגשת
-                    if (data.lastViewedAt) employeeViewMap[data.name || d.id] = { at: data.lastViewedAt, week: data.lastViewedWeek || '' };
                     if (data.updatedAt && data.updatedAt >= lastThu7AM) {
                         let empName = data.name || d.id;
                         employeeAvailMap[empName] = data.shifts || {};
@@ -2880,19 +2875,7 @@
             document.getElementById('employeeNoteInput').value = existingNote;
             renderScheduleForEmployee(selectedName);
             onEmployeeLoggedIn(selectedName);
-            recordScheduleView(selectedName);
         };
-
-        // רישום זמן הצפייה בסידור המפורסם (מוצג למנהל בעמודת "צפה בסידור")
-        async function recordScheduleView(name) {
-            if (!isPublished) return;
-            try {
-                const n = israelNow();
-                const stamp = `${fmtDM(n)} ${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
-                // נשמר במסמך הזמינות של העובד (שם עובדים מורשים לכתוב), בלי לגעת ב-updatedAt של ההגשה
-                await setDoc(doc(getAvailCollection(), name), { name, lastViewedAt: stamp, lastViewedWeek: pubWeekKey() }, { merge: true });
-            } catch (e) { console.error('recordScheduleView', e); }
-        }
 
         function renderScheduleForEmployee(empName) {
             const summaryBox = document.getElementById('myShiftsSummary');
@@ -2956,16 +2939,12 @@
             const isUpdate = !!employeeAvailMap[verifiedEmployeeName]; // כבר הוגשה זמינות השבוע
 
             try {
-                const payload = {
+                await setDoc(doc(getAvailCollection(), verifiedEmployeeName), {
                     name: verifiedEmployeeName,
                     shifts: selectedShifts,
                     note: note,
                     updatedAt: Date.now()
-                };
-                // שומרים את זמן הצפייה, כדי שהגשת זמינות לא תמחק אותו
-                const v = employeeViewMap[verifiedEmployeeName];
-                if (v) { payload.lastViewedAt = v.at; payload.lastViewedWeek = v.week; }
-                await setDoc(doc(getAvailCollection(), verifiedEmployeeName), payload);
+                });
                 notify("הזמינות עודכנה");
                 if (isUpdate) {
                     // מזהה קבוע ליום: עדכונים חוזרים באותו יום מרעננים את הבאנר בלי push נוסף
@@ -3265,10 +3244,8 @@
                 Object.values(currentSchedule).forEach(list => {
                     if(Array.isArray(list)) assignedCount += list.filter(name => name === emp.name).length;
                 });
-                // מציגים צפייה רק אם היא לשבוע של הסידור המפורסם הנוכחי
-                const view = employeeViewMap[emp.name];
-                const viewedThisWeek = isPublished && view && view.week === pubWeekKey();
-                let lastView = viewedThisWeek ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${esc(view.at)}</span>` : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
+                // זמן הכניסה האחרונה של העובד (נרשם בשרת בכל כניסה)
+                let lastView = emp.lastViewedAt ? `<span style="color:#27ae60; font-size:0.85em; font-weight:bold;">👁️ ${esc(emp.lastViewedAt)}</span>` : `<span style="color:#888; font-size:0.85em;">טרם צפה</span>`;
 
                 return `
                     <tr>
