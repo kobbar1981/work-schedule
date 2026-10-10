@@ -806,7 +806,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v14';
+        const APP_VERSION = 'v16';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -3320,11 +3320,8 @@
             } catch(e){ notify("שגיאה במחיקה"); }
         };
 
-        window.exportToPDF = async function() {
-            const btn = document.getElementById('pdfExportBtn');
-            btn.disabled = true;
-            btn.innerText = "מייצר PDF...";
-
+        // ממלא את הטבלה הנסתרת (pdfExportContainer) מנתוני סידור נתונים. משמש לייצוא PDF ולשליחה כתמונה
+        function fillExportTable(schedule, customTimes, times) {
             const dates = displayDates();
             const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
@@ -3334,11 +3331,6 @@
                 if(th) th.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
             }
             document.getElementById('pdfSubtitleDates').innerText = `תאריכים: ${dates[0]} - ${dates[6]}`;
-
-            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
-            const inputTimes = readTimesFromInputs();
-            const pdfTimes = {};
-            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
 
             // מילוי נתוני המשמרות לתוך הטבלה הנסתרת - בכל תא מוצגות שעות לכל עובד
             daysKeys.forEach(dIdx => {
@@ -3352,14 +3344,14 @@
                         return;
                     }
 
-                    const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+                    const assignedNames = (schedule[key] || []).filter(Boolean);
                     let html = '';
-                    const defaultTime = hoursFromTimes(pdfTimes, dIdx, shiftType);
+                    const defaultTime = hoursFromTimes(times, dIdx, shiftType);
 
                     assignedNames.forEach((empName, index) => {
                         const emp = employees.find(e => e.name === empName);
                         const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                        const customTime = customShiftTimes[`${key}-${empName}`];
+                        const customTime = customTimes[`${key}-${empName}`];
                         const slotTime = customTime || defaultTime;
                         const isCustom = !!customTime && customTime !== defaultTime;
 
@@ -3372,6 +3364,20 @@
                     targetCell.innerHTML = html || '<div style="color:#aaa; font-size:20px; text-align:center;">—</div>';
                 });
             });
+
+        }
+
+        window.exportToPDF = async function() {
+            const btn = document.getElementById('pdfExportBtn');
+            btn.disabled = true;
+            btn.innerText = "מייצר PDF...";
+
+            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
+            const inputTimes = readTimesFromInputs();
+            const pdfTimes = {};
+            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
+
+            fillExportTable(currentSchedule, customShiftTimes, pdfTimes);
 
             const exportContainer = document.getElementById('pdfExportContainer');
             exportContainer.style.display = 'block';
@@ -3411,7 +3417,32 @@
             }
         };
 
-        window.sendScheduleToWhatsapp = function() {
+        // שליחת הסידור כתמונה (תפריט השיתוף של הטלפון, משם בוחרים וואטסאפ). כשאי אפשר לשתף קבצים נשלח טקסט כמו קודם
+        window.sendScheduleToWhatsapp = async function() {
+            let canShareImg = false;
+            try { canShareImg = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'a.jpg', { type: 'image/jpeg' })] })); } catch (e) {}
+            if (!canShareImg) { window.sendScheduleTextToWhatsapp(); return; }
+            if (!Object.values(publishedSchedule || {}).some(a => (a || []).filter(Boolean).length)) { notify("אין סידור מפורסם"); return; }
+            notify("מכין תמונה...");
+            const exportContainer = document.getElementById('pdfExportContainer');
+            try {
+                fillExportTable(publishedSchedule, publishedCustomShiftTimes, publishedTimes);
+                exportContainer.style.display = 'block';
+                const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+                if (!blob) throw new Error('toBlob failed');
+                const file = new File([blob], 'work-schedule.jpg', { type: 'image/jpeg' });
+                await navigator.share({ files: [file], title: 'סידור עבודה' });
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+                console.error(e);
+                notify("שגיאה בשליחת התמונה. נסה שוב");
+            } finally {
+                exportContainer.style.display = 'none';
+            }
+        };
+
+        window.sendScheduleTextToWhatsapp = function() {
             const dates = displayDates();
             let text = `📋 *סידור עבודה שבועי* 📋\n`;
 
