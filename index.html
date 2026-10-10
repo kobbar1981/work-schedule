@@ -186,9 +186,10 @@
         .summary-table td { font-size: 0.8em; padding: 6px 3px; }
         .stat-num { font-weight: bold; font-size: 0.95em; }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; }
-        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; overscroll-behavior: contain; touch-action: none; }
+        body.modal-open { overflow: hidden; position: fixed; width: 100%; }
+        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
 
         .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
@@ -205,6 +206,7 @@
             border: 1px solid #ddd;
             max-height: 160px;
             overflow-y: auto;
+            overscroll-behavior: contain;
             box-sizing: border-box;
         }
         .color-swatch {
@@ -2365,10 +2367,25 @@
                 document.getElementById('modalStartTime').value = parts[0];
                 document.getElementById('modalEndTime').value = parts[1];
             }
-            document.getElementById('timeModal').style.display = 'flex';
+            document.getElementById('timeModal').style.display = 'flex'; lockBodyScroll();
         };
 
-        window.closeTimeModal = function() { document.getElementById('timeModal').style.display = 'none'; };
+        let _modalScrollY = 0;
+        window.lockBodyScroll = function() {
+            if (document.body.classList.contains('modal-open')) return;
+            _modalScrollY = window.scrollY || window.pageYOffset || 0;
+            document.body.style.top = (-_modalScrollY) + 'px';
+            document.body.classList.add('modal-open');
+        };
+        window.unlockBodyScroll = function() {
+            const anyOpen = ['swapModal','timeModal','editEmployeeModal'].some(id => { const el = document.getElementById(id); return el && el.style.display === 'flex'; });
+            if (anyOpen || !document.body.classList.contains('modal-open')) return;
+            document.body.classList.remove('modal-open');
+            document.body.style.top = '';
+            window.scrollTo(0, _modalScrollY);
+        };
+
+        window.closeTimeModal = function() { document.getElementById('timeModal').style.display = 'none'; unlockBodyScroll(); };
         window.setQuickTime = function(start, end) {
             document.getElementById('modalStartTime').value = start;
             document.getElementById('modalEndTime').value = end;
@@ -2682,11 +2699,12 @@
                     el.classList.add('selected');
                 }
             });
-            document.getElementById('editEmployeeModal').style.display = 'flex';
+            document.getElementById('editEmployeeModal').style.display = 'flex'; lockBodyScroll();
         };
 
         window.closeEditModal = function() {
             document.getElementById('editEmployeeModal').style.display = 'none';
+            unlockBodyScroll();
         };
 
         async function renameEmployeeReferences(oldName, newName) {
@@ -3183,9 +3201,10 @@
 
             list.innerHTML = html;
             modal.style.display = 'flex';
+            lockBodyScroll();
         };
 
-        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; };
+        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; unlockBodyScroll(); };
 
         window.applySwap = async function(empName) {
             if(!activeSwapKey) return;
