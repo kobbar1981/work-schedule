@@ -186,9 +186,10 @@
         .summary-table td { font-size: 0.8em; padding: 6px 3px; }
         .stat-num { font-weight: bold; font-size: 0.95em; }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; }
-        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-top: 10px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; overscroll-behavior: contain; touch-action: none; }
+        body.modal-open { overflow: hidden; position: fixed; width: 100%; }
+        .modal-card { background: white; padding: 15px; border-radius: 10px; width: 92%; max-width: 360px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; box-sizing: border-box; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+        .modal-btn-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; margin-top: 10px; }
         .modal-emp-btn { padding: 8px; border-radius: 6px; border: 1px solid #ccc; background: #f9f9f9; color: #333; font-weight: bold; text-align: right; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; }
 
         .quick-time-btn { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 5px 8px; font-size: 0.78em; border-radius: 4px; cursor: pointer; margin: 2px; font-weight: bold; }
@@ -203,10 +204,15 @@
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #ddd;
-            max-height: 160px;
-            overflow-y: auto;
             box-sizing: border-box;
         }
+        .palette-grid.collapsed .extra { display: none; }
+        .more-colors-btn { margin-top: 8px; width: 100%; background: #fff; color: #444; border: 1px dashed #888; border-radius: 8px; padding: 8px; font-size: 14px; cursor: pointer; }
+        .color-preview-row { text-align: center; margin: 6px 0 2px; }
+        .color-preview-row .emp-tag { display: inline-block; margin: 0; padding: 5px 22px; font-weight: bold; }
+        .color-swatch { position: relative; }
+        .color-swatch.taken { opacity: 0.35; pointer-events: none; }
+        .color-swatch.taken::after { content: '\2715'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #000; font-size: 16px; font-weight: bold; }
         .color-swatch {
             width: 34px;
             height: 34px;
@@ -250,6 +256,8 @@
         /* אזור נקי ומיועד ל-PDF בלבד */
         #pdfExportContainer { display: none; background: white; padding: 14px; width: 297mm; box-sizing: border-box; direction: rtl; }
         #pdfExportContainer .hours-2l { font-size: 17px; }
+        /* תיקון ייצוא: html2canvas מצייר את הרקע של תיבה מוארת (שעות מותאמות) מעל הטקסט שבתוכה. stacking context מסדר את שכבות הציור */
+        #pdfExportContainer .hours-2l.custom { position: relative; z-index: 0; }
 
         /* תגית שם המסעדה הנוכחית */
         .restaurant-tag { text-align: center; font-size: 0.8em; color: #555; margin-bottom: 6px; }
@@ -607,8 +615,10 @@
 
             <div class="form-group">
                 <label>צבע:</label>
-                <div class="palette-grid" id="addColorPalette"></div>
-                <input type="hidden" id="empColorInput" value="#74b9ff">
+                <div class="color-preview-row"><span class="emp-tag" id="addColorPreview">שם העובד</span></div>
+                <div class="palette-grid collapsed" id="addColorPalette"></div>
+                <button type="button" class="more-colors-btn" id="addMoreBtn" onclick="toggleMoreColors('add')"></button>
+                <input type="hidden" id="empColorInput" value="">
             </div>
 
             <button onclick="addEmployee()">הוסף עובד חדש</button>
@@ -761,7 +771,9 @@
 
             <div class="form-group" style="text-align: right;">
                 <label>בחר צבע חדש:</label>
-                <div class="palette-grid" id="editColorPalette"></div>
+                <div class="color-preview-row"><span class="emp-tag" id="editColorPreview">שם העובד</span></div>
+                <div class="palette-grid collapsed" id="editColorPalette"></div>
+                <button type="button" class="more-colors-btn" id="editMoreBtn" onclick="toggleMoreColors('edit')"></button>
                 <input type="hidden" id="editEmpColorInput" value="#74b9ff">
             </div>
 
@@ -803,7 +815,8 @@
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
-        const APP_VERSION = 'v12';
+        // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
+        const APP_VERSION = 'v16';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1138,45 +1151,111 @@
         }
 
         const colorPaletteList = [
-            '#ff7675', '#d63031', '#c0392b', '#e84393', '#fd79a8', '#fab1a0',
-            '#e67e22', '#f39c12', '#f1c40f', '#ffeaa7', '#d35400', '#cd6133',
-            '#55efc4', '#00b894', '#27ae60', '#2ecc71', '#1abc9c', '#00cec9',
-            '#74b9ff', '#0984e3', '#2980b9', '#3498db', '#81ecec', '#18dcff',
-            '#a29bfe', '#6c5ce7', '#8e44ad', '#9b59b6', '#e056fd', '#b2bec3',
-            '#2d3436', '#636e72', '#badc58', '#dfe6e9', '#485460', '#ff9f43'
+            '#f9bab8', '#c61610', '#840f0b', '#f47671', '#84430b', '#f4ae71',
+            '#ee862b', '#d4a017', '#ffe119', '#808000', '#2bee5b', '#b8f9c8',
+            '#0b8429', '#71f492', '#0b8484', '#2beeee', '#b8f9f9', '#b8d0f9',
+            '#71a1f4', '#2b72ee', '#0b3784', '#a32bee', '#e0b8f9', '#c271f4',
+            '#560b84', '#f032e6', '#fd79a8', '#e0e0e0', '#a89f91', '#5f6368'
         ];
+        const FIRST_COLORS_COUNT = colorPaletteList.length;
+        let editOwnColor = '';
 
         function buildColorPalettes() {
             const addContainer = document.getElementById('addColorPalette');
             const editContainer = document.getElementById('editColorPalette');
             let addHtml = '', editHtml = '';
-            colorPaletteList.forEach((hex) => {
-                addHtml += `<div class="color-swatch" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
-                editHtml += `<div class="color-swatch edit-swatch" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
+            colorPaletteList.forEach((hex, i) => {
+                const ex = i >= FIRST_COLORS_COUNT ? ' extra' : '';
+                addHtml += `<div class="color-swatch${ex}" style="background-color: ${hex};" onclick="selectColorAdd('${hex}', this)" data-hex="${hex}"></div>`;
+                editHtml += `<div class="color-swatch edit-swatch${ex}" style="background-color: ${hex};" onclick="selectColorEdit('${hex}', this)" data-hex="${hex}"></div>`;
             });
             if (addContainer) addContainer.innerHTML = addHtml;
             if (editContainer) editContainer.innerHTML = editHtml;
+            setMoreColors('add', false); setMoreColors('edit', false);
         }
 
         buildColorPalettes();
 
-        (function markDefaultAddSwatch() {
-            const defaultColor = (document.getElementById('empColorInput').value || '').toLowerCase();
-            document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => {
-                if (el.getAttribute('data-hex').toLowerCase() === defaultColor) el.classList.add('selected');
+        function setMoreColors(kind, open) {
+            const grid = document.getElementById(kind + 'ColorPalette');
+            const btn = document.getElementById(kind + 'MoreBtn');
+            if (!grid || !btn) return;
+            if (colorPaletteList.length <= FIRST_COLORS_COUNT) { btn.style.display = 'none'; grid.classList.remove('collapsed'); return; }
+            grid.classList.toggle('collapsed', !open);
+            btn.textContent = open ? 'פחות צבעים ▴' : 'עוד צבעים ▾ (' + (colorPaletteList.length - FIRST_COLORS_COUNT) + ')';
+        }
+        window.toggleMoreColors = function(kind) {
+            const grid = document.getElementById(kind + 'ColorPalette');
+            setMoreColors(kind, grid.classList.contains('collapsed'));
+        };
+
+        function textOn(hex) {
+            const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+            if (!m) return '#000';
+            const n = parseInt(m[1], 16);
+            const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255));
+            return lum > 150 ? '#000' : '#fff';
+        }
+
+        function updateColorPreviews() {
+            const pairs = [['addColorPreview', 'empName', 'empColorInput'], ['editColorPreview', 'editEmpName', 'editEmpColorInput']];
+            pairs.forEach(([pid, nid, cid]) => {
+                const pv = document.getElementById(pid), ni = document.getElementById(nid), ci = document.getElementById(cid);
+                if (!pv || !ni || !ci) return;
+                const c = ci.value || '#dfe6e9';
+                pv.textContent = ni.value.trim() || 'שם העובד';
+                pv.style.backgroundColor = c;
+                pv.style.color = textOn(c);
             });
-        })();
+        }
+        ['empName', 'editEmpName'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateColorPreviews);
+        });
+
+        function isColorTakenByOther(hex, excludeName) {
+            const h = (hex || '').toLowerCase();
+            return employees.some(e => e.name !== excludeName && (e.color || '').toLowerCase() === h);
+        }
+
+        window.refreshColorPalettes = function() {
+            const addSw = document.querySelectorAll('#addColorPalette .color-swatch');
+            addSw.forEach(el => el.classList.toggle('taken', isColorTakenByOther(el.getAttribute('data-hex'), null)));
+            const own = (editOwnColor || '').toLowerCase();
+            document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
+                const h = el.getAttribute('data-hex').toLowerCase();
+                el.classList.toggle('taken', h !== own && isColorTakenByOther(h, originalEditingName));
+            });
+            const addInput = document.getElementById('empColorInput');
+            const cur = addInput.value;
+            const curTaken = !cur || isColorTakenByOther(cur, null);
+            if (curTaken) {
+                const free = Array.from(addSw).find(el => !el.classList.contains('taken'));
+                if (free) {
+                    selectColorAdd(free.getAttribute('data-hex'), free);
+                    if (free.classList.contains('extra')) setMoreColors('add', true);
+                } else {
+                    addInput.value = '';
+                    addSw.forEach(el => el.classList.remove('selected'));
+                }
+            }
+            updateColorPreviews();
+        };
 
         window.selectColorAdd = function(colorHex, element) {
+            if (element.classList.contains('taken')) return;
             document.getElementById('empColorInput').value = colorHex;
             document.querySelectorAll('#addColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
+            updateColorPreviews();
         };
 
         window.selectColorEdit = function(colorHex, element) {
+            if (element.classList.contains('taken')) return;
             document.getElementById('editEmpColorInput').value = colorHex;
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
+            updateColorPreviews();
         };
 
         function getIsraelLastThreshold(targetDay) {
@@ -1883,6 +1962,24 @@
             keepRender(box2, h2);
         }
 
+        window.wsSendBroadcast = async function () {
+            const ta = $id('wsBroadcastText');
+            const sel = $id('wsBroadcastTo');
+            const text = (ta ? ta.value : '').trim();
+            if (!text) { notify("כתוב הודעה"); return; }
+            const targets = (sel && sel.value) ? [sel.value] : employees.map(e => e.name);
+            if (!targets.length) { notify("אין עובדים לשלוח אליהם"); return; }
+            const who = targets.length === 1 ? targets[0] : `כל העובדים (${targets.length})`;
+            if (!await askConfirm(`לשלוח את ההודעה ל-${who}?`)) return;
+            try {
+                await Promise.all(targets.map(n => setDoc(doc(collection(db, '_notifs')), {
+                    rid: RESTAURANT_ID, to: n, type: 'broadcast', text, read: false, createdAt: Date.now()
+                })));
+                if (ta) ta.value = '';
+                notify(`ההודעה נשלחה (${targets.length})`);
+            } catch (e) { console.error(e); notify("שגיאה בשליחת ההודעה"); }
+        };
+
         function renderManagerExtras() {
             injectExtraStyles();
             const mv = $id('managerView');
@@ -1938,6 +2035,15 @@
             h += `<div class="ws-card"><h3>1. היעדרויות קרובות</h3>`;
             h += info.length ? info.map(w => `<div class="ws-row"><span>${esc(describeWeek(w))}</span></div>`).join('') : `<p class="ws-note">אין היעדרויות רשומות.</p>`;
             h += `</div>`;
+
+            // שליחת הודעת push לעובדים
+            h += `<div class="ws-card"><h3>📢 שליחת הודעה לעובדים</h3>
+                <textarea id="wsBroadcastText" data-keep="1" maxlength="400" rows="3" placeholder="כתוב כאן את ההודעה..." style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;resize:vertical;"></textarea>
+                <select id="wsBroadcastTo" data-keep="1" style="width:100%;box-sizing:border-box;margin:8px 0;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;">
+                    <option value="">כל העובדים</option>
+                    ${employees.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('')}
+                </select>
+                <button onclick="wsSendBroadcast()" style="background-color:#2980b9;width:100%;">שלח הודעה</button></div>`;
 
             if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
@@ -2000,6 +2106,7 @@
                     employees.push(data);
                 });
                 renderEmployeesList();
+                refreshColorPalettes();
                 renderDailyAvailabilityTable();
                 renderSummaryTable();
                 if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
@@ -2272,18 +2379,13 @@
             if (!count) { notify("אין לך משמרות להוספה"); return; }
             lines.push('END:VCALENDAR');
             const content = lines.join('\r\n');
-            const ua = navigator.userAgent || '';
-            const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-            // אייפון: פותחים את הקובץ ישירות. Safari מציג מסך "הוספה ליומן".
-            // (תפריט השיתוף של האייפון לא מציג את אפליקציית היומן, ולכן לא משתמשים בו)
-            if (isIOS) {
-                notify("נפתח היומן. לחץ 'הוסף הכול'");
-                window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(content);
-                return;
-            }
-
-            // אנדרואיד ושאר המכשירים: הורדה ישירה. בלחיצה על הקובץ שהורד נפתח היומן.
+            try {
+                const file = new File([content], 'my-shifts.ics', { type: 'text/calendar' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try { await navigator.share({ files: [file], title: 'המשמרות שלי' }); return; }
+                    catch (e) { if (e && e.name === 'AbortError') return; }
+                }
+            } catch (e) {}
             const url = URL.createObjectURL(new Blob([content], { type: 'text/calendar;charset=utf-8' }));
             const a = document.createElement('a');
             a.href = url;
@@ -2291,8 +2393,8 @@
             document.body.appendChild(a);
             a.click();
             a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
-            notify("הקובץ ירד. לחץ עליו כדי להוסיף ליומן");
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            notify("הקובץ ירד. פתח אותו כדי להוסיף ליומן");
         };
 
         /* ===== הודעת גרסה חדשה ===== */
@@ -2340,10 +2442,25 @@
                 document.getElementById('modalStartTime').value = parts[0];
                 document.getElementById('modalEndTime').value = parts[1];
             }
-            document.getElementById('timeModal').style.display = 'flex';
+            document.getElementById('timeModal').style.display = 'flex'; lockBodyScroll();
         };
 
-        window.closeTimeModal = function() { document.getElementById('timeModal').style.display = 'none'; };
+        let _modalScrollY = 0;
+        window.lockBodyScroll = function() {
+            if (document.body.classList.contains('modal-open')) return;
+            _modalScrollY = window.scrollY || window.pageYOffset || 0;
+            document.body.style.top = (-_modalScrollY) + 'px';
+            document.body.classList.add('modal-open');
+        };
+        window.unlockBodyScroll = function() {
+            const anyOpen = ['swapModal','timeModal','editEmployeeModal'].some(id => { const el = document.getElementById(id); return el && el.style.display === 'flex'; });
+            if (anyOpen || !document.body.classList.contains('modal-open')) return;
+            document.body.classList.remove('modal-open');
+            document.body.style.top = '';
+            window.scrollTo(0, _modalScrollY);
+        };
+
+        window.closeTimeModal = function() { document.getElementById('timeModal').style.display = 'none'; unlockBodyScroll(); };
         window.setQuickTime = function(start, end) {
             document.getElementById('modalStartTime').value = start;
             document.getElementById('modalEndTime').value = end;
@@ -2628,6 +2745,8 @@
             const color = document.getElementById('empColorInput').value;
 
             if (!name) { notify("הכנס שם עובד"); return; }
+            if (!color) { notify("אין צבע פנוי – בחר צבע"); return; }
+            if (isColorTakenByOther(color, null)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
             if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
             if (employees.some(e => normName(e.name) === normName(name))) {
@@ -2641,6 +2760,7 @@
                 document.getElementById('empName').value = '';
                 document.getElementById('empPin').value = '';
                 notify("העובד נוסף");
+                updateColorPreviews();
             } catch(e) { notify(errMsg(e, "שגיאה בהוספה")); }
         };
 
@@ -2651,17 +2771,33 @@
             document.getElementById('editEmpRank').value = rank;
             document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
+            editOwnColor = color || '';
+            let openMore = false;
+            const oldExtra = document.querySelector('#editColorPalette .own-extra');
+            if (oldExtra) oldExtra.remove();
+            if (color && !colorPaletteList.some(h => h.toLowerCase() === color.toLowerCase())) {
+                const ex = document.createElement('div');
+                ex.className = 'color-swatch edit-swatch own-extra';
+                ex.style.backgroundColor = color;
+                ex.setAttribute('data-hex', color);
+                ex.onclick = function() { selectColorEdit(color, ex); };
+                document.getElementById('editColorPalette').appendChild(ex);
+            }
             document.querySelectorAll('#editColorPalette .color-swatch').forEach(el => {
                 el.classList.remove('selected');
                 if(el.getAttribute('data-hex').toLowerCase() === (color || '').toLowerCase()) {
                     el.classList.add('selected');
+                    if (el.classList.contains('extra')) openMore = true;
                 }
             });
-            document.getElementById('editEmployeeModal').style.display = 'flex';
+            setMoreColors('edit', openMore);
+            refreshColorPalettes();
+            document.getElementById('editEmployeeModal').style.display = 'flex'; lockBodyScroll();
         };
 
         window.closeEditModal = function() {
             document.getElementById('editEmployeeModal').style.display = 'none';
+            unlockBodyScroll();
         };
 
         async function renameEmployeeReferences(oldName, newName) {
@@ -2719,6 +2855,7 @@
             if (!newName) { notify("הכנס שם עובד"); return; }
             if (newName.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
+            if (color.toLowerCase() !== (editOwnColor || '').toLowerCase() && isColorTakenByOther(color, originalEditingName)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
 
             const oldEmp = employees.find(e => e.name === originalEditingName);
             if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
@@ -3158,9 +3295,10 @@
 
             list.innerHTML = html;
             modal.style.display = 'flex';
+            lockBodyScroll();
         };
 
-        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; };
+        window.closeModal = function() { document.getElementById('swapModal').style.display = 'none'; unlockBodyScroll(); };
 
         window.applySwap = async function(empName) {
             if(!activeSwapKey) return;
@@ -3295,11 +3433,8 @@
             } catch(e){ notify("שגיאה במחיקה"); }
         };
 
-        window.exportToPDF = async function() {
-            const btn = document.getElementById('pdfExportBtn');
-            btn.disabled = true;
-            btn.innerText = "מייצר PDF...";
-
+        // ממלא את הטבלה הנסתרת (pdfExportContainer) מנתוני סידור נתונים. משמש לייצוא PDF ולשליחה כתמונה
+        function fillExportTable(schedule, customTimes, times) {
             const dates = displayDates();
             const daysShort = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
 
@@ -3309,11 +3444,6 @@
                 if(th) th.innerHTML = `<b>${daysShort[i]}</b><br><span style="font-size:0.85em; font-weight:normal; color:#555;">${dates[i]}</span>`;
             }
             document.getElementById('pdfSubtitleDates').innerText = `תאריכים: ${dates[0]} - ${dates[6]}`;
-
-            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
-            const inputTimes = readTimesFromInputs();
-            const pdfTimes = {};
-            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
 
             // מילוי נתוני המשמרות לתוך הטבלה הנסתרת - בכל תא מוצגות שעות לכל עובד
             daysKeys.forEach(dIdx => {
@@ -3327,14 +3457,14 @@
                         return;
                     }
 
-                    const assignedNames = (currentSchedule[key] || []).filter(Boolean);
+                    const assignedNames = (schedule[key] || []).filter(Boolean);
                     let html = '';
-                    const defaultTime = hoursFromTimes(pdfTimes, dIdx, shiftType);
+                    const defaultTime = hoursFromTimes(times, dIdx, shiftType);
 
                     assignedNames.forEach((empName, index) => {
                         const emp = employees.find(e => e.name === empName);
                         const empColor = (emp && emp.color) ? emp.color : '#74b9ff';
-                        const customTime = customShiftTimes[`${key}-${empName}`];
+                        const customTime = customTimes[`${key}-${empName}`];
                         const slotTime = customTime || defaultTime;
                         const isCustom = !!customTime && customTime !== defaultTime;
 
@@ -3347,6 +3477,20 @@
                     targetCell.innerHTML = html || '<div style="color:#aaa; font-size:20px; text-align:center;">—</div>';
                 });
             });
+
+        }
+
+        window.exportToPDF = async function() {
+            const btn = document.getElementById('pdfExportBtn');
+            btn.disabled = true;
+            btn.innerText = "מייצר PDF...";
+
+            // שעות ברירת המחדל: מהשעות שהמנהל מגדיר כרגע (אם אין ערך, אז מהשעות שפורסמו)
+            const inputTimes = readTimesFromInputs();
+            const pdfTimes = {};
+            TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
+
+            fillExportTable(currentSchedule, customShiftTimes, pdfTimes);
 
             const exportContainer = document.getElementById('pdfExportContainer');
             exportContainer.style.display = 'block';
@@ -3371,6 +3515,11 @@
                 const y = 8;
 
                 pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+                const pdfFile = new File([pdf.output('blob')], 'work-schedule.pdf', { type: 'application/pdf' });
+                if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    try { await navigator.share({ files: [pdfFile], title: 'סידור עבודה' }); return; }
+                    catch (e) { if (e && e.name === 'AbortError') return; }
+                }
                 pdf.save('work-schedule.pdf');
             } catch (err) {
                 notify("שגיאה בייצוא");
@@ -3381,7 +3530,32 @@
             }
         };
 
-        window.sendScheduleToWhatsapp = function() {
+        // שליחת הסידור כתמונה (תפריט השיתוף של הטלפון, משם בוחרים וואטסאפ). כשאי אפשר לשתף קבצים נשלח טקסט כמו קודם
+        window.sendScheduleToWhatsapp = async function() {
+            let canShareImg = false;
+            try { canShareImg = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'a.jpg', { type: 'image/jpeg' })] })); } catch (e) {}
+            if (!canShareImg) { window.sendScheduleTextToWhatsapp(); return; }
+            if (!Object.values(publishedSchedule || {}).some(a => (a || []).filter(Boolean).length)) { notify("אין סידור מפורסם"); return; }
+            notify("מכין תמונה...");
+            const exportContainer = document.getElementById('pdfExportContainer');
+            try {
+                fillExportTable(publishedSchedule, publishedCustomShiftTimes, publishedTimes);
+                exportContainer.style.display = 'block';
+                const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+                if (!blob) throw new Error('toBlob failed');
+                const file = new File([blob], 'work-schedule.jpg', { type: 'image/jpeg' });
+                await navigator.share({ files: [file], title: 'סידור עבודה' });
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+                console.error(e);
+                notify("שגיאה בשליחת התמונה. נסה שוב");
+            } finally {
+                exportContainer.style.display = 'none';
+            }
+        };
+
+        window.sendScheduleTextToWhatsapp = function() {
             const dates = displayDates();
             let text = `📋 *סידור עבודה שבועי* 📋\n`;
 
