@@ -810,15 +810,13 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const functionsClient = getFunctions(app, 'us-central1');
-        // כתובת הפונקציה שמחזירה קובץ יומן (ICS) לנייד
-        const CALENDAR_FILE_URL = 'https://us-central1-work-schedule-17c39.cloudfunctions.net/calendarFile';
 
         // מפתח VAPID: Firebase Console > Project settings > Cloud Messaging > Web Push certificates
         const VAPID_KEY = "BCAuDJwwOn4UXJtCRxahijqwYAzR3F6iMI0vHyweQWDmxvn94noi-MGUNiAGxqcUhpLP7KI6hRjWvcf6Sg4pJLw";
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v18';
+        const APP_VERSION = 'v17';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1794,10 +1792,13 @@
             });
         }
 
+        const managerBusy = new Set();   // מונע לחיצה כפולה על אשר/דחה
         window.wsManagerAnswer = async function (id, ok) {
             const sw = swaps.find(s => s.id === id);
             if (!sw) return;
             if (sw.status !== 'pending_manager') { notify("הבקשה כבר לא פתוחה"); return; }
+            if (managerBusy.has(id)) return;
+            managerBusy.add(id);
             try {
                 if (ok) {
                     if (sw.week !== pubWeekKey()) {
@@ -1806,8 +1807,15 @@
                     }
                     const done = await applySwapToSchedules(sw);
                     if (!done) {
-                        await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
-                        notify("המשמרת השתנתה, הבקשה פגה"); return;
+                        // סמן כפגה רק אם הבקשה עדיין ממתינה (לא לדרוס בקשה שכבר אושרה)
+                        const cur = await getDoc(doc(getSwapsCollection(), id));
+                        if (cur.exists() && cur.data().status === 'pending_manager') {
+                            await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
+                            notify("המשמרת השתנתה, הבקשה פגה");
+                        } else {
+                            notify("הבקשה כבר טופלה");
+                        }
+                        return;
                     }
                     await setDoc(doc(getSwapsCollection(), id), { status: 'approved', updatedAt: Date.now() }, { merge: true });
                     const txt = `ההחלפה ב${shiftLabelText(sw.key)} אושרה: ${sw.to} במקום ${sw.from}`;
@@ -1823,6 +1831,7 @@
                     notify("הבקשה נדחתה");
                 }
             } catch (e) { notify("שגיאה"); }
+            finally { managerBusy.delete(id); }
         };
 
         /* ----- Push ----- */
@@ -2383,23 +2392,16 @@
             const content = lines.join('\r\n');
             const ua = navigator.userAgent || '';
             const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            const isAndroid = /Android/i.test(ua);
 
-            // נייד (אייפון ואנדרואיד): פותחים קישור רגיל שמחזיר את הקובץ בסוג text/calendar.
-            // המכשיר מציע לו הוספה ליומן (באייפון מסך "הוספה ליומן"). הקובץ עצמו מקודד בתוך הקישור.
-            if (isIOS || isAndroid) {
-                try {
-                    let bin = '';
-                    new TextEncoder().encode(content).forEach(b => { bin += String.fromCharCode(b); });
-                    const d = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                    if (d.length <= 9000) {
-                        window.location.href = CALENDAR_FILE_URL + '?d=' + d;
-                        return;
-                    }
-                } catch (e) { console.error('calendar link', e); }
+            // אייפון: פותחים את הקובץ ישירות. Safari מציג מסך "הוספה ליומן".
+            // (תפריט השיתוף של האייפון לא מציג את אפליקציית היומן, ולכן לא משתמשים בו)
+            if (isIOS) {
+                notify("נפתח היומן. לחץ 'הוסף הכול'");
+                window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(content);
+                return;
             }
 
-            // מחשב (או כשהקישור לא אפשרי): הורדת קובץ. בלחיצה עליו נפתח היומן.
+            // אנדרואיד ושאר המכשירים: הורדה ישירה. בלחיצה על הקובץ שהורד נפתח היומן.
             const url = URL.createObjectURL(new Blob([content], { type: 'text/calendar;charset=utf-8' }));
             const a = document.createElement('a');
             a.href = url;
