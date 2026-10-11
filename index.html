@@ -816,7 +816,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v16';
+        const APP_VERSION = 'v17';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2379,13 +2379,18 @@
             if (!count) { notify("אין לך משמרות להוספה"); return; }
             lines.push('END:VCALENDAR');
             const content = lines.join('\r\n');
-            try {
-                const file = new File([content], 'my-shifts.ics', { type: 'text/calendar' });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try { await navigator.share({ files: [file], title: 'המשמרות שלי' }); return; }
-                    catch (e) { if (e && e.name === 'AbortError') return; }
-                }
-            } catch (e) {}
+            const ua = navigator.userAgent || '';
+            const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            // אייפון: פותחים את הקובץ ישירות. Safari מציג מסך "הוספה ליומן".
+            // (תפריט השיתוף של האייפון לא מציג את אפליקציית היומן, ולכן לא משתמשים בו)
+            if (isIOS) {
+                notify("נפתח היומן. לחץ 'הוסף הכול'");
+                window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(content);
+                return;
+            }
+
+            // אנדרואיד ושאר המכשירים: הורדה ישירה. בלחיצה על הקובץ שהורד נפתח היומן.
             const url = URL.createObjectURL(new Blob([content], { type: 'text/calendar;charset=utf-8' }));
             const a = document.createElement('a');
             a.href = url;
@@ -2393,8 +2398,8 @@
             document.body.appendChild(a);
             a.click();
             a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 4000);
-            notify("הקובץ ירד. פתח אותו כדי להוסיף ליומן");
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            notify("הקובץ ירד. לחץ עליו כדי להוסיף ליומן");
         };
 
         /* ===== הודעת גרסה חדשה ===== */
