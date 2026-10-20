@@ -14,8 +14,8 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- ספריות ליצירת קובץ PDF להורדה -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         /* רוחב קבוע לעמודות לוח המשמרות - אפשר לשנות כאן */
@@ -816,7 +816,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v17';
+        const APP_VERSION = 'v18';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -839,6 +839,8 @@
             const res = await httpsCallable(functionsClient, name, { timeout: 300000 })(data || {});
             return res.data;
         }
+        // חימום: קריאה ריקה ל-login בטעינת הדף, כדי שהמופע בשרת יהיה חם כשהעובד מסיים להקליד את הקוד
+        call('login', { warm: true }).catch(() => {});
         const SAFE_ERR_CODES = new Set(['permission-denied', 'resource-exhausted', 'failed-precondition', 'invalid-argument', 'not-found', 'already-exists', 'unauthenticated']);
         function errMsg(e, fallback) {
             const code = String((e && e.code) || '').replace('functions/', '');
@@ -2089,6 +2091,21 @@
 
         /* ===================== סוף התוספות ===================== */
 
+        // איגוד רינדורים: בהפעלה הראשונה כל האזנה מפעילה כמה רינדורים, ובסך הכול הם רצו עשרות פעמים.
+        // כאן כל פונקציה רצה פעם אחת לכל "גל" (עם הארגומנטים האחרונים), על המצב העדכני בזיכרון.
+        const _renderQueue = new Map();
+        let _renderTimer = null;
+        function scheduleRender(fn, ...args) {
+            _renderQueue.set(fn, args);
+            if (_renderTimer) return;
+            _renderTimer = setTimeout(() => {
+                _renderTimer = null;
+                const jobs = [..._renderQueue];
+                _renderQueue.clear();
+                jobs.forEach(([f, a]) => { try { f(...a); } catch (e) { console.error(e); } });
+            }, 30);
+        }
+
         function startListeners(role) {
             const uid = auth.currentUser && auth.currentUser.uid;
             if (!uid) return Promise.resolve();
@@ -2099,9 +2116,10 @@
             const pending = new Set();
             let resolveAll;
             const allDone = new Promise(r => { resolveAll = r; });
-            const sub = (name, ref, cb) => {
-                pending.add(name);
-                const done = () => { pending.delete(name); if (!pending.size) resolveAll(); };
+            // optional: האזנה שלא מחכים לה לפני הצגת המסך (נטענת ברקע ומרנדרת כשמגיעה)
+            const sub = (name, ref, cb, optional) => {
+                if (!optional) pending.add(name);
+                const done = () => { if (optional) return; pending.delete(name); if (!pending.size) resolveAll(); };
                 listenerUnsubs.push(onSnapshot(ref, (snap) => {
                     try { const p = cb(snap); if (p && p.catch) p.catch(console.error); }
                     finally { done(); }
@@ -2116,13 +2134,13 @@
                     if(!data.color) data.color = "#74b9ff";
                     employees.push(data);
                 });
-                renderEmployeesList();
-                refreshColorPalettes();
-                renderDailyAvailabilityTable();
-                renderSummaryTable();
-                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
-                renderEmployeeExtras();
-                renderManagerExtras();
+                scheduleRender(renderEmployeesList);
+                scheduleRender(refreshColorPalettes);
+                scheduleRender(renderDailyAvailabilityTable);
+                scheduleRender(renderSummaryTable);
+                if(verifiedEmployeeName) scheduleRender(renderScheduleForEmployee, verifiedEmployeeName);
+                scheduleRender(renderEmployeeExtras);
+                scheduleRender(renderManagerExtras);
             });
 
             sub('avail', getAvailCollection(), (snapshot) => {
@@ -2137,26 +2155,26 @@
                         if(data.note) employeeNotesMap[empName] = data.note;
                     }
                 });
-                renderDailyAvailabilityTable();
-                renderSummaryTable();
-                renderManagerNotes();
+                scheduleRender(renderDailyAvailabilityTable);
+                scheduleRender(renderSummaryTable);
+                scheduleRender(renderManagerNotes);
             });
 
             sub('abs', getAbsCollection(), (snap) => {
                 absMap = {};
                 snap.forEach(d => { const x = d.data(); absMap[x.name || d.id] = x.ranges || []; });
-                refreshAvailabilityCheckboxes();
-                renderEmployeeExtras();
-                renderManagerExtras();
+                scheduleRender(refreshAvailabilityCheckboxes);
+                scheduleRender(renderEmployeeExtras);
+                scheduleRender(renderManagerExtras);
             });
 
             sub('swaps', getSwapsCollection(), (snap) => {
                 swaps = [];
                 snap.forEach(d => swaps.push({ id: d.id, ...d.data() }));
                 swaps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                renderEmployeeExtras();
-                renderManagerExtras();
-            });
+                scheduleRender(renderEmployeeExtras);
+                scheduleRender(renderManagerExtras);
+            }, true);
 
             sub('active', getSettingsDoc("active_shifts_config"), (snap) => {
                 if (snap.exists()) {
@@ -2190,15 +2208,15 @@
                     currentSchedule = {};
                     customShiftTimes = {};
                 }
-                renderFullScheduleForManager();
-                renderSummaryTable();
+                scheduleRender(renderFullScheduleForManager);
+                scheduleRender(renderSummaryTable);
             });
 
             // שעות וכמויות (סעיף 5): למנהל בלבד
             if (role === 'manager') sub('hours', getSettingsDoc("hours_config"), (snap) => {
                 if (snap.exists()) applyHoursConfig(snap.data());
                 hoursConfigLoaded = true;
-                renderFullScheduleForManager();
+                scheduleRender(renderFullScheduleForManager);
             });
 
             sub('pub', getSettingsDoc("published_schedule"), async (scheduleSnap) => {
@@ -2232,11 +2250,11 @@
                     updatePublishBadge(false);
                 }
                 try { updateDatesInUI(); } catch(e){}
-                renderFullScheduleForManager();
-                renderSummaryTable();
-                if(verifiedEmployeeName) renderScheduleForEmployee(verifiedEmployeeName);
-                renderEmployeeExtras();
-                renderManagerExtras();
+                scheduleRender(renderFullScheduleForManager);
+                scheduleRender(renderSummaryTable);
+                if(verifiedEmployeeName) scheduleRender(renderScheduleForEmployee, verifiedEmployeeName);
+                scheduleRender(renderEmployeeExtras);
+                scheduleRender(renderManagerExtras);
                 // כל פרסום/עדכון/החלפה מאושרת נשמר גם בארכיון
                 if (role === 'manager') archivePublishedIfChanged();
             });
@@ -2245,7 +2263,7 @@
             if (role === 'manager') sub('archive', getSettingsDoc("schedule_archive"), (snap) => {
                 archiveWeeks = (snap.exists() && snap.data().weeks) || {};
                 renderArchiveCard();
-            });
+            }, true);
 
             // הודעות push כשהאפליקציה פתוחה (נרשמים פעם אחת)
             if (!pushHooked) {
@@ -2979,11 +2997,13 @@
 
             // לפני כניסה אי אפשר לקרוא מ-Firestore: רשימת השמות מגיעה מהשרת (שמות בלבד)
             let names = ((businessInfo && businessInfo.employees) || []).map(e => e.name);
-            try {
-                const info = await call('getBusinessInfo', { rid: RESTAURANT_ID });
-                businessInfo = info;
-                names = (info.employees || []).map(e => e.name);
-            } catch(e) {}
+            if (!names.length) {   // הרשימה כבר נטענה בטעינת הדף. קוראים שוב רק אם היא ריקה
+                try {
+                    const info = await call('getBusinessInfo', { rid: RESTAURANT_ID });
+                    businessInfo = info;
+                    names = (info.employees || []).map(e => e.name);
+                } catch(e) {}
+            }
             if (!names.length) names = employees.map(e => e.name);
             names.sort((a, b) => String(a).localeCompare(String(b), 'he'));
             names.forEach(n => {

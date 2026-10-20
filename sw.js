@@ -1,4 +1,4 @@
-const CACHE = 'work-schedule-v2';
+const CACHE = 'work-schedule-v3';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -21,14 +21,27 @@ self.addEventListener('fetch', e => {
   if (url.origin !== location.origin && url.hostname !== 'cdnjs.cloudflare.com') return;
   if (url.pathname.endsWith('firebase-messaging-sw.js')) return;
 
-  // network-first: תמיד הגרסה העדכנית, ומטמון כשאין אינטרנט
-  e.respondWith(
-    fetch(req).then(res => {
-      if (res && res.ok) {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
-      }
+  // stale-while-revalidate: מגישים מיד מהמטמון (פתיחה מהירה), ומרעננים אותו ברקע.
+  // הגרסה החדשה נטענת בפתיחה הבאה, והאפליקציה גם מציגה באנר "יש גרסה חדשה" (checkForNewVersion).
+  // דפים (navigate) נשמרים תמיד תחת index.html, כדי ש-?r=... לא ייצור עותק נפרד לכל עסק.
+  const isNav = req.mode === 'navigate';
+  const key = isNav ? './index.html' : req;
+
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(key);
+
+    const refresh = fetch(req).then(res => {
+      if (res && res.ok) cache.put(key, res.clone());
       return res;
-    }).catch(() => caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : undefined)))
-  );
+    });
+
+    if (cached) {
+      e.waitUntil(refresh.catch(() => {}));   // רענון ברקע; כישלון (אין רשת) לא משנה כלום
+      return cached;
+    }
+    // אין במטמון: מחכים לרשת
+    try { return await refresh; }
+    catch (err) { return (isNav && await cache.match('./index.html')) || Response.error(); }
+  })());
 });
