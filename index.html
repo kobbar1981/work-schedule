@@ -914,7 +914,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v21';
+        const APP_VERSION = 'v22';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -968,6 +968,8 @@
             hoursConfigLoaded = false;
             try { subscribeNotifs(null); } catch (e) {}
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
+            try { if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; } } catch (e) {}
+            tasksRecurring = null; tasksRecurringExists = false; tasksWeek = null; tasksDays = {}; tasksSeedDone = false;
             employees = []; employeeAvailMap = {}; employeeNotesMap = {}; archiveWeeks = {};
             absMap = {}; swaps = [];
             currentSchedule = {}; customShiftTimes = {};
@@ -2093,6 +2095,7 @@
 
         function renderManagerExtras() {
             injectExtraStyles();
+            ensureRecurringSeeded();
             const mv = $id('managerView');
             if (!mv) return;
             let box = $id('wsMgrBox');
@@ -2204,8 +2207,10 @@
             }, 30);
         }
 
-        /* ===== משימות שבועיות (א'-ה') =====
-           מסמך אחד לכל שבוע באוסף {rid}_tasks, מזהה = תאריך יום ראשון של השבוע הקלנדרי.
+        /* ===== משימות שבועיות קבועות (א'-ה') =====
+           שני מסמכים באוסף {rid}_tasks:
+           - "recurring": נוסח המשימה הקבועה לכל יום (עריכה: מנהל בלבד). נשמר בין שבועות.
+           - <תאריך ראשון של השבוע>: סימוני "בוצע" + שם המבצע לאותו שבוע בלבד. מתאפס מעצמו כל שבוע.
            הצפייה פתוחה במסך הראשי בלי כניסה (כלל קריאה ציבורי לאוסף _tasks בלבד).
            עובדים מסמנים רק "בוצע" (דורש אימות קוד מול השרת); מי שביצע נרשם אוטומטית
            לפי הזהות שאומתה — אי אפשר לרשום בשם מישהו אחר. עריכת נוסח וביטול סימון: מנהל בלבד. */
@@ -2219,21 +2224,49 @@
             return s;
         }
         const tasksWeekKey = () => ymd(tasksWeekSunday());
-        let tasksDays = {};            // { '0': {task, done, doneBy}, ... '4': {...} }
+        const TASKS_RECURRING_ID = 'recurring';
+        let tasksRecurring = null;     // null = טרם נטען; {} = { '0': {task}, ... '4': {...} }
+        let tasksRecurringExists = false;  // האם מסמך recurring קיים בשרת (גם אם ריק) — קובע אם הנוסח הקבוע סמכותי
+        let tasksWeek = null;          // סימוני השבוע: { '0': {done, doneBy, [task מיושן]}, ... }
+        let tasksDays = {};            // מיזוג לתצוגה: { '0': {task, done, doneBy}, ... }
         let tasksUnsub = null;
         let taskVerifiedName = null;   // עובד שאומת בקוד במסך המשימות (זיכרון סשן בלבד, לא נשמר)
         let tasksRenderQueued = false;
 
-        // האזנה לטבלה — פועלת גם בלי כניסה (קריאה ציבורית לאוסף _tasks בלבד)
-        function startTasksListener() {
-            if (tasksUnsub || !RESTAURANT_ID) return;
-            tasksUnsub = onSnapshot(doc(getTasksCollection(), tasksWeekKey()), (snap) => {
-                tasksDays = (snap.exists() && snap.data().days) || {};
-                renderTasks();
-            }, (err) => { console.error('tasks listener', err && err.code); });
+        // מיזוג: אם מסמך recurring קיים — הוא סמכותי לחלוטין (יום ריק בו נשאר ריק, לא "מקמץ" טקסט ישן).
+        // רק כשאין מסמך recurring בכלל (לפני המעבר החד-פעמי) מוצג נוסח מהמסמך השבועי הישן כגיבוי.
+        function mergeTasksDays() {
+            const merged = {};
+            for (let k = 0; k < 5; k++) {
+                const rec = (tasksRecurring && tasksRecurring[k]) || {};
+                const wk = (tasksWeek && tasksWeek[k]) || {};
+                merged[k] = {
+                    task: tasksRecurringExists ? (rec.task || '') : (wk.task || ''),
+                    done: !!wk.done,
+                    doneBy: wk.doneBy || ''
+                };
+            }
+            tasksDays = merged;
         }
 
-        async function tasksUpdate(mutator) {
+        // האזנה לשני המסמכים — פועלת גם בלי כניסה (קריאה ציבורית לאוסף _tasks בלבד)
+        function startTasksListener() {
+            if (tasksUnsub || !RESTAURANT_ID) return;
+            const unsubs = [];
+            unsubs.push(onSnapshot(doc(getTasksCollection(), TASKS_RECURRING_ID), (snap) => {
+                tasksRecurringExists = snap.exists();
+                tasksRecurring = (snap.exists() && snap.data().days) || {};
+                mergeTasksDays(); renderTasks(); ensureRecurringSeeded();
+            }, (err) => { console.error('tasks recurring listener', err && err.code); }));
+            unsubs.push(onSnapshot(doc(getTasksCollection(), tasksWeekKey()), (snap) => {
+                tasksWeek = (snap.exists() && snap.data().days) || {};
+                mergeTasksDays(); renderTasks(); ensureRecurringSeeded();
+            }, (err) => { console.error('tasks week listener', err && err.code); }));
+            tasksUnsub = () => unsubs.forEach(u => u());
+        }
+
+        // סימוני בוצע/ביטול — מסמך שבועי בלבד (ללא נוסח)
+        async function tasksUpdateCompletion(mutator) {
             if (!RESTAURANT_ID) return;
             const ref = doc(getTasksCollection(), tasksWeekKey());
             try {
@@ -2244,6 +2277,52 @@
                     tx.set(ref, { sun: tasksWeekKey(), days, updatedAt: Date.now() });
                 });
             } catch (e) { console.error('tasks save', e); notify('שגיאה בשמירת המשימה'); }
+        }
+
+        // נוסח קבוע — מסמך recurring (מנהל בלבד; החוקים אוכפים)
+        async function tasksUpdateText(mutator) {
+            if (!RESTAURANT_ID) return;
+            const ref = doc(getTasksCollection(), TASKS_RECURRING_ID);
+            try {
+                await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref);
+                    const days = { ...((snap.exists() && snap.data().days) || {}) };
+                    mutator(days);
+                    tx.set(ref, { days, updatedAt: Date.now() });
+                });
+            } catch (e) { console.error('tasks text save', e); notify('שגיאה בשמירת נוסח המשימה'); }
+        }
+
+        // מעבר חד-פעמי: רק אם מסמך recurring לא קיים בכלל, וקיים נוסח במסמך השבועי (מהגרסה הקודמת) —
+        // בכניסת מנהל הנוסח מועתק ל-recurring. לא מוחק כלום. אם recurring קיים (גם ריק בכוונה) — לא נוגעים לעולם.
+        let tasksSeedDone = false;
+        async function ensureRecurringSeeded() {
+            if (tasksSeedDone || !RESTAURANT_ID) return;
+            if (tasksRecurring === null || tasksWeek === null) return;      // ההאזנות עוד לא החזירו — נקרא שוב מההאזנה
+            if (tasksRecurringExists) { tasksSeedDone = true; return; }     // קיים — אין מעבר, גם אם המנהל רוקן ימים בכוונה
+            const claims = await currentClaims();                            // החוקים דורשים מנהל — מוודאים לפני ניסיון כתיבה
+            if (!claims || claims.role !== 'manager' || claims.rid !== RESTAURANT_ID) return;
+            // מקור הזריעה: המסמך השבועי הנוכחי; אם ריק (למשל המנהל נכנס לראשונה אחרי שהשבוע התחלף) — המסמך של השבוע הקודם
+            let srcDays = tasksWeek;
+            const hasText = (dm) => [0,1,2,3,4].some(k => (((dm || {})[k] || {}).task || '').trim());
+            if (!hasText(srcDays)) {
+                try {
+                    const prevSun = new Date(tasksWeekSunday()); prevSun.setDate(prevSun.getDate() - 7);
+                    const prevSnap = await getDoc(doc(getTasksCollection(), ymd(prevSun)));
+                    if (prevSnap.exists() && hasText(prevSnap.data().days)) srcDays = prevSnap.data().days;
+                } catch (e) { console.error('tasks seed prev-week read', e && e.code); }
+            }
+            const seed = {};
+            let found = false;
+            for (let k = 0; k < 5; k++) {
+                const t = ((srcDays[k] || {}).task || '').trim();
+                if (t) { seed[k] = { task: t }; found = true; }
+            }
+            if (!found) { tasksSeedDone = true; return; }                   // אין נוסח ישן — אין מה להעביר
+            try {
+                await tasksUpdateText((days) => Object.assign(days, seed));
+                tasksSeedDone = true;                                        // הצליח — לא חוזרים
+            } catch (e) { console.error('tasks seed', e); }                 // נכשל — יתבצע ניסיון חוזר בעדכון הבא
         }
 
         // דיאלוג בחירת עובד + קוד (אותו סגנון של שאר הדיאלוגים באפליקציה)
@@ -2331,11 +2410,12 @@
 
         // ctx: 'main' (מסך משימות ציבורי — דורש אימות קוד) | 'manager' (מנהל מחובר)
         window.taskMarkDone = async function (dayIdx, ctx) {
-            const who = ctx === 'manager' ? 'מנהל' : await ensureTaskVerified();
+            const who = await ensureTaskVerified();
             if (!who) return;
             if (!await askConfirm(`לסמן שהמשימה בוצעה על ידי ${who}?`)) return;
-            await tasksUpdate((days) => {
+            await tasksUpdateCompletion((days) => {
                 const d = { ...(days[dayIdx] || {}) };
+                delete d.task;   // הנוסח חי ב-recurring בלבד
                 d.done = true;
                 d.doneBy = who;
                 days[dayIdx] = d;
@@ -2344,8 +2424,9 @@
 
         window.taskUndo = async function (dayIdx) {
             if (!await askConfirm('לבטל את סימון ה"בוצע"?')) return;
-            await tasksUpdate((days) => {
+            await tasksUpdateCompletion((days) => {
                 const d = { ...(days[dayIdx] || {}) };
+                delete d.task;
                 d.done = false;
                 d.doneBy = '';
                 days[dayIdx] = d;
@@ -2354,10 +2435,8 @@
 
         window.taskTextChanged = async function (dayIdx, el) {
             const val = (el.value || '').trim().slice(0, 200);
-            await tasksUpdate((days) => {
-                const d = { ...(days[dayIdx] || {}) };
-                d.task = val;
-                days[dayIdx] = d;
+            await tasksUpdateText((days) => {
+                days[dayIdx] = { task: val };
             });
         };
 
@@ -2380,7 +2459,8 @@
                     `<td class="task-status">` + (done
                         ? `<div class="task-done-line">✓ <b>${esc(t.doneBy || '')}</b></div>` +
                           (ctx === 'manager' ? `<button class="task-undo" onclick="taskUndo(${d})">בטל</button>` : '')
-                        : `<button class="task-done-btn" onclick="taskMarkDone(${d}, '${ctx}')">בוצע</button>`) +
+                        : (ctx === 'manager' ? `<span class="task-pending">—</span>`
+                                             : `<button class="task-done-btn" onclick="taskMarkDone(${d}, '${ctx}')">בוצע</button>`)) +
                     `</td></tr>`;
             }
             tb.innerHTML = html;
@@ -2403,8 +2483,15 @@
         });
 
         // וו בדיקה לרינדור בלי נתונים חיים (בדיקות על עותק פריסה בלבד)
-        window.__wsTasksDebug = function (days) {
-            tasksDays = days || {};
+        window.__wsTasksDebug = function (input) {
+            if (input && (input.recurring !== undefined || input.week !== undefined)) {
+                tasksRecurring = input.recurring || {};
+                tasksRecurringExists = !!input.recurringExists;
+                tasksWeek = input.week || {};
+                mergeTasksDays();
+            } else {
+                tasksDays = input || {};
+            }
             renderTasks();
         };
 
@@ -2903,7 +2990,7 @@
         async function enterManager() {
             const status = document.getElementById('startupStatus');
             status.textContent = 'טוען את נתוני העבודה...'; status.classList.remove('hidden');
-            try { await startListeners('manager'); switchView('manager'); }
+            try { await startListeners('manager'); switchView('manager'); ensureRecurringSeeded(); }
             finally { status.classList.add('hidden'); }
         }
 
