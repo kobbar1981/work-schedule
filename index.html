@@ -13,9 +13,7 @@
     <link rel="icon" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- ספריות ליצירת קובץ PDF להורדה -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Export libraries load on demand. -->
 
     <style>
         /* רוחב קבוע לעמודות לוח המשמרות - אפשר לשנות כאן */
@@ -283,6 +281,7 @@
 
     <div class="restaurant-tag" id="restaurantTag"></div>
     <h1>מערכת סידור עבודה חכם</h1>
+    <div class="card" id="startupStatus" role="status" style="text-align:center;">טוען את המערכת ובודק גישה מאובטחת...</div>
 
     <!-- מסך בחירת/הזנת שם העסק - מוצג רק כשאין עדיין עסק נבחר במכשיר -->
     <div class="card hidden" id="businessSetupView">
@@ -622,7 +621,13 @@
             </div>
 
             <button onclick="addEmployee()">הוסף עובד חדש</button>
-            <button class="reset-btn" onclick="resetScheduleOnly()">מחק את כל הנתונים</button>
+            <button class="reset-btn" onclick="resetScheduleOnly()">מחק זמינויות וסידור (עם גיבוי)</button>
+            <div style="margin-top:16px;padding:12px;border:1px solid #ccd6e0;border-radius:8px;">
+                <h3>גיבוי ושחזור נתוני עבודה</h3>
+                <p style="font-size:0.85em;">הגיבוי יורד כקובץ פרטי למכשיר, ללא גיבוי ענן יומי. הוא כולל נתוני עבודה, לא סיסמאות וקודי כניסה. לפני מחיקה או שחזור יש להוריד ולבחור מחדש את קובץ הגיבוי לאימות שמירה.</p>
+                <button onclick="makeRecoveryCopy()">הורד קובץ גיבוי</button>
+                <button onclick="restoreRecoveryCopy()" style="margin-top:8px;background:#65758b;">בחר קובץ גיבוי לשחזור</button>
+            </div>
 
             <h3>צוות:</h3>
             <div id="empList"></div>
@@ -792,7 +797,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where, runTransaction, writeBatch, getDocsFromServer, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
         import { getAuth, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
@@ -816,7 +821,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v18';
+        const APP_VERSION = 'v19';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2279,7 +2284,8 @@
 
         (async function boot() {
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
-            await initRestaurantId();
+            try { await initRestaurantId(); }
+            finally { document.getElementById('startupStatus')?.classList.add('hidden'); }
         })();
 
         /* ===== ארכיון סידורים (ARCHIVE_KEEP שבועות אחרונים, מסמך אחד: schedule_archive) ===== */
@@ -2590,8 +2596,10 @@
         };
 
         async function enterManager() {
-            await startListeners('manager');
-            switchView('manager');
+            const status = document.getElementById('startupStatus');
+            status.textContent = 'טוען את נתוני העבודה...'; status.classList.remove('hidden');
+            try { await startListeners('manager'); switchView('manager'); }
+            finally { status.classList.add('hidden'); }
         }
 
         window.checkManagerPassword = async function() {
@@ -3455,18 +3463,104 @@
             container.innerHTML = hasNotes ? notesHtml + '</ul>' : '';
         }
 
-        window.resetScheduleOnly = async function() {
-            if(!await askConfirm("למחוק את כל הזמינויות והסידור?")) return;
+        // Operational file backups. No scheduled copies or cloud backup writes.
+        const BACKUP_SUFFIXES = ['employees', 'availability', 'absences', 'swaps', 'settings'];
+        const canonicalBackup = x => JSON.stringify(x, function(k,v) { return v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((o,k)=>(o[k]=v[k],o),{}) : v; });
+        async function readRecoveryData() {
+            const result = {};
+            await Promise.all(BACKUP_SUFFIXES.map(async suffix => {
+                const snap = await getDocsFromServer(collection(db, `${RESTAURANT_ID}_${suffix}`));
+                result[suffix] = {};
+                snap.forEach(d => {
+                    if (suffix === 'settings' && d.id === 'manager_config') return;
+                    const data = { ...d.data() };
+                    if (suffix === 'employees') { delete data.pin; delete data.pinHash; delete data.pinSalt; }
+                    result[suffix][d.id] = data;
+                });
+            }));
+            return result;
+        }
+        function downloadRecoveryFile(data, reason) {
+            const backup = { schema:1, rid:RESTAURANT_ID, createdAt:Date.now(), reason, data };
+            const json = JSON.stringify(backup, null, 2);
+            const parsed = JSON.parse(json);
+            if (canonicalBackup(parsed.data) !== canonicalBackup(data)) throw new Error('אימות הגיבוי נכשל');
+            const blob = new Blob([json], {type:'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url;
+            a.download = `work-schedule-${RESTAURANT_ID}-${reason}-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+            document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+            return backup;
+        }
+        async function pickRecoveryFile() {
+            return new Promise((resolve, reject) => {
+                const input = document.createElement('input'); input.type='file'; input.accept='.json,application/json';
+                input.style.display='none'; document.body.appendChild(input);
+                input.addEventListener('cancel',()=>{input.remove();resolve(null);},{once:true});
+                input.onchange = async () => {
+                    try { const file=input.files[0]; if(!file){resolve(null);return;} if(file.size>5000000)throw new Error('קובץ גדול מדי'); resolve(JSON.parse(await file.text())); }
+                    catch(e){reject(new Error('קובץ גיבוי לא תקין'));} finally {input.remove();}
+                };
+                input.click();
+            });
+        }
+        function validateRecoveryFile(b) {
+            if (!b || b.schema !== 1 || b.rid !== RESTAURANT_ID || !b.data || !Number.isFinite(b.createdAt)) throw new Error('הקובץ אינו גיבוי תקין של העסק הזה');
+            if (Object.keys(b.data).some(k=>!BACKUP_SUFFIXES.includes(k))) throw new Error('גיבוי לא תקין');
+            for(const suffix of BACKUP_SUFFIXES) {
+                const target=b.data[suffix];
+                if(!target || typeof target!=='object' || Array.isArray(target)) throw new Error('גיבוי לא תקין');
+                for(const [key,v] of Object.entries(target)) {
+                    if(!key || key.includes('/') || ['__proto__','constructor','prototype'].includes(key) || !v || typeof v!=='object' || Array.isArray(v) || (suffix==='settings' && key==='manager_config')) throw new Error('גיבוי לא תקין');
+                    if(suffix==='employees' && ['pin','pinHash','pinSalt'].some(k=>k in v)) throw new Error('לא משחזרים קודי כניסה מקובץ');
+                }
+            }
+            return b;
+        }
+        async function verifiedSafetyDownload(data, reason) {
+            const backup=downloadRecoveryFile(data,reason);
+            if(!await askConfirm('קובץ הגיבוי הורד למכשיר. כדי לאמת שהוא נשמר, בחר כעת את הקובץ שהורד. ללא אימות לא יימחקו ולא יוחלפו נתונים.')) throw new Error('הפעולה בוטלה. לא שונו נתונים.');
+            const loaded=validateRecoveryFile(await pickRecoveryFile());
+            if(loaded.createdAt!==backup.createdAt || canonicalBackup(loaded.data)!==canonicalBackup(data)) throw new Error('זה אינו הגיבוי שהורד כעת. לא שונו נתונים.');
+            return loaded;
+        }
+        window.makeRecoveryCopy = async function() {
+            try { downloadRecoveryFile(await readRecoveryData(),'manual'); notify('קובץ גיבוי הורד. שמור אותו במקום פרטי ובטוח.'); }
+            catch(e) { notify(e.message || 'הגיבוי נכשל'); }
+        };
+        window.restoreRecoveryCopy = async function() {
             try {
-                const availSnap = await getDocs(getAvailCollection());
-                await Promise.all(availSnap.docs.map(d => deleteDoc(doc(getAvailCollection(), d.id))));
-                await deleteDoc(getSettingsDoc("draft_schedule"));
-                await deleteDoc(getSettingsDoc("published_schedule"));
-                currentSchedule = {}; customShiftTimes = {};
-                renderFullScheduleForManager();
-                renderSummaryTable();
-                notify("הנתונים נמחקו");
-            } catch(e){ notify("שגיאה במחיקה"); }
+                const file=await pickRecoveryFile(); if(!file)return;
+                const b=validateRecoveryFile(file);
+                if(!await askConfirm(`לשחזר גיבוי מ-${new Date(b.createdAt).toLocaleString('he-IL')}? נתוני העבודה יוחלפו. הסיסמה וקודי הכניסה לא משתנים.`))return;
+                const current=await readRecoveryData();
+                if(Object.keys(current.employees).sort().join('\n')!==Object.keys(b.data.employees).sort().join('\n'))throw new Error('רשימת העובדים השתנתה. נדרש שחזור מבוקר לשמירת קודי הכניסה.');
+                let count=0; const batch=writeBatch(db);
+                for(const suffix of BACKUP_SUFFIXES) {
+                    for(const [key,value]of Object.entries(b.data[suffix])) {batch.set(doc(db,`${RESTAURANT_ID}_${suffix}`,key),value);count++;}
+                    for(const key of Object.keys(current[suffix]))if(!(key in b.data[suffix])){batch.delete(doc(db,`${RESTAURANT_ID}_${suffix}`,key));count++;}
+                }
+                if(count>450)throw new Error('נדרש שחזור מבוקר לכמות הנתונים הזאת');
+                await verifiedSafetyDownload(current,'before-restore');
+                if(await askText(`לאישור סופי של שחזור, הקלד את שם העסק: ${RESTAURANT_ID}`)!==RESTAURANT_ID){notify('השחזור בוטל');return;}
+                // Abort if another manager changed operational data while selecting the safety file.
+                if(canonicalBackup(await readRecoveryData())!==canonicalBackup(current))throw new Error('הנתונים השתנו בזמן הכנת השחזור. הפעולה בוטלה, נסה שוב.');
+                await batch.commit(); notify('נתוני העבודה שוחזרו. תוקף שבוע ישן נשאר לפי כללי המערכת.');
+            }catch(e){notify(e.message || 'השחזור נכשל');}
+        };
+        window.resetScheduleOnly = async function() {
+            if(!await askConfirm('למחוק זמינויות, טיוטה וסידור מפורסם? העובדים והסיסמאות לא יימחקו. לפני המחיקה נוריד גיבוי ונבקש לבחור אותו לאימות.'))return;
+            try {
+                const data=await readRecoveryData(),keys=Object.keys(data.availability);
+                if(keys.length+2>450)throw new Error('כמות הנתונים גדולה מדי. המחיקה נחסמה.');
+                await verifiedSafetyDownload(data,'before-reset');
+                if(await askText('לאישור מחיקה סופי הקלד: מחק')!=='מחק'){notify('המחיקה בוטלה');return;}
+                if(canonicalBackup(await readRecoveryData())!==canonicalBackup(data))throw new Error('הנתונים השתנו בזמן הגיבוי. המחיקה בוטלה, נסה שוב.');
+                const batch=writeBatch(db);keys.forEach(id=>batch.delete(doc(getAvailCollection(),id)));
+                batch.delete(getSettingsDoc('draft_schedule'));batch.delete(getSettingsDoc('published_schedule'));
+                await batch.commit();currentSchedule={};customShiftTimes={};renderFullScheduleForManager();renderSummaryTable();
+                notify('הנתונים נמחקו. קובץ הגיבוי המאומת נשמר אצלך לשחזור.');
+            }catch(e){notify(e.message || 'המחיקה נכשלה');}
         };
 
         // ממלא את הטבלה הנסתרת (pdfExportContainer) מנתוני סידור נתונים. משמש לייצוא PDF ולשליחה כתמונה
@@ -3516,6 +3610,22 @@
 
         }
 
+        const exportLoads = new Map();
+        function loadExportScript(src, ready) {
+            if (ready()) return Promise.resolve();
+            if (!exportLoads.has(src)) exportLoads.set(src, new Promise((resolve, reject) => {
+                const s = document.createElement('script'); s.src = src; s.async = true;
+                s.onload = () => ready() ? resolve() : reject(new Error('Export library unavailable'));
+                s.onerror = () => { exportLoads.delete(src); s.remove(); reject(new Error('Export download failed')); };
+                document.head.appendChild(s);
+            }));
+            return exportLoads.get(src);
+        }
+        async function ensureExportLibraries(pdf = false) {
+            await loadExportScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => !!window.html2canvas);
+            if (pdf) await loadExportScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => !!window.jspdf?.jsPDF);
+        }
+
         window.exportToPDF = async function() {
             const btn = document.getElementById('pdfExportBtn');
             btn.disabled = true;
@@ -3532,6 +3642,7 @@
             exportContainer.style.display = 'block';
 
             try {
+                await ensureExportLibraries(true);
                 const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false });
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
                 const { jsPDF } = window.jspdf;
@@ -3575,6 +3686,7 @@
             notify("מכין תמונה...");
             const exportContainer = document.getElementById('pdfExportContainer');
             try {
+                await ensureExportLibraries();
                 fillExportTable(publishedSchedule, publishedCustomShiftTimes, publishedTimes);
                 exportContainer.style.display = 'block';
                 const canvas = await html2canvas(exportContainer, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
@@ -3622,4 +3734,4 @@
         };
     </script>
 </body>
-</html>
+                </html>
