@@ -120,7 +120,7 @@
         .tasks-table .task-col-done { width: 104px; }
         .task-day b { display: block; }
         .task-date { display: block; font-size: 0.75em; color: #777; }
-        .task-text-input { width: 100%; padding: 7px 6px; font-size: 13px; font-family: inherit; resize: none; overflow: hidden; box-sizing: border-box; line-height: 1.35; border: 1px solid #ddd; border-radius: 6px; white-space: pre-wrap; }
+        .task-text-input { width: 100%; padding: 7px 6px; font-size: 13px; font-family: inherit; resize: none; overflow: auto; box-sizing: border-box; line-height: 1.35; border: 1px solid #ddd; border-radius: 6px; white-space: pre-wrap; min-height: 52px; }
         .task-text-input[readonly] { background: #f5f6f7; color: #555; }
         .task-done-btn { background-color: #27ae60; padding: 7px 4px; font-size: 12px; }
         .task-row-done { background-color: #eaf7ea; }
@@ -914,7 +914,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v24';
+        const APP_VERSION = 'v25';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2487,7 +2487,7 @@
                 const done = !!t.done;
                 html += `<tr class="${done ? 'task-row-done' : ''}">` +
                     `<td class="task-day"><b>${daysNames[d]}</b><span class="task-date">${dateStr}</span></td>` +
-                    `<td><textarea class="task-text-input" maxlength="200" rows="1" placeholder="—"` +
+                    `<td><textarea class="task-text-input" maxlength="200" rows="2" placeholder="—"` +
                     (editable ? ` onchange="taskTextChanged(${d}, this)"` : ' readonly') + `>${esc(t.task || '')}</textarea></td>` +
                     `<td class="task-status">` + (done
                         ? `<div class="task-done-line">✓ <b>${esc(t.doneBy || '')}</b></div>` +
@@ -2497,16 +2497,7 @@
                     `</td></tr>`;
             }
             tb.innerHTML = html;
-            tb.querySelectorAll('textarea.task-text-input').forEach(ta => {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
-            });
         }
-        document.addEventListener('input', (e) => {
-            const ta = e.target;
-            if (ta && ta.classList && ta.classList.contains('task-text-input')) {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
-            }
-        });
 
         function renderTasks() {
             // לא שוברים הקלדה באמצע עריכה: אם הפוקוס בתוך טבלת המשימות, נדחה את הרינדור ליציאה מהפוקוס
