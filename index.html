@@ -914,7 +914,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v22';
+        const APP_VERSION = 'v23';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2231,9 +2231,17 @@
         let tasksLegacyPrev = null;        // נוסח מהשבוע הקודם — גיבוי תצוגה עד ש-recurring קיים (אחרי מעבר שבוע, לפני כניסת מנהל)
         let tasksLegacyPrevTried = false;
         async function getPrevWeekDays() {
-            const prevSun = new Date(tasksWeekSunday()); prevSun.setDate(prevSun.getDate() - 7);
-            const prevSnap = await getDoc(doc(getTasksCollection(), ymd(prevSun)));
-            return (prevSnap.exists() && prevSnap.data().days) || null;
+            // סריקה עד 4 שבועות אחורה למסמך העדכני ביותר שיש בו נוסח — מכסה היעדרות מנהל ממושכת
+            for (let w = 1; w <= 4; w++) {
+                const prevSun = new Date(tasksWeekSunday()); prevSun.setDate(prevSun.getDate() - 7 * w);
+                try {
+                    const prevSnap = await getDoc(doc(getTasksCollection(), ymd(prevSun)));
+                    if (!prevSnap.exists()) continue;
+                    const days = prevSnap.data().days || {};
+                    if ([0,1,2,3,4].some(k => (((days || {})[k] || {}).task || '').trim())) return days;
+                } catch (e) { console.error('tasks prev-week read', e && e.code); }
+            }
+            return null;
         }
         // תצוגה ציבורית: recurring עוד לא קיים והשבוע החדש ריק (למשל בראשון לפני כניסת מנהל) — מציג את נוסח השבוע הקודם
         async function maybeFetchLegacyFallback() {
