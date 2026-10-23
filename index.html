@@ -25,6 +25,15 @@
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 8px; background-color: #f0f2f5; color: #1c1e21; overflow-x: hidden; width: 100%; box-sizing: border-box; }
         h1, h2, h3, h4 { color: #050505; margin-top: 0; text-align: center; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 12px; box-sizing: border-box; max-width: 100%; overflow: hidden; }
+
+        /* סעיפים מתקפלים במסך המנהל: לחיצה על הכותרת פותחת/סוגרת, והמכשיר זוכר את המצב */
+        details.collapse-card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; user-select: none; -webkit-user-select: none; }
+        details.collapse-card > summary::-webkit-details-marker { display: none; }
+        details.collapse-card > summary .collapse-arrow { flex: 0 0 auto; width: 24px; font-size: 1.2em; color: #7f8c8d; }
+        details.collapse-card > summary .collapse-arrow::before { content: '\25C2'; }
+        details.collapse-card[open] > summary .collapse-arrow::before { content: '\25BE'; }
+        details.collapse-card > summary h2, details.collapse-card > summary h3 { margin: 0; flex: 1; text-align: center; }
+        details.collapse-card[open] > summary { margin-bottom: 10px; }
         .form-group { margin-bottom: 10px; max-width: 100%; }
         label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85em; }
 
@@ -401,21 +410,22 @@
     <!-- מסך מנהל -->
     <div class="hidden" id="managerView">
 
-        <div class="card">
-            <h2>2. שיבוץ ופרסום</h2>
+        <details class="card collapse-card" id="collapse-2" open>
+            <summary><span class="collapse-arrow"></span><h2>2. שיבוץ ופרסום</h2></summary>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="auto-btn" onclick="generateSchedule()" style="flex: 1; min-width: 110px; background-color: #e67e22;">1. צור סידור (טיוטה)</button>
                 <button class="auto-btn" onclick="publishSchedule()" style="flex: 1; min-width: 110px; background-color: #27ae60;">2. פרסם לעובדים</button>
                 <button class="auto-btn" onclick="unpublishSchedule()" style="flex: 1; min-width: 110px; background-color: #c0392b;">3. בטל פרסום (הורד)</button>
             </div>
-        </div>
+        </details>
 
-        <div class="card" id="scheduleCard">
-            <div id="managerNotesContainer" style="margin-bottom: 15px;"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <details class="card collapse-card" id="collapse-board" open>
+            <summary>
+                <span class="collapse-arrow"></span>
                 <h2>לוח משמרות שבועי (מנהל)</h2>
                 <div id="publishStatusBadge" class="status-badge status-draft">טרם פורסם</div>
-            </div>
+            </summary>
+            <div id="managerNotesContainer" style="margin-bottom: 15px;"></div>
 
             <div class="table-wrapper">
                 <table class="schedule-table compact-table">
@@ -460,11 +470,11 @@
                 <button class="export-btn whatsapp-btn" onclick="sendScheduleToWhatsapp()">שלח לוואטסאפ</button>
                 <button class="export-btn pdf-btn" id="pdfExportBtn" onclick="exportToPDF()">ייצא ל-PDF</button>
             </div>
-        </div>
+        </details>
 
         <!-- טבלת זמינויות לפי ימים -->
-        <div class="card">
-            <h2>3. זמינויות לפי ימים</h2>
+        <details class="card collapse-card" id="collapse-3" open>
+            <summary><span class="collapse-arrow"></span><h2>3. זמינויות לפי ימים</h2></summary>
             <div class="table-wrapper">
                 <table class="summary-table">
                     <thead>
@@ -479,11 +489,11 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </details>
 
         <!-- אזור בחירת משמרות פעילות לשבוע -->
-        <div class="card">
-            <h2>4. משמרות פעילות</h2>
+        <details class="card collapse-card" id="collapse-4">
+            <summary><span class="collapse-arrow"></span><h2>4. משמרות פעילות</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">משמרות שלא יסומנו יופיעו באפור אצל העובדים.</p>
             <div class="shift-checkboxes" id="managerActiveShiftsContainer">
                 <label><input type="checkbox" value="0-m" checked onchange="saveActiveShiftsConfig()"> ראשון בוקר</label>
@@ -501,11 +511,11 @@
                 <label><input type="checkbox" value="6-m" onchange="saveActiveShiftsConfig()"> שבת בוקר</label>
                 <label><input type="checkbox" value="6-e" onchange="saveActiveShiftsConfig()"> שבת ערב/מוצ"ש</label>
             </div>
-        </div>
+        </details>
 
         <!-- 5. שעות וכמות עובדים -->
-        <div class="card">
-            <h2>5. שעות וכמות עובדים</h2>
+        <details class="card collapse-card" id="collapse-5">
+            <summary><span class="collapse-arrow"></span><h2>5. שעות וכמות עובדים</h2></summary>
 
             <div class="table-wrapper">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
@@ -570,10 +580,10 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </details>
 
-        <div class="card">
-            <h2>6. סיכום שבועי</h2>
+        <details class="card collapse-card" id="collapse-6" open>
+            <summary><span class="collapse-arrow"></span><h2>6. סיכום שבועי</h2></summary>
             <div id="submissionSummaryCount"></div>
             <div class="table-wrapper">
                 <table class="summary-table">
@@ -591,10 +601,10 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </details>
 
-        <div class="card">
-            <h2>7. הוספת עובד/ת ודירוג</h2>
+        <details class="card collapse-card" id="collapse-7">
+            <summary><span class="collapse-arrow"></span><h2>7. הוספת עובד/ת ודירוג</h2></summary>
             <div class="form-group">
                 <label>שם העובד/ת:</label>
                 <input type="text" id="empName" placeholder="שם מלא">
@@ -631,25 +641,25 @@
 
             <h3>צוות:</h3>
             <div id="empList"></div>
-        </div>
+        </details>
 
-        <div class="card">
-            <h2>8. שיתוף המערכת עם העובדים</h2>
+        <details class="card collapse-card" id="collapse-8">
+            <summary><span class="collapse-arrow"></span><h2>8. שיתוף המערכת עם העובדים</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">שלח לעובדים את הקישור:</p>
             <div class="form-group">
                 <input type="text" id="inviteLinkDisplay" readonly style="background:#f5f6f7; direction: ltr; text-align: left; font-size: 0.8em;">
             </div>
             <button onclick="copyInviteLink()" style="background-color: #25D366;">העתק קישור לעובדים</button>
-        </div>
+        </details>
 
-        <div class="card">
-            <h2>9. ארכיון סידורים</h2>
+        <details class="card collapse-card" id="collapse-9">
+            <summary><span class="collapse-arrow"></span><h2>9. ארכיון סידורים</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">נשמרים 6 השבועות האחרונים שפורסמו.</p>
             <div id="archiveList"></div>
-        </div>
+        </details>
 
-        <div class="card">
-            <h2>10. הגדרות מנהל</h2>
+        <details class="card collapse-card" id="collapse-10">
+            <summary><span class="collapse-arrow"></span><h2>10. הגדרות מנהל</h2></summary>
             <div class="form-group">
                 <label>סיסמת מנהל חדשה:</label>
                 <input type="text" class="secret-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" name="wsx-newpass" id="newManagerPass" placeholder="לפחות 4 תווים">
@@ -657,7 +667,7 @@
             <button onclick="updateManagerPassword()" style="background-color: #8e44ad;">עדכן סיסמת מנהל</button>
             <hr style="margin: 14px 0;">
             <button id="bioToggleBtn" onclick="toggleBiometric()" style="background-color: #16a085;">הפעל כניסה בטביעת אצבע</button>
-        </div>
+        </details>
 
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
     </div>
@@ -795,6 +805,33 @@
         }
     </script>
 
+    <script>
+        // סעיפים מתקפלים במסך המנהל: מצב פתוח/סגור נשמר במכשיר בלבד (localStorage)
+        (function () {
+            var KEY = 'ws_collapsed_sections';
+            function readAll() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+            window.wsCollapseSaved = function (id) {
+                var st = readAll();
+                return Object.prototype.hasOwnProperty.call(st, id) ? !!st[id] : null;
+            };
+            window.wsApplyCollapseStates = function () {
+                var st = readAll();
+                document.querySelectorAll('details.collapse-card[id]').forEach(function (d) {
+                    if (Object.prototype.hasOwnProperty.call(st, d.id)) d.open = !!st[d.id];
+                });
+            };
+            document.addEventListener('toggle', function (e) {
+                var t = e.target;
+                if (t && t.matches && t.matches('details.collapse-card[id]')) {
+                    var st = readAll();
+                    st[t.id] = t.open;
+                    try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (err) {}
+                }
+            }, true);
+            window.wsApplyCollapseStates();
+        })();
+    </script>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getFirestore, collection, onSnapshot, deleteDoc, doc, setDoc, getDoc, getDocs, deleteField, query, where, runTransaction, writeBatch, getDocsFromServer, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -821,7 +858,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v19';
+        const APP_VERSION = 'v20';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2055,13 +2092,13 @@
             h += `</div>`;
 
             // שליחת הודעת push לעובדים
-            h += `<div class="ws-card"><h3>📢 שליחת הודעה לעובדים</h3>
+            h += `<details class="ws-card collapse-card" id="collapse-broadcast"${window.wsCollapseSaved && wsCollapseSaved('collapse-broadcast') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>📢 שליחת הודעה לעובדים</h3></summary>
                 <textarea id="wsBroadcastText" data-keep="1" maxlength="400" rows="3" placeholder="כתוב כאן את ההודעה..." style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;resize:vertical;"></textarea>
                 <select id="wsBroadcastTo" data-keep="1" style="width:100%;box-sizing:border-box;margin:8px 0;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit;">
                     <option value="">כל העובדים</option>
                     ${employees.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join('')}
                 </select>
-                <button onclick="wsSendBroadcast()" style="background-color:#2980b9;width:100%;">שלח הודעה</button></div>`;
+                <button onclick="wsSendBroadcast()" style="background-color:#2980b9;width:100%;">שלח הודעה</button></details>`;
 
             if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
