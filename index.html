@@ -113,6 +113,23 @@
         .compact-table .time-badge-btn { padding: 1px 2px; }
         .compact-table .hours-2l.custom { padding: 0 2px; }
 
+        /* ===== טבלת משימות שבועיות (א'-ה') ===== */
+        .tasks-table { table-layout: fixed; }
+        .tasks-table td { padding: 5px 3px; font-size: 0.85em; overflow-wrap: break-word; }
+        .tasks-table .task-col-day { width: 58px; }
+        .tasks-table .task-col-done { width: 104px; }
+        .task-day b { display: block; }
+        .task-date { display: block; font-size: 0.75em; color: #777; }
+        .task-text-input { width: 100%; padding: 7px 6px; font-size: 13px; }
+        .task-text-input[readonly] { background: #f5f6f7; color: #555; }
+        .task-done-btn { background-color: #27ae60; padding: 7px 4px; font-size: 12px; }
+        .task-row-done { background-color: #eaf7ea; }
+        .task-done-line { color: #1e7e34; font-size: 0.85em; }
+        .task-undo { background: none; border: none; color: #c0392b; font-size: 0.75em; text-decoration: underline; padding: 2px; width: auto; }
+        .tasks-week-label { text-align: center; font-size: 0.8em; color: #666; margin-top: 4px; }
+        .tasks-entry-btn { background-color: #8e44ad; margin-top: 8px; }
+        .tasks-hint { font-size: 0.75em; color: #777; text-align: center; margin-top: 8px; }
+
         .emp-container {
             background: white;
             border: 1px solid #ddd;
@@ -307,6 +324,7 @@
     <div class="card hidden" id="selectionView">
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים</button>
+        <button class="tasks-entry-btn" onclick="switchView('tasks')">משימות שבועיות</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל</button>
         <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
     </div>
@@ -323,6 +341,26 @@
             <div id="superAdminList" style="margin-top: 12px;"></div>
         </div>
         <button class="manager-login-btn" onclick="switchView('selection')">חזרה לתפריט ראשי</button>
+    </div>
+
+    <!-- מסך משימות שבועיות: נפתח מהמסך הראשי בלי כניסה. עריכה וסימון "בוצע" דורשים קוד עובד -->
+    <div class="card hidden" id="tasksView">
+        <h2>משימות שבועיות</h2>
+        <div class="tasks-week-label" id="tasksWeekLabelMain"></div>
+        <div class="table-wrapper">
+            <table class="schedule-table tasks-table">
+                <thead>
+                    <tr>
+                        <th class="task-col-day">יום</th>
+                        <th>משימה</th>
+                        <th class="task-col-done">בוצע?</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksTableBodyMain" class="tasks-tbody"></tbody>
+            </table>
+        </div>
+        <div class="tasks-hint">סימון "בוצע" דורש קוד עובד אישי — השם נרשם אוטומטית לפי הקוד. עריכת המשימות: מנהל בלבד</div>
+        <button class="manager-login-btn" onclick="switchView('selection')" style="margin-top: 12px;">חזרה לתפריט ראשי</button>
     </div>
 
     <!-- מסך כניסת עובד -->
@@ -472,9 +510,27 @@
             </div>
         </details>
 
+        <!-- משימות שבועיות: אותה טבלה כמו במסך המשימות, למנהל -->
+        <details class="card collapse-card" id="collapse-tasks" open>
+            <summary><span class="collapse-arrow"></span><h2>3. משימות שבועיות</h2></summary>
+            <div class="tasks-week-label" id="tasksWeekLabelMgr"></div>
+            <div class="table-wrapper">
+                <table class="schedule-table tasks-table">
+                    <thead>
+                        <tr>
+                            <th class="task-col-day">יום</th>
+                            <th>משימה</th>
+                            <th class="task-col-done">בוצע?</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasksTableBodyMgr" class="tasks-tbody"></tbody>
+                </table>
+            </div>
+        </details>
+
         <!-- טבלת זמינויות לפי ימים -->
         <details class="card collapse-card" id="collapse-3" open>
-            <summary><span class="collapse-arrow"></span><h2>3. זמינויות לפי ימים</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>4. זמינויות לפי ימים</h2></summary>
             <div class="table-wrapper">
                 <table class="summary-table">
                     <thead>
@@ -493,7 +549,7 @@
 
         <!-- אזור בחירת משמרות פעילות לשבוע -->
         <details class="card collapse-card" id="collapse-4">
-            <summary><span class="collapse-arrow"></span><h2>4. משמרות פעילות</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>5. משמרות פעילות</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">משמרות שלא יסומנו יופיעו באפור אצל העובדים.</p>
             <div class="shift-checkboxes" id="managerActiveShiftsContainer">
                 <label><input type="checkbox" value="0-m" checked onchange="saveActiveShiftsConfig()"> ראשון בוקר</label>
@@ -515,7 +571,7 @@
 
         <!-- 5. שעות וכמות עובדים -->
         <details class="card collapse-card" id="collapse-5">
-            <summary><span class="collapse-arrow"></span><h2>5. שעות וכמות עובדים</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>6. שעות וכמות עובדים</h2></summary>
 
             <div class="table-wrapper">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
@@ -583,7 +639,7 @@
         </details>
 
         <details class="card collapse-card" id="collapse-6" open>
-            <summary><span class="collapse-arrow"></span><h2>6. סיכום שבועי</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>7. סיכום שבועי</h2></summary>
             <div id="submissionSummaryCount"></div>
             <div class="table-wrapper">
                 <table class="summary-table">
@@ -604,7 +660,7 @@
         </details>
 
         <details class="card collapse-card" id="collapse-7">
-            <summary><span class="collapse-arrow"></span><h2>7. הוספת עובד/ת ודירוג</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>8. הוספת עובד/ת ודירוג</h2></summary>
             <div class="form-group">
                 <label>שם העובד/ת:</label>
                 <input type="text" id="empName" placeholder="שם מלא">
@@ -644,7 +700,7 @@
         </details>
 
         <details class="card collapse-card" id="collapse-8">
-            <summary><span class="collapse-arrow"></span><h2>8. שיתוף המערכת עם העובדים</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>9. שיתוף המערכת עם העובדים</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">שלח לעובדים את הקישור:</p>
             <div class="form-group">
                 <input type="text" id="inviteLinkDisplay" readonly style="background:#f5f6f7; direction: ltr; text-align: left; font-size: 0.8em;">
@@ -653,13 +709,13 @@
         </details>
 
         <details class="card collapse-card" id="collapse-9">
-            <summary><span class="collapse-arrow"></span><h2>9. ארכיון סידורים</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>10. ארכיון סידורים</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">נשמרים 6 השבועות האחרונים שפורסמו.</p>
             <div id="archiveList"></div>
         </details>
 
         <details class="card collapse-card" id="collapse-10">
-            <summary><span class="collapse-arrow"></span><h2>10. הגדרות מנהל</h2></summary>
+            <summary><span class="collapse-arrow"></span><h2>11. הגדרות מנהל</h2></summary>
             <div class="form-group">
                 <label>סיסמת מנהל חדשה:</label>
                 <input type="text" class="secret-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" name="wsx-newpass" id="newManagerPass" placeholder="לפחות 4 תווים">
@@ -858,7 +914,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v20';
+        const APP_VERSION = 'v21';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2148,6 +2204,210 @@
             }, 30);
         }
 
+        /* ===== משימות שבועיות (א'-ה') =====
+           מסמך אחד לכל שבוע באוסף {rid}_tasks, מזהה = תאריך יום ראשון של השבוע הקלנדרי.
+           הצפייה פתוחה במסך הראשי בלי כניסה (כלל קריאה ציבורי לאוסף _tasks בלבד).
+           עובדים מסמנים רק "בוצע" (דורש אימות קוד מול השרת); מי שביצע נרשם אוטומטית
+           לפי הזהות שאומתה — אי אפשר לרשום בשם מישהו אחר. עריכת נוסח וביטול סימון: מנהל בלבד. */
+        function getTasksCollection() { return collection(db, `${RESTAURANT_ID}_tasks`); }
+        // ראשון של השבוע הקלנדרי הנוכחי (בלי הקפיצה לשבוע הבא מיום חמישי כמו בסידור)
+        function tasksWeekSunday() {
+            const d = israelNow();
+            const s = new Date(d);
+            s.setHours(0, 0, 0, 0);
+            s.setDate(s.getDate() - s.getDay());
+            return s;
+        }
+        const tasksWeekKey = () => ymd(tasksWeekSunday());
+        let tasksDays = {};            // { '0': {task, done, doneBy}, ... '4': {...} }
+        let tasksUnsub = null;
+        let taskVerifiedName = null;   // עובד שאומת בקוד במסך המשימות (זיכרון סשן בלבד, לא נשמר)
+        let tasksRenderQueued = false;
+
+        // האזנה לטבלה — פועלת גם בלי כניסה (קריאה ציבורית לאוסף _tasks בלבד)
+        function startTasksListener() {
+            if (tasksUnsub || !RESTAURANT_ID) return;
+            tasksUnsub = onSnapshot(doc(getTasksCollection(), tasksWeekKey()), (snap) => {
+                tasksDays = (snap.exists() && snap.data().days) || {};
+                renderTasks();
+            }, (err) => { console.error('tasks listener', err && err.code); });
+        }
+
+        async function tasksUpdate(mutator) {
+            if (!RESTAURANT_ID) return;
+            const ref = doc(getTasksCollection(), tasksWeekKey());
+            try {
+                await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(ref);
+                    const days = { ...((snap.exists() && snap.data().days) || {}) };
+                    mutator(days);
+                    tx.set(ref, { sun: tasksWeekKey(), days, updatedAt: Date.now() });
+                });
+            } catch (e) { console.error('tasks save', e); notify('שגיאה בשמירת המשימה'); }
+        }
+
+        // דיאלוג בחירת עובד + קוד (אותו סגנון של שאר הדיאלוגים באפליקציה)
+        function askEmployeePin() {
+            return new Promise(async (resolve) => {
+                let names = ((businessInfo && businessInfo.employees) || []).map(e => e.name);
+                if (!names.length) {
+                    try {
+                        const info = await call('getBusinessInfo', { rid: RESTAURANT_ID });
+                        businessInfo = info;
+                        names = (info.employees || []).map(e => e.name);
+                    } catch (e) {}
+                }
+                if (!names.length) names = employees.map(e => e.name);
+                names.sort((a, b) => String(a).localeCompare(String(b), 'he'));
+                if (!names.length) { notify('לא נמצאו עובדים בעסק'); return resolve(null); }
+
+                const ov = document.createElement('div');
+                ov.className = 'app-dialog-overlay';
+                const box = document.createElement('div');
+                box.className = 'app-dialog';
+                const p = document.createElement('p');
+                p.textContent = 'כניסה עם קוד עובד אישי:';
+                box.appendChild(p);
+                const sel = document.createElement('select');
+                sel.style.marginBottom = '8px';
+                sel.innerHTML = '<option value="">בחר שם...</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+                box.appendChild(sel);
+                const inp = document.createElement('input');
+                inp.type = 'text';
+                inp.className = 'secret-input';
+                inp.placeholder = 'קוד אישי (4 ספרות)';
+                inp.maxLength = 4;
+                inp.setAttribute('inputmode', 'numeric');
+                inp.setAttribute('pattern', '[0-9]*');
+                inp.name = 'wsx-' + Math.random().toString(36).slice(2, 8);
+                inp.setAttribute('autocomplete', 'off');
+                inp.setAttribute('autocapitalize', 'off');
+                inp.setAttribute('autocorrect', 'off');
+                inp.setAttribute('spellcheck', 'false');
+                inp.setAttribute('data-lpignore', 'true');
+                inp.setAttribute('data-form-type', 'other');
+                inp.setAttribute('enterkeyhint', 'done');
+                box.appendChild(inp);
+                const row = document.createElement('div');
+                row.className = 'app-dialog-actions';
+                const ok = document.createElement('button');
+                ok.textContent = 'אישור';
+                const cancel = document.createElement('button');
+                cancel.textContent = 'ביטול';
+                cancel.className = 'cancel';
+                row.appendChild(ok);
+                row.appendChild(cancel);
+                box.appendChild(row);
+                ov.appendChild(box);
+                document.body.appendChild(ov);
+                const close = (val) => { ov.remove(); resolve(val); };
+                ok.onclick = () => {
+                    if (!sel.value) { notify('בחר שם'); return; }
+                    if (!/^[0-9]{4}$/.test(inp.value.trim())) { notify('הכנס קוד אישי (4 ספרות)'); return; }
+                    close({ name: sel.value, pin: inp.value.trim() });
+                };
+                cancel.onclick = () => close(null);
+                inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } });
+                setTimeout(() => sel.focus(), 50);
+            });
+        }
+
+        // אימות עובד בקוד אישי דרך השרת (אותה בדיקה כמו בכניסת עובדים). נזכר לסשן בלבד.
+        async function ensureTaskVerified() {
+            if (taskVerifiedName) return taskVerifiedName;
+            const r = await askEmployeePin();
+            if (!r) return null;
+            try {
+                const res = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: r.name, secret: r.pin });
+                await signInWithToken(res.token);
+                taskVerifiedName = r.name;
+                renderTasks();
+                return r.name;
+            } catch (e) {
+                notify(errMsg(e, 'שגיאה באימות'));
+                return null;
+            }
+        }
+
+        // ctx: 'main' (מסך משימות ציבורי — דורש אימות קוד) | 'manager' (מנהל מחובר)
+        window.taskMarkDone = async function (dayIdx, ctx) {
+            const who = ctx === 'manager' ? 'מנהל' : await ensureTaskVerified();
+            if (!who) return;
+            if (!await askConfirm(`לסמן שהמשימה בוצעה על ידי ${who}?`)) return;
+            await tasksUpdate((days) => {
+                const d = { ...(days[dayIdx] || {}) };
+                d.done = true;
+                d.doneBy = who;
+                days[dayIdx] = d;
+            });
+        };
+
+        window.taskUndo = async function (dayIdx) {
+            if (!await askConfirm('לבטל את סימון ה"בוצע"?')) return;
+            await tasksUpdate((days) => {
+                const d = { ...(days[dayIdx] || {}) };
+                d.done = false;
+                d.doneBy = '';
+                days[dayIdx] = d;
+            });
+        };
+
+        window.taskTextChanged = async function (dayIdx, el) {
+            const val = (el.value || '').trim().slice(0, 200);
+            await tasksUpdate((days) => {
+                const d = { ...(days[dayIdx] || {}) };
+                d.task = val;
+                days[dayIdx] = d;
+            });
+        };
+
+        function renderTasksInto(tbodyId, labelId, ctx) {
+            const tb = $id(tbodyId);
+            if (!tb) return;
+            const editable = ctx === 'manager';
+            const sun = tasksWeekSunday();
+            const lbl = $id(labelId);
+            if (lbl) lbl.textContent = `שבוע ${fmtDM(sun)} – ${fmtDM(addDays(sun, 4))}`;
+            let html = '';
+            for (let d = 0; d < 5; d++) {
+                const t = tasksDays[d] || {};
+                const dateStr = fmtDM(weekDatesFull(sun)[d]);
+                const done = !!t.done;
+                html += `<tr class="${done ? 'task-row-done' : ''}">` +
+                    `<td class="task-day"><b>${daysNames[d]}</b><span class="task-date">${dateStr}</span></td>` +
+                    `<td><input type="text" class="task-text-input" maxlength="200" value="${esc(t.task || '')}" placeholder="—"` +
+                    (editable ? ` onchange="taskTextChanged(${d}, this)"` : ' readonly') + `></td>` +
+                    `<td class="task-status">` + (done
+                        ? `<div class="task-done-line">✓ <b>${esc(t.doneBy || '')}</b></div>` +
+                          (ctx === 'manager' ? `<button class="task-undo" onclick="taskUndo(${d})">בטל</button>` : '')
+                        : `<button class="task-done-btn" onclick="taskMarkDone(${d}, '${ctx}')">בוצע</button>`) +
+                    `</td></tr>`;
+            }
+            tb.innerHTML = html;
+        }
+
+        function renderTasks() {
+            // לא שוברים הקלדה באמצע עריכה: אם הפוקוס בתוך טבלת המשימות, נדחה את הרינדור ליציאה מהפוקוס
+            const ae = document.activeElement;
+            if (ae && ae.closest && ae.closest('.tasks-tbody')) { tasksRenderQueued = true; return; }
+            tasksRenderQueued = false;
+            renderTasksInto('tasksTableBodyMain', 'tasksWeekLabelMain', 'main');
+            renderTasksInto('tasksTableBodyMgr', 'tasksWeekLabelMgr', 'manager');
+        }
+
+        document.addEventListener('focusout', (e) => {
+            if (!tasksRenderQueued) return;
+            const next = e.relatedTarget;
+            if (next && next.closest && next.closest('.tasks-tbody')) return;
+            renderTasks();
+        });
+
+        // וו בדיקה לרינדור בלי נתונים חיים (בדיקות על עותק פריסה בלבד)
+        window.__wsTasksDebug = function (days) {
+            tasksDays = days || {};
+            renderTasks();
+        };
+
         function startListeners(role) {
             const uid = auth.currentUser && auth.currentUser.uid;
             if (!uid) return Promise.resolve();
@@ -2321,7 +2581,10 @@
 
         (async function boot() {
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
-            try { await initRestaurantId(); }
+            try {
+                // האזנת טבלת המשימות לא דורשת כניסה (קריאה ציבורית לאוסף _tasks בלבד)
+                if (await initRestaurantId()) startTasksListener();
+            }
             finally { document.getElementById('startupStatus')?.classList.add('hidden'); }
         })();
 
@@ -2559,9 +2822,14 @@
             document.getElementById('selectionView').classList.add('hidden');
             document.getElementById('employeeView').classList.add('hidden');
             document.getElementById('managerView').classList.add('hidden');
+            document.getElementById('tasksView').classList.add('hidden');
             managerScreenActive = false;
 
-            if(viewName === 'employee') {
+            if(viewName === 'tasks') {
+                document.getElementById('superAdminView').classList.add('hidden');
+                document.getElementById('tasksView').classList.remove('hidden');
+                renderTasks();
+            } else if(viewName === 'employee') {
                 document.getElementById('employeeView').classList.remove('hidden');
                 loadEmployeesForEmployeeView();
             } else if(viewName === 'manager') {
@@ -3772,3 +4040,4 @@
     </script>
 </body>
                 </html>
+
