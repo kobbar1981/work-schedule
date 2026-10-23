@@ -970,6 +970,7 @@
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
             try { if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; } } catch (e) {}
             tasksRecurring = null; tasksRecurringExists = false; tasksWeek = null; tasksDays = {}; tasksSeedDone = false;
+            tasksLegacyPrev = null; tasksLegacyPrevTried = false;
             employees = []; employeeAvailMap = {}; employeeNotesMap = {}; archiveWeeks = {};
             absMap = {}; swaps = [];
             currentSchedule = {}; customShiftTimes = {};
@@ -2227,6 +2228,25 @@
         const TASKS_RECURRING_ID = 'recurring';
         let tasksRecurring = null;     // null = טרם נטען; {} = { '0': {task}, ... '4': {...} }
         let tasksRecurringExists = false;  // האם מסמך recurring קיים בשרת (גם אם ריק) — קובע אם הנוסח הקבוע סמכותי
+        let tasksLegacyPrev = null;        // נוסח מהשבוע הקודם — גיבוי תצוגה עד ש-recurring קיים (אחרי מעבר שבוע, לפני כניסת מנהל)
+        let tasksLegacyPrevTried = false;
+        async function getPrevWeekDays() {
+            const prevSun = new Date(tasksWeekSunday()); prevSun.setDate(prevSun.getDate() - 7);
+            const prevSnap = await getDoc(doc(getTasksCollection(), ymd(prevSun)));
+            return (prevSnap.exists() && prevSnap.data().days) || null;
+        }
+        // תצוגה ציבורית: recurring עוד לא קיים והשבוע החדש ריק (למשל בראשון לפני כניסת מנהל) — מציג את נוסח השבוע הקודם
+        async function maybeFetchLegacyFallback() {
+            if (tasksRecurringExists || tasksRecurring === null || tasksWeek === null) return;
+            if (tasksLegacyPrevTried || !RESTAURANT_ID) return;
+            const hasText = [0,1,2,3,4].some(k => (((tasksWeek || {})[k] || {}).task || '').trim());
+            if (hasText) return;
+            tasksLegacyPrevTried = true;
+            try {
+                const prev = await getPrevWeekDays();
+                if (prev) { tasksLegacyPrev = prev; mergeTasksDays(); renderTasks(); }
+            } catch (e) { console.error('tasks legacy fallback', e && e.code); }
+        }
         let tasksWeek = null;          // סימוני השבוע: { '0': {done, doneBy, [task מיושן]}, ... }
         let tasksDays = {};            // מיזוג לתצוגה: { '0': {task, done, doneBy}, ... }
         let tasksUnsub = null;
@@ -2236,12 +2256,16 @@
         // מיזוג: אם מסמך recurring קיים — הוא סמכותי לחלוטין (יום ריק בו נשאר ריק, לא "מקמץ" טקסט ישן).
         // רק כשאין מסמך recurring בכלל (לפני המעבר החד-פעמי) מוצג נוסח מהמסמך השבועי הישן כגיבוי.
         function mergeTasksDays() {
+            // מקור גיבוי לפני ש-recurring קיים: נוסח השבוע הנוכחי; אם השבוע כולו ריק (מעבר שבוע) — נוסח השבוע הקודם.
+            // הכל-או-כלום: מילוי חלקי משבוע קודם עלול "להחיות" טקסט שהמנהל השאיר ריק בכוונה השבוע.
+            const currentHasText = [0,1,2,3,4].some(k => (((tasksWeek || {})[k] || {}).task || '').trim());
+            const legacySrc = currentHasText ? tasksWeek : (tasksLegacyPrev || {});
             const merged = {};
             for (let k = 0; k < 5; k++) {
                 const rec = (tasksRecurring && tasksRecurring[k]) || {};
                 const wk = (tasksWeek && tasksWeek[k]) || {};
                 merged[k] = {
-                    task: tasksRecurringExists ? (rec.task || '') : (wk.task || ''),
+                    task: tasksRecurringExists ? (rec.task || '') : (((legacySrc || {})[k] || {}).task || ''),
                     done: !!wk.done,
                     doneBy: wk.doneBy || ''
                 };
@@ -2260,7 +2284,7 @@
             }, (err) => { console.error('tasks recurring listener', err && err.code); }));
             unsubs.push(onSnapshot(doc(getTasksCollection(), tasksWeekKey()), (snap) => {
                 tasksWeek = (snap.exists() && snap.data().days) || {};
-                mergeTasksDays(); renderTasks(); ensureRecurringSeeded();
+                mergeTasksDays(); renderTasks(); ensureRecurringSeeded(); maybeFetchLegacyFallback();
             }, (err) => { console.error('tasks week listener', err && err.code); }));
             tasksUnsub = () => unsubs.forEach(u => u());
         }
@@ -2302,15 +2326,16 @@
             if (tasksRecurringExists) { tasksSeedDone = true; return; }     // קיים — אין מעבר, גם אם המנהל רוקן ימים בכוונה
             const claims = await currentClaims();                            // החוקים דורשים מנהל — מוודאים לפני ניסיון כתיבה
             if (!claims || claims.role !== 'manager' || claims.rid !== RESTAURANT_ID) return;
-            // מקור הזריעה: המסמך השבועי הנוכחי; אם ריק (למשל המנהל נכנס לראשונה אחרי שהשבוע התחלף) — המסמך של השבוע הקודם
+            // מקור הזריעה: נוסח השבוע הנוכחי; אם השבוע כולו ריק (כניסת מנהל ראשונה אחרי מעבר שבוע) — נוסח השבוע הקודם.
+            // הכל-או-כלום, כמו התצוגה: מה שמוצג הוא מה שהופך לקבוע.
+            const currentHasAny = [0,1,2,3,4].some(k => (((tasksWeek || {})[k] || {}).task || '').trim());
             let srcDays = tasksWeek;
-            const hasText = (dm) => [0,1,2,3,4].some(k => (((dm || {})[k] || {}).task || '').trim());
-            if (!hasText(srcDays)) {
-                try {
-                    const prevSun = new Date(tasksWeekSunday()); prevSun.setDate(prevSun.getDate() - 7);
-                    const prevSnap = await getDoc(doc(getTasksCollection(), ymd(prevSun)));
-                    if (prevSnap.exists() && hasText(prevSnap.data().days)) srcDays = prevSnap.data().days;
-                } catch (e) { console.error('tasks seed prev-week read', e && e.code); }
+            if (!currentHasAny) {
+                let prevDays = tasksLegacyPrev;
+                if (!prevDays) {
+                    try { prevDays = await getPrevWeekDays(); } catch (e) { console.error('tasks seed prev-week read', e && e.code); }
+                }
+                if (prevDays) srcDays = prevDays;
             }
             const seed = {};
             let found = false;
