@@ -114,9 +114,13 @@
         .compact-table .hours-2l.custom { padding: 0 2px; }
 
         /* ===== טבלת שעות וכמויות (סעיף 6): יציבה, בלי גלילה אופקית ובלי זום בהזנה ===== */
-        .hours-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 8px; }
-        .hours-table th, .hours-table td { padding: 5px 2px; font-size: 0.8em; overflow-wrap: break-word; }
-        .hours-table input { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; text-align: center; padding: 4px 1px; }
+        .hours-table { width: 100%; min-width: 314px; border-collapse: collapse; table-layout: fixed; margin-top: 8px; }
+        .hours-table th, .hours-table td { padding: 4px 1px; font-size: 0.8em; overflow-wrap: break-word; }
+        .hours-table input { width: 100%; min-width: 0; box-sizing: border-box; font-size: 15px; text-align: center; padding: 4px 0; }
+        .hours-table col.c-day { width: 50px; }
+        .hours-table col.c-shift { width: 50px; }
+        .hours-table col.c-time { width: 84px; }
+        .hours-table col.c-count { width: 46px; }
 
         /* סעיף מכווץ: רמז גלוי שיש תוכן מוסתר ואיך להחזירו */
         details.collapse-card:not([open]) > summary::after { content: "לחץ לפתיחה"; font-size: 0.62em; color: #8a8f98; align-self: center; margin-inline-start: 8px; white-space: nowrap; }
@@ -580,64 +584,64 @@
             <summary><span class="collapse-arrow"></span><h2>6. שעות וכמות עובדים</h2></summary>
 
             <div class="table-wrapper">
-                <table class="hours-table">
+                <table class="hours-table"><colgroup><col class="c-day"><col class="c-shift"><col class="c-time"><col class="c-time"><col class="c-count"></colgroup>
                     <thead>
                         <tr style="background-color: #f5f6f7;">
-                            <th style="padding: 6px;">ימים</th>
-                            <th style="padding: 6px;">משמרת</th>
-                            <th style="padding: 6px;">שעת התחלה</th>
-                            <th style="padding: 6px;">שעת סיום</th>
-                            <th style="padding: 6px;">כמות עובדים</th>
+                            <th style="padding: 4px 1px;">ימים</th>
+                            <th style="padding: 4px 1px;">משמרת</th>
+                            <th style="padding: 4px 1px;">שעת התחלה</th>
+                            <th style="padding: 4px 1px;">שעת סיום</th>
+                            <th style="padding: 4px 1px;">כמות עובדים</th>
                         </tr>
                     </thead>
                     <tbody>
                         <!-- א' - ה' בוקר -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">א' - ה'</td>
-                            <td style="padding: 6px;">בוקר</td>
-                            <td style="padding: 4px;"><input type="time" id="mStart" value="11:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="mEnd" value="16:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">א' - ה'</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="mStart" value="11:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="mEnd" value="16:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="mCount" value="1" min="1" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- א' - ה' ערב -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">א' - ה'</td>
-                            <td style="padding: 6px;">ערב</td>
-                            <td style="padding: 4px;"><input type="time" id="eStart" value="16:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="eEnd" value="21:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">א' - ה'</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="eStart" value="16:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="eEnd" value="21:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="eCount" value="2" min="1" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- שישי בוקר -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">שישי</td>
-                            <td style="padding: 6px;">בוקר</td>
-                            <td style="padding: 4px;"><input type="time" id="friMStart" value="09:30" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="friMEnd" value="14:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="friMCount" value="1" min="0" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">שישי</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="friMStart" value="09:30" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="friMEnd" value="14:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="friMCount" value="1" min="0" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- שישי ערב -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">שישי</td>
-                            <td style="padding: 6px;">ערב</td>
-                            <td style="padding: 4px;"><input type="time" id="friEStart" value="15:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="friEEnd" value="19:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="friECount" value="0" min="0" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">שישי</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="friEStart" value="15:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="friEEnd" value="19:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="friECount" value="0" min="0" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- שבת בוקר -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">שבת</td>
-                            <td style="padding: 6px;">בוקר</td>
-                            <td style="padding: 4px;"><input type="time" id="satMStart" value="10:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="satMEnd" value="16:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="satMCount" value="0" min="0" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">שבת</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="satMStart" value="10:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="satMEnd" value="16:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="satMCount" value="0" min="0" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- שבת ערב -->
                         <tr>
-                            <td style="font-weight: bold; padding: 6px;">שבת / מוצ"ש</td>
-                            <td style="padding: 6px;">ערב</td>
-                            <td style="padding: 4px;"><input type="time" id="satEStart" value="18:30" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="time" id="satEEnd" value="23:00" onchange="renderFullScheduleForManager()"></td>
-                            <td style="padding: 4px;"><input type="number" id="satECount" value="0" min="0" max="5" style="text-align: center;"></td>
+                            <td style="font-weight: bold; padding: 4px 1px;">שבת / מוצ"ש</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="satEStart" value="18:30" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="satEEnd" value="23:00" onchange="renderFullScheduleForManager()"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="satECount" value="0" min="0" max="5" style="text-align: center;"></td>
                         </tr>
                     </tbody>
                 </table>
