@@ -88,12 +88,20 @@
         /* טבלה קומפקטית: רוחב עמודות קבוע שלא משתנה לפי התוכן */
         .compact-table {
             table-layout: fixed !important;
-            width: calc(var(--col-label) + 7 * var(--col-day)) !important;
-            min-width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            width: 100% !important;
+            max-width: calc(var(--col-label) + 7 * var(--col-day)) !important;
+            min-width: 300px !important;
             margin: 8px auto 0 auto;
         }
-        .compact-table th { width: var(--col-day); }
+        .compact-table th { width: auto; }
         .compact-table th:first-child { width: var(--col-label); }
+        /* התאמה לרוחב המסך: תג עובד מוגבל לרוחב התא, שם ארוך נשבר לשורות */
+        .compact-table .emp-tag { max-width: 100%; box-sizing: border-box; }
+        /* טלפונים צרים (עד 480px): עמודת "משמרת" וריווח תא צרים יותר, כדי שתג השעות לא ייחתך */
+        @media (max-width: 480px) {
+            .compact-table th:first-child { width: 34px; }
+            .compact-table th, .compact-table td { padding: 3px 0 !important; }
+        }
         .compact-table th,
         .compact-table td {
             padding: 3px 1px !important;
@@ -924,7 +932,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v26';
+        const APP_VERSION = 'v27';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
