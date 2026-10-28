@@ -932,7 +932,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v27';
+        const APP_VERSION = 'v28';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2817,6 +2817,8 @@
 
         /* ===== ייצוא המשמרות של העובד ליומן (קובץ ICS) ===== */
         const icsEsc = (s) => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+        // מזהה יציב בלי שם העובד: שני גיבובים עצמאיים של 32 סיביות (64 סיביות) על תוכן ה-UID המלא
+        const uidHash = (s) => { let h1 = 0x811c9dc5, h2 = 0x01000193; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = Math.imul(h2 ^ c, 31) >>> 0; } return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0'); };
 
         window.wsDownloadIcs = async function () {
             const me = verifiedEmployeeName;
@@ -2840,7 +2842,7 @@
                 const title = `משמרת ${s === 'm' ? 'בוקר' : 'ערב'}`;
                 count++;
                 lines.push('BEGIN:VEVENT',
-                    `UID:${RESTAURANT_ID}-${pubWeekKey()}-${key}-${encodeURIComponent(me)}@work-schedule`,
+                    `UID:ws-${uidHash(`${RESTAURANT_ID}-${pubWeekKey()}-${key}-${me}`)}@work-schedule`,
                     `DTSTAMP:${stamp}`,
                     `DTSTART:${fmtLocal(start)}`,
                     `DTEND:${fmtLocal(end)}`,
@@ -2852,17 +2854,6 @@
             if (!count) { notify("אין לך משמרות להוספה"); return; }
             lines.push('END:VCALENDAR');
             const content = lines.join('\r\n');
-            const ua = navigator.userAgent || '';
-            const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-            // אייפון: פותחים את הקובץ ישירות. Safari מציג מסך "הוספה ליומן".
-            // (תפריט השיתוף של האייפון לא מציג את אפליקציית היומן, ולכן לא משתמשים בו)
-            if (isIOS) {
-                notify("נפתח היומן. לחץ 'הוסף הכול'");
-                window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(content);
-                return;
-            }
-
             // אנדרואיד ושאר המכשירים: הורדה ישירה. בלחיצה על הקובץ שהורד נפתח היומן.
             const url = URL.createObjectURL(new Blob([content], { type: 'text/calendar;charset=utf-8' }));
             const a = document.createElement('a');
@@ -2872,7 +2863,7 @@
             a.click();
             a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 10000);
-            notify("הקובץ ירד. לחץ עליו כדי להוסיף ליומן");
+            notify("להוספה ליומן, פתח את קובץ המשמרות שהורדת");
         };
 
         /* ===== הודעת גרסה חדשה ===== */
