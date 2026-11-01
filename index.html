@@ -345,7 +345,7 @@
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים</button>
         <button class="tasks-entry-btn" onclick="switchView('tasks')">משימות שבועיות</button>
-        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיה (5 ₪)</button>
+        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיה לעובדים (5 ₪)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל</button>
         <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
     </div>
@@ -2297,7 +2297,7 @@
             }
 
             // שתיה
-            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיה</h3></summary>
+            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיה לעובדים</h3></summary>
                 <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="wsDrinksMonthChanged()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
                 <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
