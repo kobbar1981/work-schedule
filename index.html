@@ -345,7 +345,7 @@
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים</button>
         <button class="tasks-entry-btn" onclick="switchView('tasks')">משימות שבועיות</button>
-        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיית עובדים (5 ₪)</button>
+        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיה (5 ₪)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל</button>
         <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
     </div>
@@ -933,7 +933,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v29';
+        const APP_VERSION = 'v30';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2127,7 +2127,7 @@
         };
 
 
-        /* ===== זמין/ה להגיע + שתיית עובדים (תוספת, גרסת בדיקה על עותק) ===== */
+        /* ===== זמין/ה להגיע + שתיה (תוספת, גרסת בדיקה על עותק) ===== */
         const DRINK_PRICE = 5;
         function getComeCollection() { return collection(db, `${RESTAURANT_ID}_comeavail`); }
         function getDrinksCollection() { return collection(db, `${RESTAURANT_ID}_drinks`); }
@@ -2178,7 +2178,7 @@
             try {
                 const who = await ensureTaskVerified();
                 if (!who) return;
-                if (!await askConfirm(`לרשום שתייה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
+                if (!await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
                 // אישור חדש = פעולה חדשה. רק ניסיון חוזר של אותו אישור (שנכשל ברשת) חוזר על אותו מזהה וזמן
                 if (!drinkPendingOp || drinkPendingOp.who !== who || Date.now() - drinkPendingOp.ts > 240000) {
                     drinkPendingOp = { who, op: newOpId(), ts: Date.now(), ymd: ymd(israelNow()) };
@@ -2187,7 +2187,7 @@
                 try {
                     await setDoc(doc(getDrinksCollection(), who + '_' + o.op), { name: who, op: o.op, ts: o.ts, ymd: o.ymd, createdAt: o.ts });
                     drinkPendingOp = null;
-                    notify('השתייה נרשמה');
+                    notify('השתיה נרשמה');
                 } catch (e) {
                     console.error(e);
                     if (e && e.code === 'permission-denied') { drinkPendingOp = null; notify('הרישום נדחה (ייתכן שכבר נרשם). בדוק מול המנהל'); }
@@ -2222,7 +2222,7 @@
                 const snap = await getDocs(query(getDrinksCollection(), where('ts', '>=', from), where('ts', '<', to)));
                 drinksRows = []; drinksRowsMonth = month;
                 snap.forEach(d => drinksRows.push(d.data()));
-            } catch (e) { console.error(e); window.__drinksFailed = true; drinksRows = []; drinksRowsMonth = month; notify('שגיאה בטעינת השתיות'); renderDrinksBody(); return; }
+            } catch (e) { console.error(e); window.__drinksFailed = true; drinksRows = []; drinksRowsMonth = month; notify('שגיאה בטעינת השתיה'); renderDrinksBody(); return; }
             if (drinksRowsMonth === null && !window.__drinksLoading && !window.__drinksFailed) { window.__drinksLoading = true; wsLoadDrinks().finally(() => { window.__drinksLoading = false; }); }
             renderDrinksBody();
         };
@@ -2240,14 +2240,14 @@
             rows.forEach(r => { (by[r.name] = by[r.name] || []).push(r); });
             const names = Object.keys(by).sort((a, b) => a.localeCompare(b, 'he'));
             let h = '';
-            if (!names.length) h = '<p class="ws-note">אין שתיות בחודש הזה.</p>';
+            if (!names.length) h = '<p class="ws-note">אין שתיה בחודש הזה.</p>';
             names.forEach(n => {
                 const list = by[n].sort((a, b) => (a.ts || 0) - (b.ts || 0));
                 const dates = list.map(r => {
                     const d = new Date(r.ts);
                     return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 }).join(' | ');
-                h += `<div class="ws-row"><span><b>${esc(n)}</b>: ${list.length} שתיות, ${list.length * DRINK_PRICE} ₪<br><span class="ws-note">${esc(dates)}</span></span></div>`;
+                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br><span class="ws-note">${esc(dates)}</span></span></div>`;
             });
             h += `<div class="ws-row"><span class="ws-note">רישום בלבד, ללא גבייה</span></div>`;
             box.innerHTML = h;
@@ -2296,8 +2296,8 @@
                 h += `</div>`;
             }
 
-            // שתיית עובדים
-            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיית עובדים</h3></summary>
+            // שתיה
+            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיה</h3></summary>
                 <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="wsDrinksMonthChanged()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
                 <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
