@@ -2039,10 +2039,7 @@
             if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
 
             {
-                const todayD = israelNow();
-                let opts = '';
-                for (let i = 0; i < 7; i++) { const x = new Date(todayD.getFullYear(), todayD.getMonth(), todayD.getDate() + i); opts += `<option value="${ymd(x)}">${daysNames[x.getDay()] || ''} ${esc(fmtDM(x))}</option>`; }
-                h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span><select id="wsComeDay" data-keep="1">${opts}</select></span><span><button class="ws-mini" onclick="wsComeSend()">אני זמין/ה</button></span></div>`;
+                h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span class="ws-note">אם אתה/את פנוי/ה להגיע היום (למשל להקדים), סמנ/י והמנהל יענה באיזו שעה.</span><span><button class="ws-mini" onclick="wsComeSend()">אני זמין/ה היום</button></span></div>`;
                 comeReqs.filter(r => r.name === me && r.createdAt > Date.now() - 7 * 86400000).sort((a, b) => b.createdAt - a.createdAt).forEach(r => {
                     h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.ymd)))}: ${r.status === 'answered' ? 'להגיע בשעה <b>' + esc(r.time) + '</b>' : '<span class="ws-note">ממתין לתשובת המנהל</span>'}</span></div>`;
                 });
@@ -2132,13 +2129,12 @@
 
         window.wsComeSend = async function () {
             const me = verifiedEmployeeName;
-            const sel = $id('wsComeDay');
-            if (!me || !sel || !sel.value) { notify('בחר יום'); return; }
-            const dayYmd = sel.value;
-            if (comeReqs.some(r => r.name === me && r.ymd === dayYmd && r.status === 'pending')) { notify('כבר שלחת בקשה ליום הזה'); return; }
+            if (!me) { notify('יש להתחבר עם קוד אישי'); return; }
+            const dayYmd = ymd(israelNow());
+            if (comeReqs.some(r => r.name === me && r.ymd === dayYmd && r.status === 'pending')) { notify('כבר שלחת בקשה להיום'); return; }
             try {
                 await setDoc(doc(getComeCollection()), { name: me, ymd: dayYmd, status: 'pending', createdAt: Date.now() });
-                await pushNotif(MANAGER, 'avail_now', `${me} זמין/ה להגיע ב${fmtDM(parseYmd(dayYmd))}`);
+                await pushNotif(MANAGER, 'avail_now', `${me} זמין/ה להגיע היום (${fmtDM(parseYmd(dayYmd))})`);
                 notify('הבקשה נשלחה למנהל');
             } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
         };
@@ -2167,6 +2163,10 @@
             } catch (e) { console.error(e); notify('שגיאה ברישום'); }
         };
 
+        function drinkMonthKey(ts) {
+            const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' }).formatToParts(new Date(ts));
+            return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
+        }
         let drinksRows = null;
         window.wsLoadDrinks = async function () {
             const box = $id('wsDrinksBody');
@@ -2183,8 +2183,8 @@
             if (!box) return;
             if (!drinksRows) { box.innerHTML = '<p class="ws-note">לחץ "רענן" לטעינה.</p>'; return; }
             const msel = $id('wsDrinksMonth');
-            const month = (msel && msel.value) || ymd(israelNow()).slice(0, 7);
-            const rows = drinksRows.filter(r => String(r.ymd || '').slice(0, 7) === month);
+            const month = (msel && msel.value) || drinkMonthKey(Date.now());
+            const rows = drinksRows.filter(r => drinkMonthKey(r.ts) === month);
             const by = {};
             rows.forEach(r => { (by[r.name] = by[r.name] || []).push(r); });
             const names = Object.keys(by).sort((a, b) => a.localeCompare(b, 'he'));
