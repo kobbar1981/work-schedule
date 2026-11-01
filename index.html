@@ -2039,7 +2039,13 @@
             if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
 
             {
-                h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span class="ws-note">אם אתה/את פנוי/ה להגיע היום (למשל להקדים), סמנ/י והמנהל יענה באיזו שעה.</span><span><button class="ws-mini" onclick="wsComeSend()">אני זמין/ה היום</button></span></div>`;
+                const todayReq = comeReqs.find(r => r.name === me && r.ymd === ymd(israelNow()));
+                const btn = !todayReq
+                    ? `<button class="ws-mini" onclick="wsComeSend()">אני זמין/ה היום</button>`
+                    : (todayReq.status === 'answered'
+                        ? `<button class="ws-mini" disabled style="background:#27ae60">המנהל ענה: ${esc(todayReq.time)}</button>`
+                        : `<button class="ws-mini" disabled style="background:#9aa0a6">נשלח, ממתין למנהל</button>`);
+                h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span class="ws-note">אם אתה/את פנוי/ה להגיע היום (למשל להקדים), סמנ/י והמנהל יענה באיזו שעה.</span><span>${btn}</span></div>`;
                 comeReqs.filter(r => r.name === me && r.createdAt > Date.now() - 7 * 86400000).sort((a, b) => b.createdAt - a.createdAt).forEach(r => {
                     h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.ymd)))}: ${r.status === 'answered' ? 'להגיע בשעה <b>' + esc(r.time) + '</b>' : '<span class="ws-note">ממתין לתשובת המנהל</span>'}</span></div>`;
                 });
@@ -2160,6 +2166,12 @@
         };
 
         let drinkSending = false;
+        let drinkPendingOp = null;   // מזהה פעולה של אישור שנכשל באמצע: ניסיון חוזר משתמש באותו מזהה (לא יוצר רישום כפול)
+        function newOpId() {
+            const a = new Uint8Array(8);
+            (window.crypto || window.msCrypto).getRandomValues(a);
+            return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
+        }
         window.drinkRecord = async function () {
             if (drinkSending) return;
             drinkSending = true;
@@ -2167,39 +2179,62 @@
                 const who = await ensureTaskVerified();
                 if (!who) return;
                 if (!await askConfirm(`לרשום שתייה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
-                const ts = Date.now();
-                const min = Math.floor(ts / 60000);
+                // אישור חדש = פעולה חדשה. רק ניסיון חוזר של אותו אישור (שנכשל ברשת) חוזר על אותו מזהה וזמן
+                if (!drinkPendingOp || drinkPendingOp.who !== who || Date.now() - drinkPendingOp.ts > 240000) {
+                    drinkPendingOp = { who, op: newOpId(), ts: Date.now(), ymd: ymd(israelNow()) };
+                }
+                const o = drinkPendingOp;
                 try {
-                    // מזהה קבוע (שם + דקה): לחיצה כפולה באותה דקה לא נרשמת פעמיים
-                    await setDoc(doc(getDrinksCollection(), who + '_' + min), { name: who, ts, min, ymd: ymd(israelNow()), createdAt: ts });
+                    await setDoc(doc(getDrinksCollection(), who + '_' + o.op), { name: who, op: o.op, ts: o.ts, ymd: o.ymd, createdAt: o.ts });
+                    drinkPendingOp = null;
                     notify('השתייה נרשמה');
                 } catch (e) {
                     console.error(e);
-                    notify(e && e.code === 'permission-denied' ? 'לא נרשם: ייתכן שכבר נרשמה שתייה ברגע זה' : 'שגיאה ברישום');
+                    if (e && e.code === 'permission-denied') { drinkPendingOp = null; notify('הרישום נדחה (ייתכן שכבר נרשם). בדוק מול המנהל'); }
+                    else notify('שגיאה ברישום, נסה שוב');
                 }
             } finally { drinkSending = false; }
         };
 
-        let drinksRows = null;
-        window.wsLoadDrinks = async function () {
-            try {
-                const snap = await getDocs(getDrinksCollection());
-                drinksRows = [];
-                snap.forEach(d => drinksRows.push(d.data()));
-            } catch (e) { console.error(e); notify('שגיאה בטעינת השתיות'); return; }
-            renderDrinksBody();
-        };
+        // טווח חודש לפי שעון ישראל (תחילת החודש עד תחילת החודש הבא), באלפיות שנייה
         function drinkMonthKey(ts) {
             const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' }).formatToParts(new Date(ts));
             return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
         }
+        function firstMsOfMonth(key) {
+            const [y, m] = key.split('-').map(Number);
+            let lo = Date.UTC(y, m - 1, 1) - 14 * 3600000, hi = Date.UTC(y, m - 1, 1) + 14 * 3600000;
+            while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (drinkMonthKey(mid) >= key) hi = mid; else lo = mid + 1; }
+            return lo;
+        }
+        function drinkMonthRange(key) {
+            const [y, m] = key.split('-').map(Number);
+            const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+            return [firstMsOfMonth(key), firstMsOfMonth(next)];
+        }
+        let drinksRows = null, drinksRowsMonth = null;
+        window.wsLoadDrinks = async function () {
+            window.__drinksFailed = false;
+            const msel = $id('wsDrinksMonth');
+            const month = (msel && msel.value) || drinkMonthKey(Date.now());
+            const [from, to] = drinkMonthRange(month);
+            try {
+                const snap = await getDocs(query(getDrinksCollection(), where('ts', '>=', from), where('ts', '<', to)));
+                drinksRows = []; drinksRowsMonth = month;
+                snap.forEach(d => drinksRows.push(d.data()));
+            } catch (e) { console.error(e); window.__drinksFailed = true; drinksRows = []; drinksRowsMonth = month; notify('שגיאה בטעינת השתיות'); renderDrinksBody(); return; }
+            if (drinksRowsMonth === null && !window.__drinksLoading && !window.__drinksFailed) { window.__drinksLoading = true; wsLoadDrinks().finally(() => { window.__drinksLoading = false; }); }
+            renderDrinksBody();
+        };
+        window.wsDrinksMonthChanged = function () { drinksRows = null; drinksRowsMonth = null; renderDrinksBody(); wsLoadDrinks(); };
         window.renderDrinksBody = renderDrinksBody;
         function renderDrinksBody() {
             const box = $id('wsDrinksBody');
             if (!box) return;
-            if (!drinksRows) { box.innerHTML = '<p class="ws-note">לחץ "רענן" לטעינה.</p>'; return; }
+            if (!drinksRows) { box.innerHTML = '<p class="ws-note">טוען...</p>'; return; }
             const msel = $id('wsDrinksMonth');
             const month = (msel && msel.value) || drinkMonthKey(Date.now());
+            if (drinksRowsMonth !== month) { box.innerHTML = '<p class="ws-note">טוען...</p>'; return; }
             const rows = drinksRows.filter(r => drinkMonthKey(r.ts) === month);
             const by = {};
             rows.forEach(r => { (by[r.name] = by[r.name] || []).push(r); });
@@ -2263,7 +2298,7 @@
 
             // שתיית עובדים
             h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיית עובדים</h3></summary>
-                <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="renderDrinksBody()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
+                <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="wsDrinksMonthChanged()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
                 <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
             // בקשות החלפה לאישור
@@ -2673,7 +2708,7 @@
             renderTasks();
         };
 
-        function startListeners(role) {
+        function startListeners(role, empName) {
             const uid = auth.currentUser && auth.currentUser.uid;
             if (!uid) return Promise.resolve();
             if (listenersFor === uid) return listenersReady;
@@ -2743,12 +2778,17 @@
                 scheduleRender(renderManagerExtras);
             }, true);
 
-            sub('come', getComeCollection(), (snap) => {
-                comeReqs = [];
-                snap.forEach(d => comeReqs.push({ id: d.id, ...d.data() }));
-                scheduleRender(renderEmployeeExtras);
-                scheduleRender(renderManagerExtras);
-            }, true);
+            // זמין/ה להגיע: מנהל רואה הכול, עובד רק את בקשותיו (הכללים אוכפים)
+            {
+                const comeRef = role === 'manager' ? getComeCollection()
+                    : (empName ? query(getComeCollection(), where('name', '==', empName)) : null);
+                if (comeRef) sub('come', comeRef, (snap) => {
+                    comeReqs = [];
+                    snap.forEach(d => comeReqs.push({ id: d.id, ...d.data() }));
+                    scheduleRender(renderEmployeeExtras);
+                    scheduleRender(renderManagerExtras);
+                }, true);
+            }
 
             sub('active', getSettingsDoc("active_shifts_config"), (snap) => {
                 if (snap.exists()) {
@@ -3609,7 +3649,7 @@
             try {
                 const r = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: selectedName, secret: inputPin });
                 await signInWithToken(r.token);
-                await startListeners('employee');
+                await startListeners('employee', selectedName);
             } catch(e) {
                 notify(errMsg(e, "שגיאה באימות"));
                 document.getElementById('employeeFormArea').classList.add('hidden');
