@@ -2127,16 +2127,23 @@
         function getDrinksCollection() { return collection(db, `${RESTAURANT_ID}_drinks`); }
         let comeReqs = [];
 
+        let comeSending = false;
         window.wsComeSend = async function () {
             const me = verifiedEmployeeName;
             if (!me) { notify('יש להתחבר עם קוד אישי'); return; }
+            if (comeSending) return;
             const dayYmd = ymd(israelNow());
-            if (comeReqs.some(r => r.name === me && r.ymd === dayYmd && r.status === 'pending')) { notify('כבר שלחת בקשה להיום'); return; }
+            if (comeReqs.some(r => r.name === me && r.ymd === dayYmd)) { notify('כבר שלחת בקשה להיום'); return; }
+            comeSending = true;
             try {
-                await setDoc(doc(getComeCollection()), { name: me, ymd: dayYmd, status: 'pending', createdAt: Date.now() });
+                // מזהה קבוע (שם + תאריך): לחיצה כפולה לא יוצרת בקשה שנייה
+                await setDoc(doc(getComeCollection(), me + '_' + dayYmd), { name: me, ymd: dayYmd, status: 'pending', createdAt: Date.now() });
                 await pushNotif(MANAGER, 'avail_now', `${me} זמין/ה להגיע היום (${fmtDM(parseYmd(dayYmd))})`);
                 notify('הבקשה נשלחה למנהל');
-            } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
+            } catch (e) {
+                console.error(e);
+                notify(e && e.code === 'permission-denied' ? 'הבקשה להיום כבר קיימת או שאין הרשאה' : 'שגיאה בשליחה');
+            } finally { comeSending = false; }
         };
 
         window.wsComeReply = async function (id) {
@@ -2152,24 +2159,29 @@
             } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
         };
 
+        let drinkSending = false;
         window.drinkRecord = async function () {
-            const who = await ensureTaskVerified();
-            if (!who) return;
-            if (!await askConfirm(`לרשום שתייה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
+            if (drinkSending) return;
+            drinkSending = true;
             try {
-                const now = new Date();
-                await setDoc(doc(getDrinksCollection()), { name: who, ts: Date.now(), ymd: ymd(israelNow()), createdAt: Date.now() });
-                notify('השתייה נרשמה');
-            } catch (e) { console.error(e); notify('שגיאה ברישום'); }
+                const who = await ensureTaskVerified();
+                if (!who) return;
+                if (!await askConfirm(`לרשום שתייה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
+                const ts = Date.now();
+                const min = Math.floor(ts / 60000);
+                try {
+                    // מזהה קבוע (שם + דקה): לחיצה כפולה באותה דקה לא נרשמת פעמיים
+                    await setDoc(doc(getDrinksCollection(), who + '_' + min), { name: who, ts, min, ymd: ymd(israelNow()), createdAt: ts });
+                    notify('השתייה נרשמה');
+                } catch (e) {
+                    console.error(e);
+                    notify(e && e.code === 'permission-denied' ? 'לא נרשם: ייתכן שכבר נרשמה שתייה ברגע זה' : 'שגיאה ברישום');
+                }
+            } finally { drinkSending = false; }
         };
 
-        function drinkMonthKey(ts) {
-            const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' }).formatToParts(new Date(ts));
-            return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
-        }
         let drinksRows = null;
         window.wsLoadDrinks = async function () {
-            const box = $id('wsDrinksBody');
             try {
                 const snap = await getDocs(getDrinksCollection());
                 drinksRows = [];
@@ -2177,6 +2189,10 @@
             } catch (e) { console.error(e); notify('שגיאה בטעינת השתיות'); return; }
             renderDrinksBody();
         };
+        function drinkMonthKey(ts) {
+            const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' }).formatToParts(new Date(ts));
+            return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
+        }
         window.renderDrinksBody = renderDrinksBody;
         function renderDrinksBody() {
             const box = $id('wsDrinksBody');
