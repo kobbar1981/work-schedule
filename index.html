@@ -937,7 +937,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v31';
+        const APP_VERSION = 'v32';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -992,6 +992,7 @@
             try { subscribeNotifs(null); } catch (e) {}
             // מנקים נתונים בזיכרון, כדי שמשתמש אחר באותו מכשיר לא יראה שאריות
             try { if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; } } catch (e) {}
+            tasksAccess = 'none';
             tasksRecurring = null; tasksRecurringExists = false; tasksWeek = null; tasksDays = {}; tasksSeedDone = false;
             tasksLegacyPrev = null; tasksLegacyPrevTried = false;
             employees = []; employeeAvailMap = {}; employeeNotesMap = {}; archiveWeeks = {};
@@ -2177,13 +2178,13 @@
             (window.crypto || window.msCrypto).getRandomValues(a);
             return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
         }
-        window.drinkRecord = async function () {
+        window.drinkRecord = async function (skipConfirm) {
             if (drinkSending) return;
             drinkSending = true;
             try {
                 const who = await ensureTaskVerified();
                 if (!who) return;
-                if (!await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
+                if (skipConfirm !== true && !await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
                 // אישור חדש = פעולה חדשה. רק ניסיון חוזר של אותו אישור (שנכשל ברשת) חוזר על אותו מזהה וזמן
                 if (!drinkPendingOp || drinkPendingOp.who !== who || Date.now() - drinkPendingOp.ts > 240000) {
                     drinkPendingOp = { who, op: newOpId(), ts: Date.now(), ymd: ymd(israelNow()) };
@@ -2251,9 +2252,9 @@
                 const items = list.map(r => {
                     const d = new Date(r.ts);
                     const t = d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                    return `<span class="ws-note" style="display:inline-block;margin:2px 0 2px 8px">${esc(t)} <button class="ws-mini" style="background:#c0392b;padding:0;min-width:40px;min-height:40px;font-size:1.05em;vertical-align:middle;margin-inline-start:2px" data-id="${esc(r.id || '')}" onclick="wsDrinkDelete(this.dataset.id)" aria-label="מחק רישום">✕</button></span>`;
+                    return `<span class="ws-note" style="display:inline-flex;align-items:center;margin:0;border:1px solid #e2e2e2;border-radius:8px;padding-inline-start:8px;background:#fafafa;white-space:nowrap">${esc(t)}<button class="ws-mini" style="background:#c0392b;padding:0;margin:0;margin-inline-start:6px;min-width:36px;height:36px;border-radius:0 8px 8px 0;font-size:1em" data-id="${esc(r.id || '')}" onclick="wsDrinkDelete(this.dataset.id)" aria-label="מחק רישום">✕</button></span>`;
                 }).join(' ');
-                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br>${items}</span><span><button class="ws-mini" style="background:#c0392b;min-height:40px;padding:0 12px" data-name="${esc(n)}" onclick="wsDrinkResetEmployee(this.dataset.name)">אפס עובד</button></span></div>`;
+                h += `<div class="ws-row" style="display:block"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪</span><button class="ws-mini" style="background:#c0392b;min-height:36px;padding:0 12px" data-name="${esc(n)}" onclick="wsDrinkResetEmployee(this.dataset.name)">אפס עובד</button></div><div style="display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:2px">${items}</div></div>`;
             });
             h += `<div class="ws-row"><span class="ws-note">רישום בלבד, ללא גבייה</span></div>`;
             box.innerHTML = h;
@@ -2483,6 +2484,7 @@
         let tasksWeek = null;          // סימוני השבוע: { '0': {done, doneBy, [task מיושן]}, ... }
         let tasksDays = {};            // מיזוג לתצוגה: { '0': {task, done, doneBy}, ... }
         let tasksUnsub = null;
+        let tasksAccess = 'none';   // none = לא הוזדהו | ok = עובד/מנהל | kitchen = עובד מטבח (אין גישה למשימות)
         let taskVerifiedName = null;   // עובד שאומת בקוד במסך המשימות (זיכרון סשן בלבד, לא נשמר)
         let tasksRenderQueued = false;
 
@@ -2651,13 +2653,14 @@
 
         // אימות עובד בקוד אישי דרך השרת (אותה בדיקה כמו בכניסת עובדים). נזכר לסשן בלבד.
         async function ensureTaskVerified() {
-            if (taskVerifiedName) return taskVerifiedName;
+            if (taskVerifiedName && tasksAccess !== 'none') return taskVerifiedName;
             const r = await askEmployeePin();
             if (!r) return null;
             try {
                 const res = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: r.name, secret: r.pin });
                 await signInWithToken(res.token);
                 taskVerifiedName = r.name;
+                await applyTasksAccess(r.name);
                 renderTasks();
                 return r.name;
             } catch (e) {
@@ -2666,10 +2669,24 @@
             }
         }
 
-        // ctx: 'main' (מסך משימות ציבורי — דורש אימות קוד) | 'manager' (מנהל מחובר)
+        // עובד מטבח: אין גישה למשימות. עובד רגיל: מפעיל האזנה לטבלת המשימות
+        async function applyTasksAccess(name) {
+            let kitchen = false;
+            try { const mine = await getDoc(doc(getEmpCollection(), name)); kitchen = !!(mine.exists() && mine.data().kitchen === true); }
+            catch (e) { console.error(e); kitchen = true; }   // אם אי אפשר לאמת, לא פותחים
+            if (kitchen) { tasksAccess = 'kitchen'; return 'kitchen'; }
+            tasksAccess = 'ok'; startTasksListener(); return 'ok';
+        }
+        window.taskUnlock = async function () {
+            const who = await ensureTaskVerified();
+            if (who) renderTasks();
+        };
+
+        // ctx: 'main' (מסך משימות — דורש אימות קוד — דורש אימות קוד) | 'manager' (מנהל מחובר)
         window.taskMarkDone = async function (dayIdx, ctx) {
             const who = await ensureTaskVerified();
             if (!who) return;
+            if (tasksAccess !== 'ok') { notify('אין גישה למשימות'); return; }
             if (!await askConfirm(`לסמן שהמשימה בוצעה על ידי ${who}?`)) return;
             await tasksUpdateCompletion((days) => {
                 const d = { ...(days[dayIdx] || {}) };
@@ -2706,6 +2723,13 @@
             const lbl = $id(labelId);
             if (lbl) lbl.textContent = `שבוע ${fmtDM(sun)} – ${fmtDM(addDays(sun, 4))}`;
             let html = '';
+            if (ctx === 'main' && tasksAccess !== 'ok') {
+                html = `<tr><td colspan="3" style="text-align:center;padding:14px;">` + (tasksAccess === 'kitchen'
+                    ? 'אין גישה למשימות השבועיות (עובדי מטבח).'
+                    : `<div style="margin-bottom:8px;">המשימות מוצגות אחרי הזדהות בקוד אישי.</div><button class="task-done-btn" onclick="taskUnlock()">הצג משימות (קוד אישי)</button>`) + `</td></tr>`;
+                tb.innerHTML = html;
+                return;
+            }
             for (let d = 0; d < 5; d++) {
                 const t = tasksDays[d] || {};
                 const dateStr = fmtDM(weekDatesFull(sun)[d]);
@@ -2759,6 +2783,7 @@
             if (listenersFor === uid) return listenersReady;
             stopListeners();
             listenersFor = uid;
+            tasksAccess = 'ok'; startTasksListener();
 
             const pending = new Set();
             let resolveAll;
@@ -2941,8 +2966,8 @@
         (async function boot() {
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
             try {
-                // האזנת טבלת המשימות לא דורשת כניסה (קריאה ציבורית לאוסף _tasks בלבד)
-                if (await initRestaurantId()) startTasksListener();
+                // טבלת המשימות נקראת רק אחרי הזדהות בקוד (עובד רגיל או מנהל). אין קריאה ציבורית
+                await initRestaurantId();
             }
             finally { document.getElementById('startupStatus')?.classList.add('hidden'); }
         })();
@@ -3702,9 +3727,10 @@
                 let isKitchenStaff = false;
                 try { const mine = await getDoc(doc(getEmpCollection(), selectedName)); isKitchenStaff = !!(mine.exists() && mine.data().kitchen === true); } catch (e) { console.error(e); }
                 if (isKitchenStaff) {
-                    taskVerifiedName = selectedName;
-                    notify('אין לך גישה לסידור העבודה. אפשר לרשום שתיה מהמסך הראשי.');
+                    taskVerifiedName = selectedName; tasksAccess = 'kitchen';
                     document.getElementById('employeeFormArea').classList.add('hidden');
+                    if (await askConfirm(`${selectedName}, הכניסה שלך היא לשתיה בלבד (בלי סידור עבודה). לרשום עכשיו שתיה על שמך? (${DRINK_PRICE} ₪)`)) await drinkRecord(true);
+                    switchView('selection');
                     return;
                 }
                 await startListeners('employee', selectedName);
