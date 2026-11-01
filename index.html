@@ -2591,7 +2591,7 @@
         }
 
         // דיאלוג בחירת עובד + קוד (אותו סגנון של שאר הדיאלוגים באפליקציה)
-        function askEmployeePin() {
+        function askEmployeePin(hideKitchen) {
             return new Promise(async (resolve) => {
                 let names = ((businessInfo && businessInfo.employees) || []).map(e => e.name);
                 if (!names.length) {
@@ -2602,6 +2602,7 @@
                     } catch (e) {}
                 }
                 if (!names.length) names = employees.map(e => e.name);
+                if (hideKitchen) names = names.filter(n => !kitchenNames.has(n));   // סימון משימה: בלי עובדי מטבח (הם מופיעים רק ברישום שתיה)
                 names.sort((a, b) => String(a).localeCompare(String(b), 'he'));
                 if (!names.length) { notify('לא נמצאו עובדים בעסק'); return resolve(null); }
 
@@ -2657,9 +2658,9 @@
         }
 
         // אימות עובד בקוד אישי דרך השרת (אותה בדיקה כמו בכניסת עובדים). נזכר לסשן בלבד.
-        async function ensureTaskVerified() {
+        async function ensureTaskVerified(forTask) {
             if (taskVerifiedName && tasksAccess !== 'none') return taskVerifiedName;
-            const r = await askEmployeePin();
+            const r = await askEmployeePin(forTask === true);
             if (!r) return null;
             try {
                 const res = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: r.name, secret: r.pin });
@@ -2685,7 +2686,7 @@
 
         // ctx: 'main' (מסך משימות — דורש אימות קוד — דורש אימות קוד) | 'manager' (מנהל מחובר)
         window.taskMarkDone = async function (dayIdx, ctx) {
-            const who = await ensureTaskVerified();
+            const who = await ensureTaskVerified(true);
             if (!who) return;
             if (tasksAccess === 'kitchen') { notify('עובדי מטבח יכולים לצפות במשימות בלבד, לא לסמן בוצע'); return; }
             if (tasksAccess !== 'ok') return;
