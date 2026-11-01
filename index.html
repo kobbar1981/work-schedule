@@ -2249,7 +2249,7 @@
                 }).join(' | ');
                 h += `<div class="ws-row"><span><b>${esc(n)}</b>: ${list.length} שתיות, ${list.length * DRINK_PRICE} ₪<br><span class="ws-note">${esc(dates)}</span></span></div>`;
             });
-            h += `<div class="ws-row"><span><b>סה"כ: ${rows.length} שתיות, ${rows.length * DRINK_PRICE} ₪</b> <span class="ws-note">(רישום בלבד, ללא גבייה)</span></span></div>`;
+            h += `<div class="ws-row"><span class="ws-note">רישום בלבד, ללא גבייה</span></div>`;
             box.innerHTML = h;
         }
         function drinksMonthOptions() {
