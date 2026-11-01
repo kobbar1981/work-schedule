@@ -851,6 +851,10 @@
             </div>
 
             <div class="form-group" style="text-align: right;">
+                <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="editEmpKitchen" style="width:auto;margin:0;"> מטבח בלבד (שתיה בלבד, בלי סידור עבודה)</label>
+            </div>
+
+            <div class="form-group" style="text-align: right;">
                 <label>דירוג רמה:</label>
                 <select id="editEmpRank">
                     <option value="3">חזק / ותיק (3) - עדיפות 1</option>
@@ -1227,7 +1231,8 @@
             });
         });
 
-        let employees = [];
+        let employees = [];        // עובדי סידור בלבד (בלי מטבח)
+        let allStaff = [];         // כולל עובדי מטבח (לניהול בלבד)
         let employeeAvailMap = {};
         let employeeNotesMap = {};
         let currentSchedule = {};
@@ -1337,7 +1342,7 @@
 
         function isColorTakenByOther(hex, excludeName) {
             const h = (hex || '').toLowerCase();
-            return employees.some(e => e.name !== excludeName && (e.color || '').toLowerCase() === h);
+            return allStaff.some(e => e.name !== excludeName && (e.color || '').toLowerCase() === h);
         }
 
         window.refreshColorPalettes = function() {
@@ -2246,9 +2251,9 @@
                 const items = list.map(r => {
                     const d = new Date(r.ts);
                     const t = d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                    return `<span class="ws-note" style="display:inline-block;margin:2px 0 2px 8px">${esc(t)} <button class="ws-mini" style="background:#c0392b;padding:1px 7px" data-id="${esc(r.id || '')}" onclick="wsDrinkDelete(this.dataset.id)" aria-label="מחק רישום">✕</button></span>`;
+                    return `<span class="ws-note" style="display:inline-block;margin:2px 0 2px 8px">${esc(t)} <button class="ws-mini" style="background:#c0392b;padding:0;min-width:40px;min-height:40px;font-size:1.05em;vertical-align:middle;margin-inline-start:2px" data-id="${esc(r.id || '')}" onclick="wsDrinkDelete(this.dataset.id)" aria-label="מחק רישום">✕</button></span>`;
                 }).join(' ');
-                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br>${items}</span><span><button class="ws-mini" style="background:#c0392b" data-name="${esc(n)}" onclick="wsDrinkResetEmployee(this.dataset.name)">אפס עובד</button></span></div>`;
+                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br>${items}</span><span><button class="ws-mini" style="background:#c0392b;min-height:40px;padding:0 12px" data-name="${esc(n)}" onclick="wsDrinkResetEmployee(this.dataset.name)">אפס עובד</button></span></div>`;
             });
             h += `<div class="ws-row"><span class="ws-note">רישום בלבד, ללא גבייה</span></div>`;
             box.innerHTML = h;
@@ -2769,12 +2774,13 @@
             };
 
             sub('emp', getEmpCollection(), (snapshot) => {
-                employees = [];
+                employees = []; allStaff = [];
                 snapshot.forEach((d) => {
                     let data = d.data();
                     if(!data.name) data.name = d.id;
                     if(!data.color) data.color = "#74b9ff";
-                    employees.push(data);
+                    allStaff.push(data);
+                    if (data.kitchen !== true) employees.push(data);
                 });
                 scheduleRender(renderEmployeesList);
                 scheduleRender(refreshColorPalettes);
@@ -3440,7 +3446,7 @@
             if (isColorTakenByOther(color, null)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
             if (name.includes('/')) { notify("השם לא יכול להכיל /"); return; }
             if (!/^\d{4}$/.test(pin)) { notify("קוד אישי: 4 ספרות"); return; }
-            if (employees.some(e => normName(e.name) === normName(name))) {
+            if (allStaff.some(e => normName(e.name) === normName(name))) {
                 notify("השם כבר קיים"); return;
             }
 
@@ -3460,6 +3466,7 @@
             document.getElementById('editEmpName').value = name;
             document.getElementById('editEmpPin').value = pin || '';
             document.getElementById('editEmpRank').value = rank;
+            { const so = allStaff.find(e => e.name === name); document.getElementById('editEmpKitchen').checked = !!(so && so.kitchen === true); }
             document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
             editOwnColor = color || '';
@@ -3548,16 +3555,17 @@
             if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
             if (color.toLowerCase() !== (editOwnColor || '').toLowerCase() && isColorTakenByOther(color, originalEditingName)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
 
-            const oldEmp = employees.find(e => e.name === originalEditingName);
+            const oldEmp = allStaff.find(e => e.name === originalEditingName);
             if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
 
             const renamed = (originalEditingName !== newName);
-            if (renamed && employees.some(e => e.name !== originalEditingName && normName(e.name) === normName(newName))) {
+            if (renamed && allStaff.some(e => e.name !== originalEditingName && normName(e.name) === normName(newName))) {
                 notify("השם כבר קיים"); return;
             }
 
             try {
                 const updated = { ...oldEmp, name: newName, rank: rank, color: color };
+                if (document.getElementById('editEmpKitchen').checked) updated.kitchen = true; else delete updated.kitchen;
                 // הקודים נשמרים בשרת בלבד
                 delete updated.pinHash; delete updated.pinSalt; delete updated.pin;
 
@@ -3625,9 +3633,9 @@
         function renderEmployeesList() {
             const list = document.getElementById('empList');
             if (!list) return;
-            if (employees.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
-            list.innerHTML = employees.map((e) => {
-                const pinInfo = 'קוד: מוצפן';
+            if (allStaff.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
+            list.innerHTML = allStaff.map((e) => {
+                const pinInfo = 'קוד: מוצפן' + (e.kitchen === true ? ', מטבח בלבד' : '');
                 return `
                 <div class="emp-item">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -3690,6 +3698,15 @@
             try {
                 const r = await call('login', { role: 'employee', rid: RESTAURANT_ID, name: selectedName, secret: inputPin });
                 await signInWithToken(r.token);
+                // עובד מטבח: גישה לשתיה בלבד. הכללים בשרת חוסמים את נתוני הסידור, וכאן לא נפתח מסך העובד
+                let isKitchenStaff = false;
+                try { const mine = await getDoc(doc(getEmpCollection(), selectedName)); isKitchenStaff = !!(mine.exists() && mine.data().kitchen === true); } catch (e) { console.error(e); }
+                if (isKitchenStaff) {
+                    taskVerifiedName = selectedName;
+                    notify('אין לך גישה לסידור העבודה. אפשר לרשום שתיה מהמסך הראשי.');
+                    document.getElementById('employeeFormArea').classList.add('hidden');
+                    return;
+                }
                 await startListeners('employee', selectedName);
             } catch(e) {
                 notify(errMsg(e, "שגיאה באימות"));
