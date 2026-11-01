@@ -933,7 +933,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v30';
+        const APP_VERSION = 'v31';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2221,7 +2221,7 @@
             try {
                 const snap = await getDocs(query(getDrinksCollection(), where('ts', '>=', from), where('ts', '<', to)));
                 drinksRows = []; drinksRowsMonth = month;
-                snap.forEach(d => drinksRows.push(d.data()));
+                snap.forEach(d => drinksRows.push({ id: d.id, ...d.data() }));
             } catch (e) { console.error(e); window.__drinksFailed = true; drinksRows = []; drinksRowsMonth = month; notify('שגיאה בטעינת השתיה'); renderDrinksBody(); return; }
             if (drinksRowsMonth === null && !window.__drinksLoading && !window.__drinksFailed) { window.__drinksLoading = true; wsLoadDrinks().finally(() => { window.__drinksLoading = false; }); }
             renderDrinksBody();
@@ -2243,15 +2243,55 @@
             if (!names.length) h = '<p class="ws-note">אין שתיה בחודש הזה.</p>';
             names.forEach(n => {
                 const list = by[n].sort((a, b) => (a.ts || 0) - (b.ts || 0));
-                const dates = list.map(r => {
+                const items = list.map(r => {
                     const d = new Date(r.ts);
-                    return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                }).join(' | ');
-                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br><span class="ws-note">${esc(dates)}</span></span></div>`;
+                    const t = d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    return `<span class="ws-note" style="display:inline-block;margin:2px 0 2px 8px">${esc(t)} <button class="ws-mini" style="background:#c0392b;padding:1px 7px" data-id="${esc(r.id || '')}" onclick="wsDrinkDelete(this.dataset.id)" aria-label="מחק רישום">✕</button></span>`;
+                }).join(' ');
+                h += `<div class="ws-row"><span><b>${esc(n)}</b>: שתיה × ${list.length}, ${list.length * DRINK_PRICE} ₪<br>${items}</span><span><button class="ws-mini" style="background:#c0392b" data-name="${esc(n)}" onclick="wsDrinkResetEmployee(this.dataset.name)">אפס עובד</button></span></div>`;
             });
             h += `<div class="ws-row"><span class="ws-note">רישום בלבד, ללא גבייה</span></div>`;
             box.innerHTML = h;
         }
+        // מחיקה למנהל בלבד, תמיד אחרי אישור. הכללים כבר מתירים מחיקה רק למנהל.
+        let drinkDeleting = false;
+        function drinkLabel(r) {
+            return new Date(r.ts).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+        window.wsDrinkDelete = async function (id) {
+            if (drinkDeleting || !id || !drinksRows) return;
+            const r = drinksRows.find(x => x.id === id);
+            if (!r) return;
+            if (!await askConfirm(`למחוק את רישום השתיה של ${r.name} מ-${drinkLabel(r)}?`)) return;
+            drinkDeleting = true;
+            try {
+                await deleteDoc(doc(getDrinksCollection(), id));
+                drinksRows = drinksRows.filter(x => x.id !== id);
+                notify('רישום השתיה נמחק');
+            } catch (e) { console.error(e); notify('מחיקה נכשלה'); }
+            finally { drinkDeleting = false; renderDrinksBody(); }
+        };
+        window.wsDrinkResetEmployee = async function (name) {
+            if (drinkDeleting || !name || !drinksRows) return;
+            const msel = $id('wsDrinksMonth');
+            const month = (msel && msel.value) || drinkMonthKey(Date.now());
+            const rows = drinksRows.filter(r => r.name === name && r.id && drinkMonthKey(r.ts) === month);
+            if (!rows.length) return;
+            if (!await askConfirm(`לאפס את כל רישומי השתיה של ${name} בחודש ${month.slice(5)}/${month.slice(0, 4)}? יימחקו ${rows.length} רישומים (${rows.length * DRINK_PRICE} ₪).`)) return;
+            drinkDeleting = true;
+            try {
+                for (let i = 0; i < rows.length; i += 400) {
+                    const batch = writeBatch(db);
+                    rows.slice(i, i + 400).forEach(r => batch.delete(doc(getDrinksCollection(), r.id)));
+                    await batch.commit();
+                }
+                const gone = new Set(rows.map(r => r.id));
+                drinksRows = drinksRows.filter(x => !gone.has(x.id));
+                notify('רישומי השתיה של העובד אופסו');
+            } catch (e) { console.error(e); notify('האיפוס נכשל'); drinksRows = null; drinksRowsMonth = null; wsLoadDrinks(); return; }
+            finally { drinkDeleting = false; }
+            renderDrinksBody();
+        };
         function drinksMonthOptions() {
             const d = israelNow(); const out = [];
             for (let i = 0; i < 6; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(ymd(x).slice(0, 7)); }
