@@ -718,6 +718,15 @@
             <div id="empList"></div>
         </details>
 
+        <details class="card collapse-card" id="collapse-kitchen">
+            <summary><span class="collapse-arrow"></span><h2>עובדי מטבח (שתיה בלבד)</h2></summary>
+            <p style="font-size:0.85em;color:#555;margin-top:0;">עובדי מטבח מופיעים רק ברישום שתיה. הם לא ברשימת העובדים, לא בסידור ולא בבחירת השם לכניסה לסידור, ואין להם גישה לנתוני הסידור. צפייה במשימות השבועיות פתוחה כמו לכולם, בלי אפשרות לסמן בוצע.</p>
+            <div class="form-group"><label>שם:</label><input type="text" id="kitchenName" placeholder="שם מלא"></div>
+            <div class="form-group"><label>קוד אישי (4 ספרות):</label><input type="text" id="kitchenPin" maxlength="4" placeholder="4 ספרות" pattern="[0-9]*" inputmode="numeric"></div>
+            <button onclick="addKitchen()">הוסף עובד מטבח</button>
+            <div id="kitchenList" style="margin-top:12px;"></div>
+        </details>
+
         <details class="card collapse-card" id="collapse-8">
             <summary><span class="collapse-arrow"></span><h2>9. שיתוף המערכת עם העובדים</h2></summary>
             <p style="font-size: 0.85em; color: #555; margin-top: 0;">שלח לעובדים את הקישור:</p>
@@ -851,10 +860,6 @@
             </div>
 
             <div class="form-group" style="text-align: right;">
-                <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="editEmpKitchen" style="width:auto;margin:0;"> מטבח בלבד (שתיה בלבד, בלי סידור עבודה)</label>
-            </div>
-
-            <div class="form-group" style="text-align: right;">
                 <label>דירוג רמה:</label>
                 <select id="editEmpRank">
                     <option value="3">חזק / ותיק (3) - עדיפות 1</option>
@@ -937,7 +942,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v32';
+        const APP_VERSION = 'v33';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2674,19 +2679,16 @@
             let kitchen = false;
             try { const mine = await getDoc(doc(getEmpCollection(), name)); kitchen = !!(mine.exists() && mine.data().kitchen === true); }
             catch (e) { console.error(e); kitchen = true; }   // אם אי אפשר לאמת, לא פותחים
-            if (kitchen) { tasksAccess = 'kitchen'; return 'kitchen'; }
+            if (kitchen) { tasksAccess = 'kitchen'; startTasksListener(); return 'kitchen'; }   // מטבח: צפייה בלבד
             tasksAccess = 'ok'; startTasksListener(); return 'ok';
         }
-        window.taskUnlock = async function () {
-            const who = await ensureTaskVerified();
-            if (who) renderTasks();
-        };
 
         // ctx: 'main' (מסך משימות — דורש אימות קוד — דורש אימות קוד) | 'manager' (מנהל מחובר)
         window.taskMarkDone = async function (dayIdx, ctx) {
             const who = await ensureTaskVerified();
             if (!who) return;
-            if (tasksAccess !== 'ok') { notify('אין גישה למשימות'); return; }
+            if (tasksAccess === 'kitchen') { notify('עובדי מטבח יכולים לצפות במשימות בלבד, לא לסמן בוצע'); return; }
+            if (tasksAccess !== 'ok') return;
             if (!await askConfirm(`לסמן שהמשימה בוצעה על ידי ${who}?`)) return;
             await tasksUpdateCompletion((days) => {
                 const d = { ...(days[dayIdx] || {}) };
@@ -2723,13 +2725,6 @@
             const lbl = $id(labelId);
             if (lbl) lbl.textContent = `שבוע ${fmtDM(sun)} – ${fmtDM(addDays(sun, 4))}`;
             let html = '';
-            if (ctx === 'main' && tasksAccess !== 'ok') {
-                html = `<tr><td colspan="3" style="text-align:center;padding:14px;">` + (tasksAccess === 'kitchen'
-                    ? 'אין גישה למשימות השבועיות (עובדי מטבח).'
-                    : `<div style="margin-bottom:8px;">המשימות מוצגות אחרי הזדהות בקוד אישי.</div><button class="task-done-btn" onclick="taskUnlock()">הצג משימות (קוד אישי)</button>`) + `</td></tr>`;
-                tb.innerHTML = html;
-                return;
-            }
             for (let d = 0; d < 5; d++) {
                 const t = tasksDays[d] || {};
                 const dateStr = fmtDM(weekDatesFull(sun)[d]);
@@ -2742,7 +2737,7 @@
                         ? `<div class="task-done-line">✓ <b>${esc(t.doneBy || '')}</b></div>` +
                           (ctx === 'manager' ? `<button class="task-undo" onclick="taskUndo(${d})">בטל</button>` : '')
                         : (ctx === 'manager' ? `<span class="task-pending">טרם בוצע</span>`
-                                             : `<button class="task-done-btn" onclick="taskMarkDone(${d}, '${ctx}')">בוצע</button>`)) +
+                                             : tasksAccess === 'kitchen' ? `<span class="task-pending">טרם בוצע</span>` : `<button class="task-done-btn" onclick="taskMarkDone(${d}, '${ctx}')">בוצע</button>`)) +
                     `</td></tr>`;
             }
             tb.innerHTML = html;
@@ -2808,6 +2803,7 @@
                     if (data.kitchen !== true) employees.push(data);
                 });
                 scheduleRender(renderEmployeesList);
+                scheduleRender(renderKitchenList);
                 scheduleRender(refreshColorPalettes);
                 scheduleRender(renderDailyAvailabilityTable);
                 scheduleRender(renderSummaryTable);
@@ -2966,8 +2962,8 @@
         (async function boot() {
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
             try {
-                // טבלת המשימות נקראת רק אחרי הזדהות בקוד (עובד רגיל או מנהל). אין קריאה ציבורית
-                await initRestaurantId();
+                // האזנת טבלת המשימות לא דורשת כניסה (קריאה ציבורית לאוסף _tasks בלבד; צפייה פתוחה לכולם, כולל מטבח)
+                if (await initRestaurantId()) { startTasksListener(); await loadKitchenNames(); }
             }
             finally { document.getElementById('startupStatus')?.classList.add('hidden'); }
         })();
@@ -3491,7 +3487,6 @@
             document.getElementById('editEmpName').value = name;
             document.getElementById('editEmpPin').value = pin || '';
             document.getElementById('editEmpRank').value = rank;
-            { const so = allStaff.find(e => e.name === name); document.getElementById('editEmpKitchen').checked = !!(so && so.kitchen === true); }
             document.getElementById('editEmpColorInput').value = color || '#74b9ff';
 
             editOwnColor = color || '';
@@ -3580,7 +3575,7 @@
             if (pinRaw && !/^\d{4}$/.test(pinRaw)) { notify("קוד אישי: 4 ספרות"); return; }
             if (color.toLowerCase() !== (editOwnColor || '').toLowerCase() && isColorTakenByOther(color, originalEditingName)) { notify("הצבע כבר תפוס על ידי עובד אחר"); refreshColorPalettes(); return; }
 
-            const oldEmp = allStaff.find(e => e.name === originalEditingName);
+            const oldEmp = employees.find(e => e.name === originalEditingName);
             if (!oldEmp) { notify("העובד לא נמצא"); closeEditModal(); return; }
 
             const renamed = (originalEditingName !== newName);
@@ -3590,7 +3585,6 @@
 
             try {
                 const updated = { ...oldEmp, name: newName, rank: rank, color: color };
-                if (document.getElementById('editEmpKitchen').checked) updated.kitchen = true; else delete updated.kitchen;
                 // הקודים נשמרים בשרת בלבד
                 delete updated.pinHash; delete updated.pinSalt; delete updated.pin;
 
@@ -3655,12 +3649,65 @@
             }
         };
 
+        // ===== עובדי מטבח: אזור נפרד. מופיעים רק ברישום שתיה =====
+        let kitchenNames = new Set();   // רשימת שמות ציבורית (שמות בלבד, כמו הרשימה שהשרת מחזיר כבר היום), משמשת רק להסתרה מבחירת השם לסידור
+        function kitchenListRef() { return doc(collection(db, `${RESTAURANT_ID}_kitchenlist`), 'names'); }
+        async function loadKitchenNames() {
+            try {
+                const snap = await getDoc(kitchenListRef());
+                kitchenNames = new Set((snap.exists() && snap.data().names) || []);
+            } catch (e) { console.error('kitchen names', e && e.code); }
+        }
+        async function writeKitchenNames(names) {
+            await setDoc(kitchenListRef(), { names: names, updatedAt: Date.now() });
+            kitchenNames = new Set(names);
+        }
+        function renderKitchenList() {
+            const box = document.getElementById('kitchenList');
+            if (!box) return;
+            const ks = allStaff.filter(e => e.kitchen === true);
+            if (!ks.length) { box.innerHTML = '<p style="color:#888;margin:0;">אין עובדי מטבח.</p>'; return; }
+            box.innerHTML = ks.map(e => `<div class="emp-item"><div><span class="emp-tag" style="background-color:#b2bec3;margin:0;">${esc(e.name)}</span> <span style="font-size:0.75em;color:#555;">(קוד: מוצפן)</span></div><div style="display:flex;gap:4px;"><button class="edit-btn" data-name="${esc(e.name)}" onclick="changeKitchenPin(this.dataset.name)">קוד חדש</button><button class="delete-btn" data-name="${esc(e.name)}" onclick="deleteKitchen(this.dataset.name)">הסר</button></div></div>`).join('');
+        }
+        window.addKitchen = async function () {
+            const name = document.getElementById('kitchenName').value.trim();
+            const pin = document.getElementById('kitchenPin').value.trim();
+            if (!name) { notify('הכנס שם'); return; }
+            if (name.includes('/')) { notify('השם לא יכול להכיל /'); return; }
+            if (!/^\d{4}$/.test(pin)) { notify('קוד אישי: 4 ספרות'); return; }
+            if (allStaff.some(e => normName(e.name) === normName(name))) { notify('השם כבר קיים'); return; }
+            try {
+                await call('employeeSecret', { action: 'set', name, pin });
+                await setDoc(doc(getEmpCollection(), name), { id: Date.now(), name, rank: 1, color: '#b2bec3', kitchen: true });
+                await writeKitchenNames(allStaff.filter(e => e.kitchen === true).map(e => e.name).concat([name]));
+                document.getElementById('kitchenName').value = '';
+                document.getElementById('kitchenPin').value = '';
+                notify('עובד המטבח נוסף');
+            } catch (e) { notify(errMsg(e, 'שגיאה בהוספה')); }
+        };
+        window.changeKitchenPin = async function (name) {
+            const pin = ((await askText(`קוד אישי חדש ל${name} (4 ספרות):`)) || '').trim();
+            if (!pin) return;
+            if (!/^\d{4}$/.test(pin)) { notify('קוד אישי: 4 ספרות'); return; }
+            try { await call('employeeSecret', { action: 'set', name, pin }); notify('הקוד עודכן'); }
+            catch (e) { notify(errMsg(e, 'שגיאה בעדכון')); }
+        };
+        window.deleteKitchen = async function (name) {
+            if (!await askConfirm(`להסיר את ${name} מעובדי המטבח? רישומי השתיה שלו נשארים.`)) return;
+            try {
+                await deleteDoc(doc(getEmpCollection(), name));
+                try { await call('employeeSecret', { action: 'delete', name }); } catch (e) {}
+                await writeKitchenNames(allStaff.filter(e => e.kitchen === true && e.name !== name).map(e => e.name));
+                notify('הוסר');
+            } catch (e) { notify(errMsg(e, 'שגיאה בהסרה')); }
+        };
+
         function renderEmployeesList() {
             const list = document.getElementById('empList');
             if (!list) return;
-            if (allStaff.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
-            list.innerHTML = allStaff.map((e) => {
-                const pinInfo = 'קוד: מוצפן' + (e.kitchen === true ? ', מטבח בלבד' : '');
+            if (employees.length === 0) { list.innerHTML = '<p style="color:#888;">אין עובדים במערכת.</p>'; return; }
+            list.innerHTML = employees.map((e) => {
+                const pinInfo = 'קוד: מוצפן';
                 return `
                 <div class="emp-item">
                     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -3695,6 +3742,7 @@
                 } catch(e) {}
             }
             if (!names.length) names = employees.map(e => e.name);
+            names = names.filter(n => !kitchenNames.has(n));   // עובדי מטבח לא מופיעים בכניסה לסידור
             names.sort((a, b) => String(a).localeCompare(String(b), 'he'));
             names.forEach(n => {
                 const opt = document.createElement('option');
@@ -3727,7 +3775,7 @@
                 let isKitchenStaff = false;
                 try { const mine = await getDoc(doc(getEmpCollection(), selectedName)); isKitchenStaff = !!(mine.exists() && mine.data().kitchen === true); } catch (e) { console.error(e); }
                 if (isKitchenStaff) {
-                    taskVerifiedName = selectedName; tasksAccess = 'kitchen';
+                    taskVerifiedName = selectedName; tasksAccess = 'kitchen'; startTasksListener();
                     document.getElementById('employeeFormArea').classList.add('hidden');
                     if (await askConfirm(`${selectedName}, הכניסה שלך היא לשתיה בלבד (בלי סידור עבודה). לרשום עכשיו שתיה על שמך? (${DRINK_PRICE} ₪)`)) await drinkRecord(true);
                     switchView('selection');
