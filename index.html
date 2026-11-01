@@ -2780,7 +2780,8 @@
 
             // זמין/ה להגיע: מנהל רואה הכול, עובד רק את בקשותיו (הכללים אוכפים)
             {
-                const comeRef = role === 'manager' ? getComeCollection()
+                const comeRef = role === 'manager' ? query(getComeCollection(), where('ymd', '>=', ymd(addDays(israelNow(), -7))))   // רק 7 הימים האחרונים: הקריאות לא גדלות עם הזמן
+                    
                     : (empName ? query(getComeCollection(), where('name', '==', empName)) : null);
                 if (comeRef) sub('come', comeRef, (snap) => {
                     comeReqs = [];
