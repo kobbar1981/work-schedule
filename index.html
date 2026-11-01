@@ -345,6 +345,7 @@
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים</button>
         <button class="tasks-entry-btn" onclick="switchView('tasks')">משימות שבועיות</button>
+        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיית עובדים (5 ₪)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל</button>
         <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
     </div>
@@ -2037,6 +2038,16 @@
 
             if (!notifGranted()) h += `<button onclick="wsPushEmployee()" style="background-color:#8e44ad;">🔔 הפעל התראות במכשיר הזה</button>`;
 
+            {
+                const todayD = israelNow();
+                let opts = '';
+                for (let i = 0; i < 7; i++) { const x = new Date(todayD.getFullYear(), todayD.getMonth(), todayD.getDate() + i); opts += `<option value="${ymd(x)}">${daysNames[x.getDay()] || ''} ${esc(fmtDM(x))}</option>`; }
+                h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span><select id="wsComeDay" data-keep="1">${opts}</select></span><span><button class="ws-mini" onclick="wsComeSend()">אני זמין/ה</button></span></div>`;
+                comeReqs.filter(r => r.name === me && r.createdAt > Date.now() - 7 * 86400000).sort((a, b) => b.createdAt - a.createdAt).forEach(r => {
+                    h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.ymd)))}: ${r.status === 'answered' ? 'להגיע בשעה <b>' + esc(r.time) + '</b>' : '<span class="ws-note">ממתין לתשובת המנהל</span>'}</span></div>`;
+                });
+                h += `</div>`;
+            }
             const incoming = swaps.filter(s => canCover(me, s));
             if (incoming.length) {
                 h += `<div class="ws-card"><h3>מחפשים מחליף/ה</h3>`;
@@ -2112,6 +2123,90 @@
             } catch (e) { console.error(e); notify("שגיאה בשליחת ההודעה"); }
         };
 
+
+        /* ===== זמין/ה להגיע + שתיית עובדים (תוספת, גרסת בדיקה על עותק) ===== */
+        const DRINK_PRICE = 5;
+        function getComeCollection() { return collection(db, `${RESTAURANT_ID}_comeavail`); }
+        function getDrinksCollection() { return collection(db, `${RESTAURANT_ID}_drinks`); }
+        let comeReqs = [];
+
+        window.wsComeSend = async function () {
+            const me = verifiedEmployeeName;
+            const sel = $id('wsComeDay');
+            if (!me || !sel || !sel.value) { notify('בחר יום'); return; }
+            const dayYmd = sel.value;
+            if (comeReqs.some(r => r.name === me && r.ymd === dayYmd && r.status === 'pending')) { notify('כבר שלחת בקשה ליום הזה'); return; }
+            try {
+                await setDoc(doc(getComeCollection()), { name: me, ymd: dayYmd, status: 'pending', createdAt: Date.now() });
+                await pushNotif(MANAGER, 'avail_now', `${me} זמין/ה להגיע ב${fmtDM(parseYmd(dayYmd))}`);
+                notify('הבקשה נשלחה למנהל');
+            } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
+        };
+
+        window.wsComeReply = async function (id) {
+            const inp = document.querySelector('input[data-come-time="' + id + '"]');
+            const t = inp ? inp.value : '';
+            if (!/^\d{2}:\d{2}$/.test(t)) { notify('בחר שעה'); return; }
+            const r = comeReqs.find(x => x.id === id);
+            if (!r) return;
+            try {
+                await setDoc(doc(getComeCollection(), id), { status: 'answered', time: t, answeredAt: Date.now() }, { merge: true });
+                await pushNotif(r.name, 'avail_reply', `המנהל אישר לך להגיע ב${fmtDM(parseYmd(r.ymd))} בשעה ${t}`);
+                notify('התשובה נשלחה');
+            } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
+        };
+
+        window.drinkRecord = async function () {
+            const who = await ensureTaskVerified();
+            if (!who) return;
+            if (!await askConfirm(`לרשום שתייה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
+            try {
+                const now = new Date();
+                await setDoc(doc(getDrinksCollection()), { name: who, ts: Date.now(), ymd: ymd(israelNow()), createdAt: Date.now() });
+                notify('השתייה נרשמה');
+            } catch (e) { console.error(e); notify('שגיאה ברישום'); }
+        };
+
+        let drinksRows = null;
+        window.wsLoadDrinks = async function () {
+            const box = $id('wsDrinksBody');
+            try {
+                const snap = await getDocs(getDrinksCollection());
+                drinksRows = [];
+                snap.forEach(d => drinksRows.push(d.data()));
+            } catch (e) { console.error(e); notify('שגיאה בטעינת השתיות'); return; }
+            renderDrinksBody();
+        };
+        window.renderDrinksBody = renderDrinksBody;
+        function renderDrinksBody() {
+            const box = $id('wsDrinksBody');
+            if (!box) return;
+            if (!drinksRows) { box.innerHTML = '<p class="ws-note">לחץ "רענן" לטעינה.</p>'; return; }
+            const msel = $id('wsDrinksMonth');
+            const month = (msel && msel.value) || ymd(israelNow()).slice(0, 7);
+            const rows = drinksRows.filter(r => String(r.ymd || '').slice(0, 7) === month);
+            const by = {};
+            rows.forEach(r => { (by[r.name] = by[r.name] || []).push(r); });
+            const names = Object.keys(by).sort((a, b) => a.localeCompare(b, 'he'));
+            let h = '';
+            if (!names.length) h = '<p class="ws-note">אין שתיות בחודש הזה.</p>';
+            names.forEach(n => {
+                const list = by[n].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+                const dates = list.map(r => {
+                    const d = new Date(r.ts);
+                    return d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                }).join(' | ');
+                h += `<div class="ws-row"><span><b>${esc(n)}</b>: ${list.length} שתיות, ${list.length * DRINK_PRICE} ₪<br><span class="ws-note">${esc(dates)}</span></span></div>`;
+            });
+            h += `<div class="ws-row"><span><b>סה"כ: ${rows.length} שתיות, ${rows.length * DRINK_PRICE} ₪</b> <span class="ws-note">(רישום בלבד, ללא גבייה)</span></span></div>`;
+            box.innerHTML = h;
+        }
+        function drinksMonthOptions() {
+            const d = israelNow(); const out = [];
+            for (let i = 0; i < 6; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(ymd(x).slice(0, 7)); }
+            return out.map((m, i) => `<option value="${m}"${i === 0 ? ' selected' : ''}>${m.slice(5)}/${m.slice(0, 4)}</option>`).join('');
+        }
+
         function renderManagerExtras() {
             injectExtraStyles();
             ensureRecurringSeeded();
@@ -2139,6 +2234,21 @@
             if (multi.length) {
                 h += `<div class="ws-alert"><b>⚠️ היעדרויות חופפות:</b>${multi.map(w => `<div>${esc(describeWeek(w))}</div>`).join('')}</div>`;
             }
+
+            // זמין/ה להגיע: בקשות ממתינות
+            const comePending = comeReqs.filter(r => r.status === 'pending').sort((a, b) => a.createdAt - b.createdAt);
+            if (comePending.length) {
+                h += `<div class="ws-card"><h3>זמינים להגיע (${comePending.length})</h3>`;
+                comePending.forEach(r => {
+                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}</span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">שלח</button></span></div>`;
+                });
+                h += `</div>`;
+            }
+
+            // שתיית עובדים
+            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיית עובדים</h3></summary>
+                <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="renderDrinksBody()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
+                <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
             // בקשות החלפה לאישור
             const pending = swaps.filter(s => s.status === 'pending_manager');
@@ -2181,6 +2291,7 @@
             if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
             keepRender(box, h);
+            renderDrinksBody();
         }
 
         function onEmployeeLoggedIn(name) {
@@ -2612,6 +2723,13 @@
                 swaps = [];
                 snap.forEach(d => swaps.push({ id: d.id, ...d.data() }));
                 swaps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                scheduleRender(renderEmployeeExtras);
+                scheduleRender(renderManagerExtras);
+            }, true);
+
+            sub('come', getComeCollection(), (snap) => {
+                comeReqs = [];
+                snap.forEach(d => comeReqs.push({ id: d.id, ...d.data() }));
                 scheduleRender(renderEmployeeExtras);
                 scheduleRender(renderManagerExtras);
             }, true);
