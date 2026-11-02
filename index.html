@@ -345,7 +345,7 @@
         <h2>בחר אופן כניסה למערכת:</h2>
         <button onclick="switchView('employee')">כניסת עובדים</button>
         <button class="tasks-entry-btn" onclick="switchView('tasks')">משימות שבועיות</button>
-        <button class="tasks-entry-btn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיה לעובדים (5 ₪)</button>
+        <button class="tasks-entry-btn" id="drinkEntryBtn" style="background-color:#8e5b2e;" onclick="drinkRecord()">☕ שתיה לעובדים (5 ₪)</button>
         <button class="manager-login-btn" onclick="checkManagerPassword()">כניסת מנהל</button>
         <button class="manager-login-btn" style="background-color:#2c3e50; font-size:0.85em;" onclick="checkSuperAdminPassword()">ניהול-על (כל העסקים)</button>
     </div>
@@ -591,6 +591,7 @@
         <!-- 5. שעות וכמות עובדים -->
         <details class="card collapse-card" id="collapse-5">
             <summary><span class="collapse-arrow"></span><h2>6. שעות וכמות עובדים</h2></summary>
+            <label style="display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:0.95em;"><input type="checkbox" id="splitWeekdays" onchange="wsToggleSplit()" style="width:auto;margin:0;"> הגדרה נפרדת לכל יום מא' עד ה'</label>
 
             <div class="table-wrapper">
                 <table class="hours-table"><colgroup><col class="c-day"><col class="c-shift"><col class="c-time"><col class="c-time"><col class="c-count"></colgroup>
@@ -605,7 +606,7 @@
                     </thead>
                     <tbody>
                         <!-- א' - ה' בוקר -->
-                        <tr>
+                        <tr class="wd-shared-row">
                             <td style="font-weight: bold; padding: 4px 1px;">א' - ה'</td>
                             <td style="padding: 4px 1px;">בוקר</td>
                             <td style="padding: 4px 1px;"><input type="time" id="mStart" value="11:00" onchange="renderFullScheduleForManager()"></td>
@@ -613,12 +614,83 @@
                             <td style="padding: 4px 1px;"><input type="number" id="mCount" value="1" min="1" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- א' - ה' ערב -->
-                        <tr>
+                        <tr class="wd-shared-row">
                             <td style="font-weight: bold; padding: 4px 1px;">א' - ה'</td>
                             <td style="padding: 4px 1px;">ערב</td>
                             <td style="padding: 4px 1px;"><input type="time" id="eStart" value="16:00" onchange="renderFullScheduleForManager()"></td>
                             <td style="padding: 4px 1px;"><input type="time" id="eEnd" value="21:00" onchange="renderFullScheduleForManager()"></td>
                             <td style="padding: 4px 1px;"><input type="number" id="eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <!-- א' - ה' נפרד לכל יום (מוצג רק כשהאפשרות מופעלת) -->
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">ראשון</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd0mStart" value="11:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd0mEnd" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd0mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">ראשון</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd0eStart" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd0eEnd" value="21:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd0eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">שני</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd1mStart" value="11:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd1mEnd" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd1mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">שני</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd1eStart" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd1eEnd" value="21:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd1eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">שלישי</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd2mStart" value="11:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd2mEnd" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd2mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">שלישי</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd2eStart" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd2eEnd" value="21:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd2eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">רביעי</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd3mStart" value="11:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd3mEnd" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd3mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">רביעי</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd3eStart" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd3eEnd" value="21:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd3eCount" value="2" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">חמישי</td>
+                            <td style="padding: 4px 1px;">בוקר</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd4mStart" value="11:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd4mEnd" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd4mCount" value="1" min="1" max="5" style="text-align: center;"></td>
+                        </tr>
+                        <tr class="wd-split-row hidden">
+                            <td style="font-weight: bold; padding: 4px 1px;">חמישי</td>
+                            <td style="padding: 4px 1px;">ערב</td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd4eStart" value="16:00"></td>
+                            <td style="padding: 4px 1px;"><input type="time" id="wd4eEnd" value="21:00"></td>
+                            <td style="padding: 4px 1px;"><input type="number" id="wd4eCount" value="2" min="1" max="5" style="text-align: center;"></td>
                         </tr>
                         <!-- שישי בוקר -->
                         <tr>
@@ -718,7 +790,7 @@
             <div id="empList"></div>
         </details>
 
-        <details class="card collapse-card" id="collapse-kitchen">
+        <details class="card collapse-card" id="collapse-kitchen" data-drinks-only="1">
             <summary><span class="collapse-arrow"></span><h2>עובדי מטבח (שתיה בלבד)</h2></summary>
             <p style="font-size:0.85em;color:#555;margin-top:0;">עובדי מטבח מופיעים רק ברישום שתיה. הם לא ברשימת העובדים, לא בסידור ולא בבחירת השם לכניסה לסידור, ואין להם גישה לנתוני הסידור. צפייה במשימות השבועיות פתוחה כמו לכולם, בלי אפשרות לסמן בוצע.</p>
             <div class="form-group"><label>שם:</label><input type="text" id="kitchenName" placeholder="שם מלא"></div>
@@ -942,7 +1014,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v37';
+        const APP_VERSION = 'v38';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1203,11 +1275,13 @@
         const TIME_INPUT_IDS = [
             'mStart', 'mEnd', 'eStart', 'eEnd',
             'friMStart', 'friMEnd', 'friEStart', 'friEEnd',
-            'satMStart', 'satMEnd', 'satEStart', 'satEEnd'
+            'satMStart', 'satMEnd', 'satEStart', 'satEEnd',
+            // א'-ה' נפרד לכל יום (פעיל רק כשהאפשרות 'הגדרה נפרדת' מסומנת)
+            ...[0, 1, 2, 3, 4].flatMap(d => ['m', 'e'].flatMap(sh => [`wd${d}${sh}Start`, `wd${d}${sh}End`]))
         ];
 
         // כמויות העובדים בסעיף 5 (נשמרות יחד עם השעות)
-        const COUNT_INPUT_IDS = ['mCount', 'eCount', 'friMCount', 'friECount', 'satMCount', 'satECount'];
+        const COUNT_INPUT_IDS = ['mCount', 'eCount', 'friMCount', 'friECount', 'satMCount', 'satECount', ...[0, 1, 2, 3, 4].flatMap(d => [`wd${d}mCount`, `wd${d}eCount`])];
         let hoursConfigLoaded = false;   // לא שומרים לפני שנטענה ההגדרה הקיימת, כדי לא לדרוס אותה בברירות מחדל
 
         async function saveHoursConfig() {
@@ -1215,12 +1289,39 @@
             const data = {};
             TIME_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el && el.value) data[id] = el.value; });
             COUNT_INPUT_IDS.forEach(id => { const el = document.getElementById(id); if (el && el.value !== '') data[id] = el.value; });
+            data.splitWeekdays = wsSplitOn() ? '1' : '0';
             data.updatedAt = Date.now();
             try { await setDoc(getSettingsDoc("hours_config"), data); }
             catch (e) { console.error(e); notify("שגיאה בשמירת השעות והכמויות"); }
         }
 
+        function wsSplitOn() { const c = document.getElementById('splitWeekdays'); return !!(c && c.checked); }
+        function wsApplySplitUI() {
+            const on = wsSplitOn();
+            document.querySelectorAll('.wd-shared-row').forEach(r => r.classList.toggle('hidden', on));
+            document.querySelectorAll('.wd-split-row').forEach(r => r.classList.toggle('hidden', !on));
+        }
+        window.wsToggleSplit = function () {
+            const c = document.getElementById('splitWeekdays');
+            if (c && c.checked && !wsSplitSeeded) {
+                // בהפעלה הראשונה: כל יום מתחיל מההגדרה המשותפת הנוכחית
+                for (let d = 0; d < 5; d++) ['m', 'e'].forEach(sh => {
+                    ['Start', 'End', 'Count'].forEach(f => {
+                        const src = document.getElementById(sh + f), dst = document.getElementById('wd' + d + sh + f);
+                        if (src && dst) dst.value = src.value;
+                    });
+                });
+                wsSplitSeeded = true;
+            }
+            wsApplySplitUI();
+            try { renderFullScheduleForManager(); } catch (e) {}
+            saveHoursConfig();
+        };
+        let wsSplitSeeded = false;   // האם כבר נשמרו ערכים לימי א'-ה' בנפרד
         function applyHoursConfig(data) {
+            if (data.wd0mStart !== undefined) wsSplitSeeded = true;
+            const sc = document.getElementById('splitWeekdays');
+            if (sc && document.activeElement !== sc) { sc.checked = data.splitWeekdays === '1'; wsApplySplitUI(); }
             [...TIME_INPUT_IDS, ...COUNT_INPUT_IDS].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && data[id] !== undefined && document.activeElement !== el) el.value = data[id];
@@ -1466,6 +1567,7 @@
                 const el = document.getElementById(id);
                 t[id] = el ? el.value : '';
             });
+            t.splitWeekdays = wsSplitOn() ? '1' : '0';
             return t;
         }
 
@@ -1479,6 +1581,10 @@
                 return shiftType === 'm'
                     ? `${t.satMStart || "10:00"} - ${t.satMEnd || "16:00"}`
                     : `${t.satEStart || "18:30"} - ${t.satEEnd || "23:00"}`;
+            }
+            if (t.splitWeekdays === '1' && '01234'.includes(String(dayIdx))) {
+                const k = 'wd' + dayIdx + shiftType;
+                if (t[k + 'Start'] || t[k + 'End']) return `${t[k + 'Start'] || (shiftType === 'm' ? "11:00" : "16:00")} - ${t[k + 'End'] || (shiftType === 'm' ? "16:00" : "21:00")}`;
             }
             return shiftType === 'm'
                 ? `${t.mStart || "11:00"} - ${t.mEnd || "16:00"}`
@@ -2217,6 +2323,7 @@
         const DRINK_MSG_UNKNOWN = 'לא ברור אם השתיה נרשמה. לחץ שוב כדי לבדוק, ואם זה נשאר לא ברור בדוק מול המנהל לפני שרושמים שוב';
         window.drinkRecord = async function (skipConfirm) {
             if (drinkSending) return;
+            if (!await loadFeatures()) { notify('שירות השתיה כבוי בעסק הזה'); return; }
             drinkSending = true;
             try {
                 const who = skipConfirm === true ? taskVerifiedName : await ensureTaskVerified(false, true);
@@ -2400,8 +2507,9 @@
                 h += `</div>`;
             }
 
-            // שתיה
-            h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיה לעובדים</h3></summary>
+            // שתיה: מתג הפעלה/כיבוי לעסק, וסעיף הרישומים רק כשהשירות פעיל
+            h += `<div class="ws-card"><div class="ws-row"><span><b>☕ שירות שתיה:</b> ${drinksEnabled ? 'פעיל' : 'כבוי'}</span><span><button class="ws-mini" style="background:${drinksEnabled ? '#c0392b' : '#27ae60'}" onclick="wsToggleDrinks()">${drinksEnabled ? 'כבה' : 'הפעל'}</button></span></div></div>`;
+            if (drinksEnabled) h += `<details class="ws-card collapse-card" id="collapse-drinks"${window.wsCollapseSaved && wsCollapseSaved('collapse-drinks') ? ' open' : ''}><summary><span class="collapse-arrow"></span><h3>☕ שתיה לעובדים</h3></summary>
                 <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="wsDrinksMonthChanged()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
                 <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
@@ -3018,7 +3126,7 @@
             // אין האזנות לנתונים לפני כניסה: הן מופעלות אחרי אימות מוצלח בשרת
             try {
                 // האזנת טבלת המשימות לא דורשת כניסה (קריאה ציבורית לאוסף _tasks בלבד; צפייה פתוחה לכולם, כולל מטבח)
-                if (await initRestaurantId()) { startTasksListener(); await loadKitchenNames(); }
+                if (await initRestaurantId()) { startTasksListener(); await loadKitchenNames(); await loadFeatures(); }
             }
             finally { document.getElementById('startupStatus')?.classList.add('hidden'); }
         })();
@@ -3713,6 +3821,32 @@
                 kitchenNames = new Set((snap.exists() && snap.data().names) || []);
             } catch (e) { console.error('kitchen names', e && e.code); }
         }
+        // כיבוי שירות השתיה לעסק (למנהל). נשמר במסמך 'features' באותו אוסף ציבורי-לקריאה של רשימת המטבח, כדי שגם מסך הכניסה (לפני הזדהות) יידע.
+        // אין מסמך = השירות פעיל (כך ברירת המחדל וכל עסק קיים נשארים כמו שהיו). כל עסק נפרד לפי ה-rid.
+        let drinksEnabled = true;
+        function featuresRef() { return doc(collection(db, `${RESTAURANT_ID}_kitchenlist`), 'features'); }
+        function applyDrinksVisibility() {
+            const b = document.getElementById('drinkEntryBtn'); if (b) b.classList.toggle('hidden', !drinksEnabled);
+            document.querySelectorAll('[data-drinks-only]').forEach(el => el.classList.toggle('hidden', !drinksEnabled));
+        }
+        async function loadFeatures() {
+            try {
+                const snap = await getDoc(featuresRef());
+                drinksEnabled = !(snap.exists() && snap.data().drinksEnabled === false);
+            } catch (e) { console.error('features', e && e.code); }
+            applyDrinksVisibility();
+            return drinksEnabled;
+        }
+        window.wsToggleDrinks = async function () {
+            const to = !drinksEnabled;
+            if (!await askConfirm(to ? 'להפעיל שוב את שירות השתיה? (כפתור השתיה בכניסה, אזור עובדי המטבח וסעיף השתיה)' : 'לכבות את שירות השתיה לעסק הזה? הכפתור, אזור עובדי המטבח וסעיף השתיה יוסתרו. הרישומים הקיימים לא נמחקים.')) return;
+            try {
+                await setDoc(featuresRef(), { drinksEnabled: to, updatedAt: Date.now() });
+                drinksEnabled = to; applyDrinksVisibility();
+                notify(to ? 'שירות השתיה הופעל' : 'שירות השתיה כובה');
+            } catch (e) { console.error(e); notify('שגיאה בשמירה, השירות לא שונה'); }
+            renderManagerExtras();
+        };
         async function writeKitchenNames(names) {
             await setDoc(kitchenListRef(), { names: names, updatedAt: Date.now() });
             kitchenNames = new Set(names);
@@ -3832,6 +3966,7 @@
                 if (isKitchenStaff) {
                     taskVerifiedName = selectedName; tasksAccess = 'kitchen'; startTasksListener();
                     document.getElementById('employeeFormArea').classList.add('hidden');
+                    if (!await loadFeatures()) { notify('שירות השתיה כבוי בעסק הזה'); switchView('selection'); return; }
                     if (await askConfirm(`${selectedName}, הכניסה שלך היא לשתיה בלבד (בלי סידור עבודה). לרשום עכשיו שתיה על שמך? (${DRINK_PRICE} ₪)`)) await drinkRecord(true);
                     switchView('selection');
                     return;
@@ -3937,6 +4072,11 @@
         };
 
         // קריאת כמות עובדים בטוחה: שדה ריק או לא תקין לא שובר את השיבוץ
+        // כמות עובדים לפי יום: א'-ה' משותף, או נפרד לכל יום כשההגדרה הנפרדת מופעלת
+        function getReqCount(dIdx, st) {
+            if (wsSplitOn() && '01234'.includes(String(dIdx))) return readCount(`wd${dIdx}${st}Count`);
+            return readCount(st === 'm' ? 'mCount' : 'eCount');
+        }
         function readCount(id) {
             const el = document.getElementById(id);
             const n = el ? parseInt(el.value) : NaN;
@@ -3953,7 +4093,7 @@
 
             daysKeys.forEach(dIdx => {
                 let assignedToday = [];
-                let reqMCount = readCount('mCount');
+                let reqMCount = getReqCount(dIdx, 'm');
                 if (dIdx === '5') reqMCount = readCount('friMCount');
                 if (dIdx === '6') reqMCount = readCount('satMCount');
 
@@ -3966,7 +4106,7 @@
                     currentSchedule[`${dIdx}-m`] = [];
                 }
 
-                let reqECount = readCount('eCount');
+                let reqECount = getReqCount(dIdx, 'e');
                 if (dIdx === '5') reqECount = readCount('friECount');
                 if (dIdx === '6') reqECount = readCount('satECount');
 
@@ -4063,7 +4203,7 @@
 
             const assignedNames = (currentSchedule[key] || []).filter(Boolean);
 
-            let reqCount = readCount(shiftType === 'm' ? 'mCount' : 'eCount');
+            let reqCount = getReqCount(dayIdx, shiftType);
             if (dayIdx === '5') {
                 reqCount = readCount(shiftType === 'm' ? 'friMCount' : 'friECount');
             }
@@ -4430,6 +4570,7 @@
             const inputTimes = readTimesFromInputs();
             const pdfTimes = {};
             TIME_INPUT_IDS.forEach(id => { pdfTimes[id] = inputTimes[id] || publishedTimes[id] || ''; });
+            pdfTimes.splitWeekdays = inputTimes.splitWeekdays;
 
             fillExportTable(currentSchedule, customShiftTimes, pdfTimes);
 
