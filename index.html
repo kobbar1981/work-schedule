@@ -942,7 +942,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v34';
+        const APP_VERSION = 'v35';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2054,11 +2054,11 @@
                 const btn = !todayReq
                     ? `<button class="ws-mini" onclick="wsComeSend()">אני זמין/ה היום</button>`
                     : (todayReq.status === 'answered'
-                        ? `<button class="ws-mini" disabled style="background:#27ae60">המנהל ענה: ${esc(todayReq.time)}</button>`
+                        ? `<button class="ws-mini" disabled style="background:#27ae60">המנהל ענה: ${esc(todayReq.mode === 'scheduled' ? 'בשעה שנקבעה' : todayReq.time)}</button>`
                         : `<button class="ws-mini" disabled style="background:#9aa0a6">נשלח, ממתין למנהל</button>`);
                 h += `<div class="ws-card"><h3>זמין/ה להגיע</h3><div class="ws-row"><span class="ws-note">אם אתה/את פנוי/ה להגיע היום (למשל להקדים), סמנ/י והמנהל יענה באיזו שעה.</span><span>${btn}</span></div>`;
                 comeReqs.filter(r => r.name === me && r.createdAt > Date.now() - 7 * 86400000).sort((a, b) => b.createdAt - a.createdAt).forEach(r => {
-                    h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.ymd)))}: ${r.status === 'answered' ? 'להגיע בשעה <b>' + esc(r.time) + '</b>' : '<span class="ws-note">ממתין לתשובת המנהל</span>'}</span></div>`;
+                    h += `<div class="ws-row"><span>${esc(fmtDM(parseYmd(r.ymd)))}: ${r.status === 'answered' ? (r.mode === 'scheduled' ? '<b>להגיע בשעה שנקבעה</b>' : 'להגיע בשעה <b>' + esc(r.time) + '</b>') : '<span class="ws-note">ממתין לתשובת המנהל</span>'}</span></div>`;
                 });
                 h += `</div>`;
             }
@@ -2163,16 +2163,24 @@
             } finally { comeSending = false; }
         };
 
-        window.wsComeReply = async function (id) {
-            const inp = document.querySelector('input[data-come-time="' + id + '"]');
-            const t = inp ? inp.value : '';
-            if (!/^\d{2}:\d{2}$/.test(t)) { notify('בחר שעה'); return; }
+        function comeAnswerText(r) { return r.mode === 'scheduled' ? 'להגיע בשעה שנקבעה' : 'להגיע בשעה ' + (r.time || ''); }
+        window.wsComeReply = async function (id, mode) {
             const r = comeReqs.find(x => x.id === id);
             if (!r) return;
+            const isEdit = r.status === 'answered';
+            let upd;
+            if (mode === 'scheduled') upd = { status: 'answered', mode: 'scheduled', time: '', answeredAt: Date.now() };
+            else {
+                const inp = document.querySelector('input[data-come-time="' + id + '"]');
+                const t = inp ? inp.value : '';
+                if (!/^\d{2}:\d{2}$/.test(t)) { notify('בחר שעה'); return; }
+                upd = { status: 'answered', mode: 'time', time: t, answeredAt: Date.now() };
+            }
             try {
-                await setDoc(doc(getComeCollection(), id), { status: 'answered', time: t, answeredAt: Date.now() }, { merge: true });
-                await pushNotif(r.name, 'avail_reply', `המנהל אישר לך להגיע ב${fmtDM(parseYmd(r.ymd))} בשעה ${t}`);
-                notify('התשובה נשלחה');
+                await setDoc(doc(getComeCollection(), id), upd, { merge: true });
+                const txt = comeAnswerText(upd);
+                await pushNotif(r.name, 'avail_reply', (isEdit ? 'המנהל עדכן את תשובתו: ' : 'המנהל אישר לך: ') + txt + ' (' + fmtDM(parseYmd(r.ymd)) + ')');
+                notify(isEdit ? 'התשובה עודכנה' : 'התשובה נשלחה');
             } catch (e) { console.error(e); notify('שגיאה בשליחה'); }
         };
 
@@ -2342,7 +2350,17 @@
             if (comePending.length) {
                 h += `<div class="ws-card"><h3>זמינים להגיע (${comePending.length})</h3>`;
                 comePending.forEach(r => {
-                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}</span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">שלח</button></span></div>`;
+                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}</span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">שלח שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">להגיע בשעה שנקבעה</button></span></div>`;
+                });
+                h += `</div>`;
+            }
+
+            // זמין/ה להגיע: תשובות שנשלחו (עריכה), 3 ימים אחרונים
+            const comeDone = comeReqs.filter(r => r.status === 'answered' && r.createdAt > Date.now() - 3 * 86400000).sort((a, b) => b.createdAt - a.createdAt);
+            if (comeDone.length) {
+                h += `<div class="ws-card"><h3>תשובות שנשלחו</h3>`;
+                comeDone.forEach(r => {
+                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}: <b>${esc(comeAnswerText(r))}</b></span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" value="${r.mode === 'scheduled' ? '' : esc(r.time || '')}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">עדכן שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">בשעה שנקבעה</button></span></div>`;
                 });
                 h += `</div>`;
             }
