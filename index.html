@@ -2140,7 +2140,7 @@
 
         /* ===== זמין/ה להגיע + שתיה (תוספת, גרסת בדיקה על עותק) ===== */
         const DRINK_PRICE = 5;
-        const COME_DONE_MS = 3 * 3600000;   // כרטיס 'תשובות שנשלחו' אצל המנהל: 3 שעות מיצירת הבקשה (תצוגה בלבד, בלי מחיקה)
+        const COME_DONE_MS = 3 * 3600000;   // כרטיס 'תשובות שנשלחו' אצל המנהל: 3 שעות ממועד תשובת/עדכון המנהל (תצוגה בלבד, בלי מחיקה)
         function getComeCollection() { return collection(db, `${RESTAURANT_ID}_comeavail`); }
         function getDrinksCollection() { return collection(db, `${RESTAURANT_ID}_drinks`); }
         let comeReqs = [];
@@ -2391,7 +2391,7 @@
             }
 
             // זמין/ה להגיע: תשובות שנשלחו (עריכה), 3 ימים אחרונים
-            const comeDone = comeReqs.filter(r => r.status === 'answered' && r.createdAt > Date.now() - COME_DONE_MS).sort((a, b) => b.createdAt - a.createdAt);
+            const comeDone = comeReqs.filter(r => r.status === 'answered' && (r.answeredAt || r.createdAt || 0) > Date.now() - COME_DONE_MS).sort((a, b) => (b.answeredAt || b.createdAt || 0) - (a.answeredAt || a.createdAt || 0));
             if (comeDone.length) {
                 h += `<div class="ws-card"><h3>תשובות שנשלחו</h3>`;
                 comeDone.forEach(r => {
