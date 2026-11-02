@@ -2185,32 +2185,36 @@
         };
 
         let drinkSending = false;
-        // רישומי שתיה שלא הוכרע אם נשמרו (לפי עובד): ניסיון חוזר תמיד עם אותו מזהה, ורישום חדש לאותו עובד נחסם עד שמתברר מה קרה
-        const DRINK_PENDING_KEY = 'ws_drink_pending_v1';
-        function loadDrinkPending() {
-            try { const o = JSON.parse(localStorage.getItem(DRINK_PENDING_KEY) || '{}'); const out = {}; Object.keys(o).forEach(k => { if (o[k] && Date.now() - o[k].ts < 43200000) out[k] = o[k]; }); return out; } catch (e) { return {}; }
-        }
-        const drinkPending = loadDrinkPending();
-        function saveDrinkPending() { try { localStorage.setItem(DRINK_PENDING_KEY, JSON.stringify(drinkPending)); } catch (e) {} }
-        const DRINK_RETRY_MAX_AGE = 270000;  // הכללים מקבלים ts עד 5 דקות אחורה. אחרי זה גם כתיבה תקועה כבר לא יכולה להישמר
+        // רישומי שתיה שלא הוכרע אם נשמרו (לפי עובד). אותו מזהה (op) נשמר עד שהשרת מאשר שנשמר: מזהה אחד לא יכול להיווצר פעמיים,
+        // לכן ניסיון חוזר לא מכפיל רישום. אין תפוגה אוטומטית: רישום לא ברור לא נזרק ולא מוחלף במזהה חדש בלי בחירה מפורשת של המשתמש.
+        const DRINK_PENDING_KEY = 'ws_drink_pending_v2', DRINK_ORPHAN_KEY = 'ws_drink_orphans_v2';
+        function loadJson(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
+        const drinkPending = loadJson(DRINK_PENDING_KEY);   // { שם: { op, created, attempts:[{ts,ymd}], unk } }
+        const drinkOrphans = loadJson(DRINK_ORPHAN_KEY);    // { שם: [ אותו מבנה ] } רישומים שהמשתמש בחר להחליף בלי ודאות
+        function saveDrinkPending() { try { localStorage.setItem(DRINK_PENDING_KEY, JSON.stringify(drinkPending)); localStorage.setItem(DRINK_ORPHAN_KEY, JSON.stringify(drinkOrphans)); } catch (e) {} }
         function newOpId() {
             const a = new Uint8Array(8);
             (window.crypto || window.msCrypto).getRandomValues(a);
             return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
         }
-        // קריאה חוזרת מהשרת (לא מהמטמון). שלוש תוצאות: saved (קיים ותואם בכל השדות) / missing (השרת ענה שאין) / unknown (כל דבר אחר)
+        // קריאה חוזרת מהשרת (לא מהמטמון). שלוש תוצאות: saved (קיים ותואם: שם, op, ומזהה/זמן/תאריך של אחד הניסיונות) / missing (השרת ענה שאין) / unknown (כל דבר אחר)
         async function drinkReadback(who, o) {
             try {
                 const d = await getDocFromServer(doc(getDrinksCollection(), who + '_' + o.op));
                 if (!d.exists()) return 'missing';
                 const x = d.data();
-                return (x.name === who && x.op === o.op && x.ts === o.ts && x.createdAt === o.ts && x.ymd === o.ymd) ? 'saved' : 'unknown';
+                const match = x.name === who && x.op === o.op && x.createdAt === x.ts && (o.attempts || []).some(a => a.ts === x.ts && a.ymd === x.ymd);
+                return match ? 'saved' : 'unknown';
             } catch (e) { console.error(e); return 'unknown'; }
         }
+        // ניסיון כתיבה: אותו מזהה, זמן חדש לכל ניסיון (חלון הזמן בכללים נבדק מול שעון השרת)
         function drinkWriteWithTimeout(who, o) {
-            const w = setDoc(doc(getDrinksCollection(), who + '_' + o.op), { name: who, op: o.op, ts: o.ts, ymd: o.ymd, createdAt: o.ts });
+            const a = { ts: Date.now(), ymd: ymd(israelNow()) };
+            o.attempts.push(a); if (o.attempts.length > 20) o.attempts.shift(); saveDrinkPending();
+            const w = setDoc(doc(getDrinksCollection(), who + '_' + o.op), { name: who, op: o.op, ts: a.ts, ymd: a.ymd, createdAt: a.ts });
             return Promise.race([w, new Promise((_, rej) => setTimeout(() => rej({ code: 'ws-timeout' }), 20000))]);
         }
+        const DRINK_MSG_UNKNOWN = 'לא ברור אם השתיה נרשמה. לחץ שוב כדי לבדוק, ואם זה נשאר לא ברור בדוק מול המנהל לפני שרושמים שוב';
         window.drinkRecord = async function (skipConfirm) {
             if (drinkSending) return;
             drinkSending = true;
@@ -2219,32 +2223,45 @@
                 if (!who) return;
                 if (skipConfirm !== true && !await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
                 const done = (msg) => { delete drinkPending[who]; saveDrinkPending(); notify(msg); };
+                // רישומים שהוחלפו בלי ודאות: אם התברר שנשמרו, מודיעים (ייתכן כפול שהמנהל יכול למחוק)
+                if (drinkOrphans[who] && drinkOrphans[who].length) {
+                    const keep = [];
+                    for (const old of drinkOrphans[who]) { const r = await drinkReadback(who, old); if (r === 'saved') notify('רישום שתיה קודם שהיה לא ברור התברר כנשמר. ייתכן שנרשמה שתיה כפולה, בדוק מול המנהל'); else keep.push(old); }
+                    drinkOrphans[who] = keep; saveDrinkPending();
+                }
                 let o = drinkPending[who];
                 if (o) {
                     // יש רישום קודם שלא הוכרע: קודם בודקים מה קרה איתו, לא יוצרים רישום חדש לפני כן
                     const r0 = await drinkReadback(who, o);
                     if (r0 === 'saved') { done('הרישום הקודם נשמר. לא נוסף רישום חדש'); return; }
-                    if (r0 === 'unknown') { notify('עדיין לא ברור אם הרישום הקודם נשמר. נסה שוב בעוד רגע. לא נוסף רישום חדש'); return; }
-                    if (Date.now() - o.ts > DRINK_RETRY_MAX_AGE) { delete drinkPending[who]; saveDrinkPending(); o = null; }  // נעדר בשרת וגם כתיבה תקועה כבר לא יכולה להישמר
+                    if (r0 === 'unknown') {
+                        o.unk = (o.unk || 0) + 1; saveDrinkPending();
+                        // אחרי כמה בדיקות כושלות ואחרי זמן ארוך, אפשר לבחור במפורש להחליף. זו בחירה של המשתמש שעלולה ליצור כפילות
+                        if (o.unk >= 3 && Date.now() - o.created > 900000) {
+                            if (await askConfirm('לא הצלחנו לאמת אם הרישום הקודם נשמר. מומלץ לבדוק מול המנהל. לרשום שתיה חדשה בכל זאת? ייתכן שזו תהיה שתיה כפולה (המנהל יכול למחוק).')) {
+                                (drinkOrphans[who] = drinkOrphans[who] || []).push(o); if (drinkOrphans[who].length > 5) drinkOrphans[who].shift();
+                                delete drinkPending[who]; saveDrinkPending(); o = null;
+                            } else return;
+                        } else { notify('עדיין לא ברור אם הרישום הקודם נשמר. נסה שוב בעוד רגע, או בדוק מול המנהל. לא נוסף רישום חדש'); return; }
+                    }
+                    // r0 === 'missing': השרת אישר שאין. ממשיכים עם אותו מזהה (בטוח: אותו מזהה לא יכול להישמר פעמיים)
                 }
-                if (!o) { o = drinkPending[who] = { op: newOpId(), ts: Date.now(), ymd: ymd(israelNow()) }; saveDrinkPending(); }
+                if (!o) { o = drinkPending[who] = { op: newOpId(), created: Date.now(), attempts: [], unk: 0 }; saveDrinkPending(); }
                 try {
                     await drinkWriteWithTimeout(who, o);
                     done('השתיה נרשמה');
                     return;
-                } catch (e) {
-                    console.error(e);
-                }
+                } catch (e) { console.error(e); }
                 // התשובה אבדה או נדחתה: לא מניחים כישלון ולא הצלחה. בודקים מול השרת
                 const r1 = await drinkReadback(who, o);
                 if (r1 === 'saved') { done('השתיה נרשמה'); return; }
-                if (r1 === 'missing' && Date.now() - o.ts <= DRINK_RETRY_MAX_AGE) {
+                if (r1 === 'missing') {
                     try { await drinkWriteWithTimeout(who, o); done('השתיה נרשמה'); return; } catch (e) { console.error(e); }
                     const r2 = await drinkReadback(who, o);
                     if (r2 === 'saved') { done('השתיה נרשמה'); return; }
-                    if (r2 === 'missing') { notify('לא נרשם. נסה שוב'); return; }  // אותו מזהה נשמר לניסיון הבא
-                } else if (r1 === 'missing') { delete drinkPending[who]; saveDrinkPending(); notify('לא נרשם. נסה שוב'); return; }
-                notify('לא ברור אם נרשם. נסה שוב בעוד רגע: לא יירשם פעמיים. אם זה חוזר, בדוק מול המנהל');
+                    if (r2 === 'missing') { notify('לא נרשם. אפשר לנסות שוב'); return; }  // אותו מזהה נשמר לניסיון הבא
+                }
+                notify(DRINK_MSG_UNKNOWN);
             } finally { drinkSending = false; }
         };
 
