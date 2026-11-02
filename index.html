@@ -2186,12 +2186,11 @@
 
         let drinkSending = false;
         // רישומי שתיה שלא הוכרע אם נשמרו (לפי עובד). אותו מזהה (op) נשמר עד שהשרת מאשר שנשמר: מזהה אחד לא יכול להיווצר פעמיים,
-        // לכן ניסיון חוזר לא מכפיל רישום. אין תפוגה אוטומטית: רישום לא ברור לא נזרק ולא מוחלף במזהה חדש בלי בחירה מפורשת של המשתמש.
-        const DRINK_PENDING_KEY = 'ws_drink_pending_v2', DRINK_ORPHAN_KEY = 'ws_drink_orphans_v2';
+        // לכן ניסיון חוזר לא מכפיל רישום. אין תפוגה אוטומטית: רישום לא ברור לא נזרק ולא מוחלף במזהה חדש.
+        const DRINK_PENDING_KEY = 'ws_drink_pending_v2';
         function loadJson(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
-        const drinkPending = loadJson(DRINK_PENDING_KEY);   // { שם: { op, created, attempts:[{ts,ymd}], unk } }
-        const drinkOrphans = loadJson(DRINK_ORPHAN_KEY);    // { שם: [ אותו מבנה ] } רישומים שהמשתמש בחר להחליף בלי ודאות
-        function saveDrinkPending() { try { localStorage.setItem(DRINK_PENDING_KEY, JSON.stringify(drinkPending)); localStorage.setItem(DRINK_ORPHAN_KEY, JSON.stringify(drinkOrphans)); } catch (e) {} }
+        const drinkPending = loadJson(DRINK_PENDING_KEY);   // { שם: { op, created, attempts:[{ts,ymd}]} }
+        function saveDrinkPending() { try { localStorage.setItem(DRINK_PENDING_KEY, JSON.stringify(drinkPending)); } catch (e) {} }
         function newOpId() {
             const a = new Uint8Array(8);
             (window.crypto || window.msCrypto).getRandomValues(a);
@@ -2223,30 +2222,15 @@
                 if (!who) return;
                 if (skipConfirm !== true && !await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
                 const done = (msg) => { delete drinkPending[who]; saveDrinkPending(); notify(msg); };
-                // רישומים שהוחלפו בלי ודאות: אם התברר שנשמרו, מודיעים (ייתכן כפול שהמנהל יכול למחוק)
-                if (drinkOrphans[who] && drinkOrphans[who].length) {
-                    const keep = [];
-                    for (const old of drinkOrphans[who]) { const r = await drinkReadback(who, old); if (r === 'saved') notify('רישום שתיה קודם שהיה לא ברור התברר כנשמר. ייתכן שנרשמה שתיה כפולה, בדוק מול המנהל'); else keep.push(old); }
-                    drinkOrphans[who] = keep; saveDrinkPending();
-                }
                 let o = drinkPending[who];
                 if (o) {
                     // יש רישום קודם שלא הוכרע: קודם בודקים מה קרה איתו, לא יוצרים רישום חדש לפני כן
                     const r0 = await drinkReadback(who, o);
                     if (r0 === 'saved') { done('הרישום הקודם נשמר. לא נוסף רישום חדש'); return; }
-                    if (r0 === 'unknown') {
-                        o.unk = (o.unk || 0) + 1; saveDrinkPending();
-                        // אחרי כמה בדיקות כושלות ואחרי זמן ארוך, אפשר לבחור במפורש להחליף. זו בחירה של המשתמש שעלולה ליצור כפילות
-                        if (o.unk >= 3 && Date.now() - o.created > 900000) {
-                            if (await askConfirm('לא הצלחנו לאמת אם הרישום הקודם נשמר. מומלץ לבדוק מול המנהל. לרשום שתיה חדשה בכל זאת? ייתכן שזו תהיה שתיה כפולה (המנהל יכול למחוק).')) {
-                                (drinkOrphans[who] = drinkOrphans[who] || []).push(o); if (drinkOrphans[who].length > 5) drinkOrphans[who].shift();
-                                delete drinkPending[who]; saveDrinkPending(); o = null;
-                            } else return;
-                        } else { notify('עדיין לא ברור אם הרישום הקודם נשמר. נסה שוב בעוד רגע, או בדוק מול המנהל. לא נוסף רישום חדש'); return; }
-                    }
+                    if (r0 === 'unknown') { notify('עדיין לא ברור אם הרישום הקודם נשמר. נסה שוב בעוד רגע, או בדוק מול המנהל. לא נוסף רישום חדש'); return; }
                     // r0 === 'missing': השרת אישר שאין. ממשיכים עם אותו מזהה (בטוח: אותו מזהה לא יכול להישמר פעמיים)
                 }
-                if (!o) { o = drinkPending[who] = { op: newOpId(), created: Date.now(), attempts: [], unk: 0 }; saveDrinkPending(); }
+                if (!o) { o = drinkPending[who] = { op: newOpId(), created: Date.now(), attempts: [] }; saveDrinkPending(); }
                 try {
                     await drinkWriteWithTimeout(who, o);
                     done('השתיה נרשמה');
