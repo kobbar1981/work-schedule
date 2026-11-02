@@ -942,7 +942,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v33';
+        const APP_VERSION = 'v34';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2187,7 +2187,7 @@
             if (drinkSending) return;
             drinkSending = true;
             try {
-                const who = await ensureTaskVerified();
+                const who = skipConfirm === true ? taskVerifiedName : await ensureTaskVerified(false, true);
                 if (!who) return;
                 if (skipConfirm !== true && !await askConfirm(`לרשום שתיה על שם ${who}? (${DRINK_PRICE} ₪)`)) return;
                 // אישור חדש = פעולה חדשה. רק ניסיון חוזר של אותו אישור (שנכשל ברשת) חוזר על אותו מזהה וזמן
@@ -2658,8 +2658,9 @@
         }
 
         // אימות עובד בקוד אישי דרך השרת (אותה בדיקה כמו בכניסת עובדים). נזכר לסשן בלבד.
-        async function ensureTaskVerified(forTask) {
-            if (taskVerifiedName && tasksAccess !== 'none') return taskVerifiedName;
+        async function ensureTaskVerified(forTask, fresh) {
+            // fresh: כל רישום שתיה דורש בחירת עובד וקוד מחדש (בלי לזכור את העובד הקודם)
+            if (!fresh && taskVerifiedName && tasksAccess !== 'none') return taskVerifiedName;
             const r = await askEmployeePin(forTask === true);
             if (!r) return null;
             try {
