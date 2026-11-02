@@ -2350,7 +2350,7 @@
             if (comePending.length) {
                 h += `<div class="ws-card"><h3>זמינים להגיע (${comePending.length})</h3>`;
                 comePending.forEach(r => {
-                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}</span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">שלח שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">להגיע בשעה שנקבעה</button></span></div>`;
+                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}</span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" style="width:120px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">שלח שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">להגיע בשעה שנקבעה</button></span></div>`;
                 });
                 h += `</div>`;
             }
@@ -2360,7 +2360,7 @@
             if (comeDone.length) {
                 h += `<div class="ws-card"><h3>תשובות שנשלחו</h3>`;
                 comeDone.forEach(r => {
-                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}: <b>${esc(comeAnswerText(r))}</b></span><span><input type="time" id="wsCT_${esc(r.id)}" data-keep="1" data-come-time="${esc(r.id)}" value="${r.mode === 'scheduled' ? '' : esc(r.time || '')}" style="width:90px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">עדכן שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">בשעה שנקבעה</button></span></div>`;
+                    h += `<div class="ws-row"><span>${esc(r.name)} - ${esc(fmtDM(parseYmd(r.ymd)))}: <b>${esc(comeAnswerText(r))}</b></span><span><input type="time" id="wsCE_${esc(r.id)}_${esc(r.mode || 't')}_${esc(r.time || '')}_${esc(String(r.answeredAt || ''))}" data-keep="1" data-come-time="${esc(r.id)}" value="${r.mode === 'scheduled' ? '' : esc(r.time || '')}" style="width:120px"> <button class="ws-mini" style="background:#27ae60" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id)">עדכן שעה</button> <button class="ws-mini" style="background:#2980b9" data-id="${esc(r.id)}" onclick="wsComeReply(this.dataset.id,'scheduled')">בשעה שנקבעה</button></span></div>`;
                 });
                 h += `</div>`;
             }
