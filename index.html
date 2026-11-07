@@ -174,6 +174,7 @@
         }
 
         .unavail-badge { background-color: #d63031; color: white; font-size: 0.6em; padding: 1px 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
+        .lowrank-badge { background-color: #e67e22; color: white; font-size: 0.75em; padding: 3px 6px; border-radius: 4px; display: block; font-weight: bold; margin: 4px 0; }
 
         /* ===== הצגת שעות: שתי שורות (התחלה מעל סיום), בלי חיתוך ===== */
         .hours-2l {
@@ -1014,7 +1015,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v38';
+        const APP_VERSION = 'v39';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1030,6 +1031,25 @@
         function getAvailCollection() { return collection(db, `${RESTAURANT_ID}_availability`); }
         function getSettingsDoc(docName) { return doc(db, `${RESTAURANT_ID}_settings`, docName); }
         function getAbsCollection() { return collection(db, `${RESTAURANT_ID}_absences`); }
+
+        // סולם 5 דירוגים פעיל רק בעסק yoko; שאר העסקים נשארים בסולם 1-3 ובחוקים הקודמים
+        const isFiveLevelBusiness = () => RESTAURANT_ID === 'yoko';
+        const RANK_OPTIONS_5 = [['5','5 - חזק מאוד'],['4','4 - חזק'],['3','3 - בינוני'],['2','2 - חלש'],['1','1 - צריך ליווי צמוד']];
+        const RANK_OPTIONS_3_ADD = [['3','חזק (3)'],['2','בינוני (2)'],['1','חלש (1)']];
+        const RANK_OPTIONS_3_EDIT = [['3','חזק / ותיק (3) - עדיפות 1'],['2','בינוני (2) - עדיפות 2'],['1','חלש / חדש (1) - עדיפות 3']];
+        function applyRankScale() {
+            const five = isFiveLevelBusiness();
+            const fill = (id, opts) => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const keepVal = sel.value;
+                sel.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+                if (keepVal && opts.some(([v]) => v === String(keepVal))) sel.value = String(keepVal);
+                else if (id === 'empRank') sel.value = '3';
+            };
+            fill('empRank', five ? RANK_OPTIONS_5 : RANK_OPTIONS_3_ADD);
+            fill('editEmpRank', five ? RANK_OPTIONS_5 : RANK_OPTIONS_3_EDIT);
+        }
         function getSwapsCollection() { return collection(db, `${RESTAURANT_ID}_swaps`); }
 
         // ===== התחברות ופעולות רגישות עוברות דרך Cloud Functions. הסיסמאות והקודים נבדקים בשרת בלבד =====
@@ -1254,6 +1274,7 @@
             try { if (candidate) localStorage.setItem('work_schedule_restaurant_id', candidate); } catch(e){}
 
             updateRestaurantTag();
+            applyRankScale();
             const tagEl = document.getElementById('restaurantTag');
             if (tagEl && RESTAURANT_ID) tagEl.textContent += ' | ' + APP_VERSION;
 
@@ -2943,6 +2964,7 @@
             listenersFor = uid;
             tasksAccess = 'ok'; startTasksListener();
 
+            let rankMigrationChecked = false;
             const pending = new Set();
             let resolveAll;
             const allDone = new Promise(r => { resolveAll = r; });
@@ -2954,6 +2976,45 @@
                     try { const p = cb(snap); if (p && p.catch) p.catch(console.error); }
                     finally { done(); }
                 }, (err) => { console.error('listener', name, err && err.code); done(); }));
+            };
+
+            // המרת דירוגים חד-פעמית לסולם 1-5: 1->2, 2->3, 3->4
+            const maybeMigrateRanks = async () => {
+                if (rankMigrationChecked) return;
+                rankMigrationChecked = true;
+                try {
+                    const markerRef = getSettingsDoc('rank_migration_v39');
+                    const marker = await getDoc(markerRef);
+                    if (marker.exists() && marker.data().status === 'done') return;
+                    let targets = marker.exists() ? (marker.data().targets || null) : null;
+                    if (!targets) {
+                        const mapRank = (r) => (r === 1 ? 2 : r === 2 ? 3 : 4);
+                        targets = {};
+                        const previous = {};
+                        employees.forEach(e => {
+                            const r = rankOf(e);
+                            if ([1, 2, 3].includes(r)) { targets[e.name] = mapRank(r); previous[e.name] = r; }
+                        });
+                        if (Object.keys(targets).length === 0) { await setDoc(markerRef, { status: 'done', doneAt: Date.now(), converted: 0 }); return; }
+                        const preview = Object.keys(targets).map(n => `${n}: מ-${previous[n]} ל-${targets[n]}`).join('\n');
+                        if (!await askConfirm(`שדרוג לסולם דירוג 1-5. להמיר את הדירוגים הקיימים?\n${preview}\n\nהמצב הנוכחי נשמר אוטומטית לפני ההמרה.`)) return;
+                        // גיבוי אוטומטי: צילום מלא של רשומות העובדים (ללא קודים אישיים) לפני שינוי
+                        const snapshot = allStaff.map(e => {
+                            const { pinHash, pinSalt, pin, ...rest } = e;
+                            return rest;
+                        });
+                        await setDoc(markerRef, { status: 'started', startedAt: Date.now(), targets, previous, snapshot });
+                    }
+                    // כתיבה של ערכי יעד מוחלטים: חוזרת על עצמה בבטחה אם נקטע באמצע
+                    for (const name of Object.keys(targets)) {
+                        const emp = employees.find(e => e.name === name);
+                        if (!emp) continue;
+                        await setDoc(doc(getEmpCollection(), name), { ...emp, rank: targets[name] });
+                    }
+                    // מיזוג: שומר את targets/previous/snapshot שנשמרו בכתיבת ה-'started'
+                    await setDoc(markerRef, { status: 'done', doneAt: Date.now() }, { merge: true });
+                    notify('הדירוגים הומרו לסולם 1-5');
+                } catch (e) { console.error('rank migration', e); notify('שגיאה בהמרת הדירוגים - לא בוצע שינוי מלא'); }
             };
 
             sub('emp', getEmpCollection(), (snapshot) => {
@@ -2973,6 +3034,7 @@
                 if(verifiedEmployeeName) scheduleRender(renderScheduleForEmployee, verifiedEmployeeName);
                 scheduleRender(renderEmployeeExtras);
                 scheduleRender(renderManagerExtras);
+                if (role === 'manager' && isFiveLevelBusiness()) maybeMigrateRanks();
             });
 
             sub('avail', getAvailCollection(), (snapshot) => {
@@ -4167,6 +4229,8 @@
             });
         };
 
+        const rankOf = (e) => parseInt(e.rank || 1);
+
         function assignShift(requiredCount, dayIdx, shiftType, alreadyAssignedToday, shiftCounts) {
             const key = `${dayIdx}-${shiftType}`;
             const dayDate = ymd(weekDatesFull(currentWeekSunday())[parseInt(dayIdx)]);
@@ -4174,21 +4238,88 @@
             let fresh = available.filter(e => !alreadyAssignedToday.some(a => a.name === e.name));
             let tired = available.filter(e => alreadyAssignedToday.some(a => a.name === e.name));
 
+            if (!isFiveLevelBusiness()) {
+                // עסקים אחרים: הלוגיקה המקורית של שלוש רמות, ללא שינוי
+                const sortEmps3 = (arr) => {
+                    arr.sort((a, b) => {
+                        if (b.rank !== a.rank) return b.rank - a.rank;
+                        if (shiftCounts[a.name] !== shiftCounts[b.name]) return shiftCounts[a.name] - shiftCounts[b.name];
+                        return Math.random() - 0.5;
+                    });
+                };
+                sortEmps3(fresh);
+                sortEmps3(tired);
+                let chosen3 = fresh.slice(0, requiredCount);
+                if (chosen3.length < requiredCount && tired.length > 0) {
+                    chosen3.push(...tired.slice(0, requiredCount - chosen3.length));
+                }
+                return chosen3;
+            }
+
+            // איזון קודם: מי שקיבל פחות משמרות השבוע; דירוג כשובר שוויון
             const sortEmps = (arr) => {
                 arr.sort((a, b) => {
-                    if (b.rank !== a.rank) return b.rank - a.rank;
                     if (shiftCounts[a.name] !== shiftCounts[b.name]) return shiftCounts[a.name] - shiftCounts[b.name];
+                    if (rankOf(b) !== rankOf(a)) return rankOf(b) - rankOf(a);
                     return Math.random() - 0.5;
                 });
             };
-            sortEmps(fresh);
-            sortEmps(tired);
 
-            let chosen = fresh.slice(0, requiredCount);
+            // בחירה עם חוק: עובד בדירוג 1 לא משובץ לבד - רק לצד עובד בדירוג 3 ומעלה
+            const pickFrom = (pool, chosenSoFar) => {
+                sortEmps(pool);
+                const out = [];
+                for (const e of pool) {
+                    if (chosenSoFar.length + out.length >= requiredCount) break;
+                    if (out.includes(e)) continue;
+                    if (rankOf(e) === 1) {
+                        const hasStrong = [...chosenSoFar, ...out].some(x => rankOf(x) >= 3);
+                        if (!hasStrong) {
+                            const strong = pool.find(x => x !== e && !out.includes(x) && rankOf(x) >= 3);
+                            if (strong && chosenSoFar.length + out.length + 2 <= requiredCount) {
+                                out.push(strong, e);
+                            }
+                            continue;
+                        }
+                    }
+                    out.push(e);
+                }
+                return out;
+            };
+
+            // חוק עוגן: לפחות עובד אחד בדירוג 4-5 במשמרת, אם יש כזה שזמין ועוד לא שובץ היום
+            let chosen = [];
+            const anchors = fresh.filter(e => rankOf(e) >= 4);
+            if (anchors.length > 0 && requiredCount > 0) {
+                sortEmps(anchors);
+                chosen.push(anchors[0]);
+                fresh = fresh.filter(e => e !== anchors[0]);
+            }
+            chosen.push(...pickFrom(fresh, chosen));
             if (chosen.length < requiredCount && tired.length > 0) {
-                chosen.push(...tired.slice(0, requiredCount - chosen.length));
+                chosen.push(...pickFrom(tired, chosen));
             }
             return chosen;
+        }
+
+        // התראה: שני עובדים או יותר בדירוגים 1-2 באותה משמרת (1+1, 1+2, 2+2)
+        // לא מוצגת כשיש לצדם עובד בדירוג 4-5
+        function lowRankPairWarning(assignedNames) {
+            const ranks = assignedNames.map(n => rankOf(employees.find(e => e.name === n) || { rank: 1 }));
+            if (ranks.some(r => r >= 4)) return false;
+            return ranks.filter(r => r <= 2).length >= 2;
+        }
+
+        // סימון: אין במשמרת עובד 4-5 למרות שעובד כזה הגיש זמינות
+        // (קורה כשהוא כבר שובץ באותו יום - לא משכפלים אותו אוטומטית - או כשהוסר ידנית)
+        function anchorUnmetWarning(assignedNames, key, scheduleExists) {
+            if (!scheduleExists) return false;
+            const hasStrong = assignedNames.some(n => {
+                const emp = employees.find(e => e.name === n);
+                return emp && rankOf(emp) >= 4;
+            });
+            if (hasStrong) return false;
+            return employees.some(e => rankOf(e) >= 4 && (employeeAvailMap[e.name] || {})[key] && !assignedNames.includes(e.name));
         }
 
         function renderShiftCell(dayIdx, shiftType, defaultTime) {
@@ -4238,6 +4369,13 @@
 
             // סימון חוסר: רק אחרי שנוצר סידור (טיוטה), כדי שלא יהיה הכול אדום לפני השיבוץ
             const scheduleExists = Object.keys(currentSchedule || {}).length > 0;
+
+            if (isFiveLevelBusiness() && lowRankPairWarning(assignedNames)) {
+                html += `<div class="lowrank-badge" title="שני עובדים בדירוג 1-2 באותה משמרת, בלי עובד בדירוג 4-5 לצדם">⚠ זוג נמוך</div>`;
+            }
+            if (isFiveLevelBusiness() && anchorUnmetWarning(assignedNames, key, scheduleExists)) {
+                html += `<div class="lowrank-badge" title="עובד בדירוג 4-5 הגיש זמינות למשמרת זו אך לא שובץ בה">⚠ חסר חזק</div>`;
+            }
             const missingCount = Math.max(0, reqCount - assignedNames.length);
 
             let maxSlots = Math.max(reqCount, assignedNames.length + 1);
