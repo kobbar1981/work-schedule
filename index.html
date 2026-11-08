@@ -1015,7 +1015,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v39';
+        const APP_VERSION = 'v40';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -2405,7 +2405,6 @@
                 drinksRows = []; drinksRowsMonth = month;
                 snap.forEach(d => drinksRows.push({ id: d.id, ...d.data() }));
             } catch (e) { console.error(e); window.__drinksFailed = true; drinksRows = []; drinksRowsMonth = month; notify('שגיאה בטעינת השתיה'); renderDrinksBody(); return; }
-            if (drinksRowsMonth === null && !window.__drinksLoading && !window.__drinksFailed) { window.__drinksLoading = true; wsLoadDrinks().finally(() => { window.__drinksLoading = false; }); }
             renderDrinksBody();
         };
         window.wsDrinksMonthChanged = function () { drinksRows = null; drinksRowsMonth = null; renderDrinksBody(); wsLoadDrinks(); };
@@ -2575,6 +2574,10 @@
             if (!notifGranted()) h += `<button onclick="wsPushManager()" style="background-color:#8e44ad;">🔔 הפעל התראות למנהל במכשיר הזה</button>`;
 
             keepRender(box, h);
+            if (drinksEnabled && drinksRowsMonth === null && !window.__drinksLoading && !window.__drinksFailed) {
+                window.__drinksLoading = true;
+                wsLoadDrinks().finally(() => { window.__drinksLoading = false; });
+            }
             renderDrinksBody();
         }
 
