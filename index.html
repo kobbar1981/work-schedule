@@ -461,6 +461,7 @@
             </div>
 
             <button onclick="submitEmployeeAvailability()" style="background-color: #27ae60;">עדכן זמינות</button>
+            <div id="availSubmitStatus" style="display:none;"></div>
             </div>
         </div>
 
@@ -1015,7 +1016,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v40';
+        const APP_VERSION = 'v41';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1092,7 +1093,8 @@
             tasksAccess = 'none';
             tasksRecurring = null; tasksRecurringExists = false; tasksWeek = null; tasksDays = {}; tasksSeedDone = false;
             tasksLegacyPrev = null; tasksLegacyPrevTried = false;
-            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; archiveWeeks = {};
+            employees = []; employeeAvailMap = {}; employeeNotesMap = {}; employeeAvailTimeMap = {}; archiveWeeks = {};
+            lastAvailSavedState = null; lastAvailSavedAt = null;
             absMap = {}; swaps = [];
             currentSchedule = {}; customShiftTimes = {};
             publishedSchedule = {}; publishedTimes = {}; publishedCustomShiftTimes = {};
@@ -1363,6 +1365,9 @@
         let allStaff = [];         // כולל עובדי מטבח (לניהול בלבד)
         let employeeAvailMap = {};
         let employeeNotesMap = {};
+        let employeeAvailTimeMap = {}; // שעת ההגשה האחרונה של כל עובד (מתוך המסמך)
+        let lastAvailSavedState = null; // מצב טופס הזמינות כפי שנשלח לאחרונה מהמכשיר הזה
+        let lastAvailSavedAt = null;    // מתי נשלח
         let currentSchedule = {};
         let customShiftTimes = {};
 
@@ -1669,6 +1674,54 @@
             applyAbsencesToCheckboxes();
         }
 
+        /* ----- סימון מצב שליחת הזמינות במסך העובד ----- */
+        // תמונת מצב של הטופס בדיוק כפי שהוא יישלח (אותו סינון כמו ב-submitEmployeeAvailability)
+        function serializeAvailForm() {
+            const parts = [];
+            document.querySelectorAll('#shiftsCheckboxContainer input:not([disabled]):checked').forEach(cb => parts.push(cb.value));
+            parts.sort();
+            const noteEl = document.getElementById('employeeNoteInput');
+            return parts.join('|') + '##' + (noteEl ? noteEl.value.trim() : '');
+        }
+
+        function fmtAvailTime(ts) {
+            const d = new Date(ts);
+            return `${fmtDM(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+        }
+
+        function updateAvailStatusUI() {
+            const el = document.getElementById('availSubmitStatus');
+            if (!el) return;
+            if (!verifiedEmployeeName || lastAvailSavedState === null) { el.style.display = 'none'; el.innerHTML = ''; return; }
+            if (serializeAvailForm() === lastAvailSavedState) {
+                el.style.cssText = 'display:block; margin-top:12px; background:#e6f4ea; border:1px solid #27ae60; color:#1e7e34; padding:10px; border-radius:8px; text-align:center; font-size:0.95em;';
+                el.innerHTML = `✔ <b>הזמינות נשלחה בהצלחה</b>` + (lastAvailSavedAt ? `<div style="margin-top:3px; font-size:0.85em;">נשלח ב-${fmtAvailTime(lastAvailSavedAt)}</div>` : '');
+            } else {
+                el.style.cssText = 'display:block; margin-top:12px; background:#fff3cd; border:1px solid #ffeeba; color:#856404; padding:10px; border-radius:8px; text-align:center; font-size:0.95em;';
+                el.innerHTML = `⚠ <b>יש שינויים שלא נשלחו</b><div style="margin-top:3px; font-size:0.85em;">לחץ על "עדכן זמינות" כדי לשלוח</div>`;
+            }
+        }
+
+        // נקרא אחרי שהטופס מולא מהנתונים השמורים: אם כבר הוגשה זמינות השבוע, מוצג סימון ירוק עם שעת ההגשה
+        function initAvailSubmitStatus(empName) {
+            if (employeeAvailMap[empName]) {
+                lastAvailSavedState = serializeAvailForm();
+                lastAvailSavedAt = employeeAvailTimeMap[empName] || null;
+            } else {
+                lastAvailSavedState = null;
+                lastAvailSavedAt = null;
+            }
+            updateAvailStatusUI();
+        }
+
+        // מעקב אחר שינויים בטופס (delegation, כדי לשרוד בנייה מחדש של התיבות)
+        (function attachAvailStatusWatchers() {
+            const cont = document.getElementById('shiftsCheckboxContainer');
+            if (cont) cont.addEventListener('change', updateAvailStatusUI);
+            const noteEl = document.getElementById('employeeNoteInput');
+            if (noteEl) noteEl.addEventListener('input', updateAvailStatusUI);
+        })();
+
         async function saveDraftToFirestore() {
             try {
                 await setDoc(getSettingsDoc("draft_schedule"), {
@@ -1900,6 +1953,7 @@
             renderEmployeeShiftCheckboxes();
             document.querySelectorAll('#shiftsCheckboxContainer input').forEach(cb => { cb.checked = !!checked[cb.value]; });
             applyAbsencesToCheckboxes();
+            updateAvailStatusUI();
         }
 
         /* ----- החלפות משמרות ----- */
@@ -3043,6 +3097,7 @@
             sub('avail', getAvailCollection(), (snapshot) => {
                 employeeAvailMap = {};
                 employeeNotesMap = {};
+                employeeAvailTimeMap = {};
                 const lastThu7AM = getLastThursday7AM();
                 snapshot.forEach(d => {
                     let data = d.data();
@@ -3050,6 +3105,7 @@
                         let empName = data.name || d.id;
                         employeeAvailMap[empName] = data.shifts || {};
                         if(data.note) employeeNotesMap[empName] = data.note;
+                        employeeAvailTimeMap[empName] = data.updatedAt;
                     }
                 });
                 scheduleRender(renderDailyAvailabilityTable);
@@ -4008,6 +4064,7 @@
 
         window.resetPinStep = function() {
             verifiedEmployeeName = null;
+            lastAvailSavedState = null; lastAvailSavedAt = null; updateAvailStatusUI();
             document.getElementById('employeePinInput').value = '';
             document.getElementById('employeeFormArea').classList.add('hidden');
             subscribeNotifs(null);
@@ -4054,6 +4111,7 @@
                 cb.checked = !!existingAvail[cb.value];
             });
             document.getElementById('employeeNoteInput').value = existingNote;
+            initAvailSubmitStatus(selectedName);
             renderScheduleForEmployee(selectedName);
             onEmployeeLoggedIn(selectedName);
         };
@@ -4126,13 +4184,19 @@
                     note: note,
                     updatedAt: Date.now()
                 });
+                // הסימון הירוק מוצג רק אחרי שהשרת אישר את השמירה, ונשאר על המסך
+                lastAvailSavedState = serializeAvailForm();
+                lastAvailSavedAt = Date.now();
+                updateAvailStatusUI();
                 notify("הזמינות עודכנה");
                 if (isUpdate) {
                     // מזהה קבוע ליום: עדכונים חוזרים באותו יום מרעננים את הבאנר בלי push נוסף
                     const nid = 'av_' + encodeURIComponent(`${RESTAURANT_ID}_${verifiedEmployeeName}_${ymd(israelNow())}`);
                     pushNotif(MANAGER, 'avail_update', `${verifiedEmployeeName} עדכן/ה זמינות אחרי ההגשה`, nid);
                 }
-                switchView('selection');
+                // נשארים במסך כדי שהעובד יראה את האישור; חזרה לתפריט בכפתור "חזרה לתפריט ראשי"
+                const stEl = document.getElementById('availSubmitStatus');
+                if (stEl) stEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } catch(e){ notify("שגיאה בשמירה"); }
         };
 
