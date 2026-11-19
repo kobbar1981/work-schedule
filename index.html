@@ -1016,7 +1016,7 @@
         const MANAGER = '__manager__';
         // מספר גרסה: מקדמים אותו בכל גרסה חדשה, כדי שמשתמשים עם האפליקציה פתוחה יקבלו הודעת רענון
         // הוראה לכל מי שעורך את הקובץ (כולל Claude): בכל שינוי ב-index.html יש להעלות את מספר הגרסה ב-1 (v12 -> v13 וכן הלאה)
-        const APP_VERSION = 'v41';
+        const APP_VERSION = 'v42';
         const ARCHIVE_KEEP = 6;   // כמה שבועות נשמרים בארכיון
 
         // ===== הפרדה בין מסעדות/עסקים שונים על גבי אותו פרויקט Firebase =====
@@ -1984,6 +1984,46 @@
         }
         const shiftEnded = (key, name) => { const e = shiftEndDate(key, name); return e ? israelNow() >= e : false; };
 
+        /* ----- פקיעת בקשות החלפה בסוף המשמרת -----
+           בקשה פתוחה נשארה מוצגת עד סוף השבוע גם אחרי שהמשמרת הסתיימה, כי הרינדור
+           מונע-אירועים והשעון לא מפעיל אירוע. כאן: מכשיר המנהל מסמן "פגה" (כתיבה
+           אחת לכל בקשה), וכל מכשיר מתעורר בדיוק בסוף המשמרת הקרובה כדי לרענן תצוגה. */
+        let _swapExpiryTimer = null;
+        const _swapExpiryWritten = new Set();
+        function checkSwapExpiry() {
+            if (_swapExpiryTimer) { clearTimeout(_swapExpiryTimer); _swapExpiryTimer = null; }
+            const nowIl = israelNow();
+            let nextAt = null;
+            swaps.filter(s => (s.status === 'pending_peer' || s.status === 'pending_manager') && s.week === pubWeekKey()).forEach(s => {
+                const e = shiftEndDate(s.key, s.from);
+                if (!e) return;
+                if (nowIl >= e) {
+                    // רק מכשיר המנהל כותב "פגה", ורק אחרי שהסידור המפורסם נטען
+                    // (אחרת השעות והשבוע לא ודאיים); מכשירי עובדים מסתירים בתצוגה בלבד
+                    if (managerScreenActive && isPublished && !_swapExpiryWritten.has(s.id)) {
+                        _swapExpiryWritten.add(s.id);
+                        // טרנזקציה: קוראים מחדש כדי לא לדרוס בקשה שאושרה/בוטלה/נדחתה בינתיים
+                        const ref = doc(getSwapsCollection(), s.id);
+                        runTransaction(db, async (tx) => {
+                            const cur = await tx.get(ref);
+                            if (!cur.exists()) return;
+                            const st = cur.data().status;
+                            if (st !== 'pending_peer' && st !== 'pending_manager') return;
+                            tx.update(ref, { status: 'expired', updatedAt: Date.now() });
+                        }).catch(err => { console.error('expire swap', err); _swapExpiryWritten.delete(s.id); });
+                    }
+                } else if (!nextAt || e < nextAt) nextAt = e;
+            });
+            if (nextAt) {
+                // שני המועדים בנויים באותה שיטת שעון-ישראל, לכן ההפרש הוא הזמן האמיתי שנותר
+                const delay = Math.min(Math.max(nextAt.getTime() - nowIl.getTime(), 1000), 12 * 3600 * 1000);
+                _swapExpiryTimer = setTimeout(() => {
+                    _swapExpiryTimer = null;
+                    try { checkSwapExpiry(); scheduleRender(renderEmployeeExtras); scheduleRender(renderManagerExtras); } catch (err) { console.error(err); }
+                }, delay + 1000);
+            }
+        }
+
         // האם העובד יכול להחליף בבקשה הזו
         function canCover(me, s) {
             if (!me || !s || s.from === me || s.status !== 'pending_peer') return false;
@@ -2118,6 +2158,10 @@
                     if (sw.week !== pubWeekKey()) {
                         await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
                         notify("הבקשה פגה (שבוע אחר)"); return;
+                    }
+                    if (shiftEnded(sw.key, sw.from)) {
+                        await setDoc(doc(getSwapsCollection(), id), { status: 'expired', updatedAt: Date.now() }, { merge: true });
+                        notify("המשמרת כבר הסתיימה, הבקשה פגה"); return;
                     }
                     const done = await applySwapToSchedules(sw);
                     if (!done) {
@@ -2277,8 +2321,12 @@
             const mine = swaps.filter(s => s.from === me && s.week === wk).slice(0, 6);
             if (mine.length) {
                 h2 += `<h4 style="text-align:right;margin:10px 0 4px;">הבקשות שלי:</h4>`;
-                mine.forEach(s => { const canCancel = s.status === 'pending_peer' || s.status === 'pending_manager';
-                    h2 += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))}${s.to ? ' ← ' + esc(s.to) : ''}</span><span><span class="ws-note">${esc((SWAP_STATUS[s.status] || (() => s.status))(s))}</span>${canCancel ? ` <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsCancelSwap(this.dataset.id)">בטל</button>` : ''}</span></div>`;
+                mine.forEach(s => {
+                    const openSt = s.status === 'pending_peer' || s.status === 'pending_manager';
+                    const ended = openSt && shiftEnded(s.key, s.from);
+                    const canCancel = openSt && !ended;
+                    const statusTxt = ended ? 'פגה (המשמרת הסתיימה)' : (SWAP_STATUS[s.status] || (() => s.status))(s);
+                    h2 += `<div class="ws-row"><span>${esc(shiftLabelText(s.key))}${s.to ? ' ← ' + esc(s.to) : ''}</span><span><span class="ws-note">${esc(statusTxt)}</span>${canCancel ? ` <button class="ws-mini" style="background:#c0392b" data-id="${esc(s.id)}" onclick="wsCancelSwap(this.dataset.id)">בטל</button>` : ''}</span></div>`;
                 });
             }
             h2 += `</div>`;
@@ -2587,8 +2635,8 @@
                 <div class="ws-row"><span><select id="wsDrinksMonth" data-keep="1" onchange="wsDrinksMonthChanged()">${drinksMonthOptions()}</select></span><span><button class="ws-mini" onclick="wsLoadDrinks()">רענן</button></span></div>
                 <div id="wsDrinksBody" data-keep="1"></div></details>`;
 
-            // בקשות החלפה לאישור
-            const pending = swaps.filter(s => s.status === 'pending_manager');
+            // בקשות החלפה לאישור (לא מציגים בקשות שמשמרתן הסתיימה — הסריקה מסמנת אותן "פגה")
+            const pending = swaps.filter(s => s.status === 'pending_manager' && !shiftEnded(s.key, s.from));
             if (pending.length) {
                 h += `<div class="ws-card"><h3>בקשות החלפה לאישור (${pending.length})</h3>`;
                 pending.forEach(s => {
@@ -2601,7 +2649,7 @@
             }
 
             // בקשות החלפה פתוחות (עדיין מחפשות מחליף)
-            const openReqs = swaps.filter(s => s.status === 'pending_peer' && s.week === pubWeekKey());
+            const openReqs = swaps.filter(s => s.status === 'pending_peer' && s.week === pubWeekKey() && !shiftEnded(s.key, s.from));
             if (openReqs.length) {
                 const wd = weekDatesFull(pubSunday());
                 h += `<div class="ws-card"><h3>בקשות החלפה פתוחות (${openReqs.length})</h3>`;
@@ -2658,6 +2706,8 @@
             managerScreenActive = true;
             subscribeNotifs(MANAGER);
             if (notifGranted()) registerPush(MANAGER, true);
+            // ההאזנות מתחילות לפני שהמסך פעיל, אז הסריקה הראשונה מדלגת על כתיבה — מריצים שוב כאן
+            try { checkSwapExpiry(); } catch (e) { console.error(e); }
             renderManagerExtras();
         }
 
@@ -3125,6 +3175,7 @@
                 swaps = [];
                 snap.forEach(d => swaps.push({ id: d.id, ...d.data() }));
                 swaps.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                try { checkSwapExpiry(); } catch (e) { console.error(e); }
                 scheduleRender(renderEmployeeExtras);
                 scheduleRender(renderManagerExtras);
             }, true);
@@ -3216,6 +3267,7 @@
                     updatePublishBadge(false);
                 }
                 try { updateDatesInUI(); } catch(e){}
+                try { checkSwapExpiry(); } catch (e) { console.error(e); }
                 scheduleRender(renderFullScheduleForManager);
                 scheduleRender(renderSummaryTable);
                 if(verifiedEmployeeName) scheduleRender(renderScheduleForEmployee, verifiedEmployeeName);
@@ -3422,7 +3474,7 @@
         }
         setTimeout(checkForNewVersion, 8000);
         setInterval(checkForNewVersion, 10 * 60 * 1000);
-        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForNewVersion(); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkForNewVersion(); try { checkSwapExpiry(); } catch (e) {} } });
 
         function getShiftHours(dayIdx, shiftType) {
             return hoursFromTimes(publishedTimes, dayIdx, shiftType);
